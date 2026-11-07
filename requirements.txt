@@ -1,0 +1,8 @@
+# SAFE-ROOM (Project 8) for Ubuntu 22.04 / Python 3.10 / laptop + ESP32
+# Lecture-derived pins; candidate set, not yet installed/tested on user's laptop.
+numpy==1.26.4
+opencv-python==4.11.0.86
+pyserial==3.5
+Flask==3.0.3
+PyYAML==6.0.1
+pytest==8.2.0
