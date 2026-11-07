@@ -7,6 +7,8 @@
 **Source set:** 10 uploaded lecture PDFs + `vigil_v0.8.zip`. References below use **PDF page numbers (1-indexed)**; the ZIP references are archive-relative paths.  
 **Authority:** Only the uploaded materials and user-confirmed facts, **not** current online recommendations.
 
+**Maintenance:** This document preserves extracted course facts and historical user confirmations. Use the companion implementation plan for current progress and decisions. The original PDFs and VIGIL ZIP are not included in this repository.
+
 ---
 
 ## 0. REQUIRED OPERATING RULES FOR AN AI READING THIS FILE
@@ -283,7 +285,7 @@ python3 -c "import cv2; print(cv2.__version__)"                   # expected 4.1
 | Upload hangs on `Connecting...` | Press/hold BOOT as upload starts |
 | Camera not listed/in use | Use `v4l2-ctl --list-devices`; another `/dev/video` index may be correct |
 
-### 5.5 Why BME680 implementation is blocked for now
+### 5.5 Missing course specifications for BME680 implementation
 
 The missing sensor module would need to establish: **exact sensor breakout power/pin mapping, required Arduino BME680 driver and version, ESP32 core version, sensor initialization, read frequency, units, status/error handling and serial message format**. None is fully pinned in the supplied materials. **Ask for Modules 4.2/4.3 or the user's approval of a separately sourced implementation before selecting these details.** Do not claim a BME680 supplies a medically validated or calibrated pollution index from the provided brief alone.
 
@@ -340,23 +342,11 @@ Sources: Module 3.4 pp. 3–6, 8–13, 15–18; ZIP `README.md` and named source
 
 ---
 
-## 8. Capabilities required by the Project 8 brief — traceability checklist
+## 8. Current implementation status
 
-| Requirement | Source | State from conversation |
-|---|---|---|
-| Ubuntu development environment + Python 3.10 | Modules 1.3 / 3.2 | **Confirmed operational**; Python **3.10.12** |
-| Isolated Python venv | Module 2.2 p. 10 | **Confirmed operational**; `env` |
-| Six Python dependencies installed | Modules 3.2–3.4 + ZIP | **User reports installed**; per-library import checks pending |
-| Correct ESP32 board and IDE | Module 3.3 | **Not confirmed** |
-| ESP32 serial link works | Module 3.3 | **Not confirmed** |
-| BME680 samples actually read | Idea 8; missing Module 4.2/4.3 | **Not implemented/verified** |
-| Reliable occupancy flag | Idea 8 | **Method undefined; not implemented/verified** |
-| Editable patient-specific safe limits via form | Idea 8 | **Not implemented**; thresholds unspecified |
-| Time-persistent breach detection | Idea 8 | **Not implemented**; time not pinned |
-| Alerts non-blocking relative to monitor | Idea 8 | **Not implemented**; method unspecified |
-| 24-hour chart and history | Idea 8 | **Not implemented** |
-| Test safety logic without hardware | Idea 8 + VIGIL example | **Not implemented** |
-| Optional local LED/buzzer | Idea 8 + Module 3.3 | Optional; pin/design needs discussion |
+Current progress and open decisions are maintained in [SAFE_ROOM_PROJECT8_IMPLEMENTATION_PLAN.md](SAFE_ROOM_PROJECT8_IMPLEMENTATION_PLAN.md). Status statements elsewhere in this extraction describe the source conversation at extraction time, not ongoing verification.
+
+The repository now includes experimental BME680 firmware and a serial reader. Their presence does not resolve missing course specifications or establish dependency approval, successful compilation, or working hardware. Sections 5.5 and 9 describe gaps in the supplied manuals, not the absence of starter code.
 
 ---
 

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# LEGACY STARTER: not the approved default setup path. Do not run automatically.
+# The working environment is env; this script creates a separate .venv.
+# See reference_files/SAFE_ROOM_PROJECT8_IMPLEMENTATION_PLAN.md before use.
 # Installs system prerequisites and creates an isolated Python environment.
 # Run on Ubuntu 22.04 x86_64 from the starter folder, not on an NVIDIA Jetson.
 set -euo pipefail
