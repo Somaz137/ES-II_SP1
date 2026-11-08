@@ -1,0 +1,5 @@
+# Technical timeout settings, in seconds.
+# Loaded once at application startup; restart to apply edits.
+communication_timeout_s: 120
+sensor_error_timeout_s: 120
+
