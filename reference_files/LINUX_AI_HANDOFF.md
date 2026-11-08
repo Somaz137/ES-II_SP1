@@ -2,6 +2,23 @@
 
 Updated: 8 November 2026.
 
+## DOIT board selection - 8 November 2026
+
+The user selected DOIT ESP32 DevKit V1 with the classic ESP32 chip.
+The user confirmed a 3.3 V sensor supply.
+The firmware defaults to ROOM_BME680_SUPPLY_MV 3300.
+It selects the Bosch BME680 3.3 V, three-second configuration.
+Select DOIT ESP32 DEVKIT V1 in Arduino IDE 2.3.10.
+The board identifier is esp32:esp32:esp32doit-devkit-v1.
+SDA uses GPIO21. SCL uses GPIO22. Serial uses 115200 baud.
+The board header stores these values and rejects other ESP32 chip types.
+The chip check cannot identify the physical development board.
+This decision supersedes earlier statements that the board or supply is unknown.
+Exact ESP32 core and Bosch library versions remain unresolved.
+Preserve the existing Python dependencies and gas readiness behavior.
+Compilation, tests, and physical checks remain deferred to Linux.
+See [firmware guidance](../firmware/README.md) for setup and checks.
+
 ## Start here
 
 Continue this existing project rather than generating a replacement. First read this handoff, the implementation plan, the manual reference, and the configuration design/test files listed below.
@@ -261,7 +278,7 @@ See the [runtime design](../docs/superpowers/specs/2026-11-08-serial-runtime-des
 
 The user approved three-second LP sampling. PR #8 added the firmware source and is now merged into main. BSEC controls sampling, only new callback data produces readings, and errors remain recognized communication. No fixed gas warm-up countdown is added. Camera processing stays60 seconds, fault checks5 seconds, dashboard10 seconds, and both host fault durations120 seconds.
 
-Read [firmware/README.md](../firmware/README.md) before installation or compilation. Exact BSEC/BME68x/core versions remain to agree and verify. The inspected API references are candidates, not installed dependencies. Confirm the physical sensor die supply, then set ROOM_BME680_SUPPLY_MV to1800 or3300. Its default zero deliberately stops compilation. Do not guess from breakout VIN. No firmware compilation, tests, flashing, service or hardware operation ran on Windows.
+Read [firmware/README.md](../firmware/README.md) before installation or compilation. Exact BSEC/BME68x/core versions remain to agree and verify. The inspected API references are candidates, not installed dependencies. Use the confirmed sensor supply setting, ROOM_BME680_SUPPLY_MV 3300. The user subsequently confirmed 3.3 V; the default is now 3300. Recheck the supply if the breakout changes. No firmware compilation, tests, flashing, service or hardware operation ran on Windows.
 
 The inspected wrapper converts pressure to hPa before callback. The sketch uses that value without a second division. Recheck this contract if using a different wrapper and verify physical units. Do not copy generic raw-pressure units blindly. State persistence, automatic sensor reinitialization and custom temperature compensation remain future work.
 
