@@ -2,7 +2,7 @@
 
 Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
-**Current scope:** one room, one BME680 and one camera. Code includes dependency definitions, environment diagnostics, an experimental ESP32/BME680 serial test, technical-alert configuration loading/validation, pure communication/sensor-fault tracking, and serial-message classification/measurement validation. The full monitoring application is not implemented. Hardware operation has not been verified.
+**Current scope:** one room, one BME680 and one camera. Code includes dependency definitions, environment diagnostics, an experimental ESP32/BME680 serial test, technical-alert configuration loading/validation, pure communication/sensor-fault tracking, and serial-message classification/measurement validation. A terminal serial monitor now connects these components in source. The full room-safety application is not implemented. Hardware operation has not been verified.
 
 ## Start here
 
@@ -19,6 +19,25 @@ PRs #1 through #5 are merged into main. Python consumption of Bosch gas status i
 | [requirements.txt](requirements.txt) | Executable Python package pins |
 
 The original lecture PDFs and VIGIL ZIP are not included. The reference is an extraction, not a replacement for those source files.
+
+## Terminal runtime
+
+New source: `python3 monitor.py --port /dev/ttyUSB0` from the root in the existing approved Linux env, using the verified actual device path. Stop other serial readers first. This command is for later Linux verification, not an already-tested deployment procedure.
+
+The thin entry point loads `config/alerts.yaml` and `config/runtime.yaml` once, polls only the selected port, routes complete lines, retries after port errors and checks faults every five seconds during silence. Startup and retries share the same monitoring state. Host timers use a monotonic clock. JSON output reports retained readings, receipt age, estimated UTC, transport status, separate alerts and current gas status. It is not a safety verdict or dashboard.
+
+| File | Role |
+|---|---|
+| `monitor.py` | Thin terminal CLI |
+| `serial_transport.py` | Bounded nonblocking bytes, newline framing, connection retry |
+| `monitoring_loop.py` | Monotonic routing and periodic evaluation |
+| `status_output.py` | JSON-ready status with original reading age/time |
+| `runtime_settings.py`, `config/runtime.yaml` | Startup host scheduling settings |
+| `tests/test_serial_transport.py`, `tests/test_monitoring_loop.py`, `tests/test_runtime_settings.py` | New deferred Linux verification cases |
+
+Runtime defaults: fault checks five seconds, serial retry five seconds, transport polling 0.05 seconds. The last two are implementation controls, not alert durations or sensor acquisition rates. Neither YAML file changes firmware sampling. Partial records are buffered; invalid UTF-8 or oversized lines are discarded. Port-open status does not prove recognized messages. All tests and hardware checks remain deferred. No acknowledgment CLI exists yet; communication alerts remain latched after recovery until a future controller uses the existing acknowledgment API. No database persists state across process restarts.
+
+See the [serial runtime design](docs/superpowers/specs/2026-11-08-serial-runtime-design.md) and [Linux verification plan](docs/superpowers/plans/2026-11-08-serial-runtime.md). This draft builds on PR #8 and does not merge it.
 
 ## Existing code
 
@@ -52,7 +71,7 @@ No rule engine, occupancy detector, database, patient settings form, dashboard, 
 
 Edit `config/alerts.yaml` to set `communication_timeout_s` and `sensor_error_timeout_s`, in seconds. Both are required positive, finite numbers; booleans and numeric strings are invalid.
 
-The future monitor should call the loader once during startup and keep its returned settings:
+The terminal monitor calls the loader once during startup and keeps its returned settings:
 
 ```python
 from config_loader import load_alert_settings
@@ -60,7 +79,7 @@ from config_loader import load_alert_settings
 settings = load_alert_settings("config/alerts.yaml")
 ```
 
-The loader does not watch the file. Restart the monitor to apply technical-setting changes once startup integration is added. Patient-profile live updates are a separate future feature. This step does not implement timers or connect the loader to the experimental serial reader.
+The loader does not watch the file. Restart the monitor to apply technical-setting changes at the next startup. Patient-profile live updates are a separate future feature. The new terminal monitor connects the loader to the existing timing and routing modules. The old tools/read_sensor.py remains a separate diagnostic.
 
 From the repository root, using the pinned project environment, run the full test suite with `python -m pytest`.
 
@@ -74,7 +93,7 @@ Use `communication_timeout_s` from the loaded settings. The normal initial wait 
 
 `timed_out` and `alert_active` are separate: the first describes missing communication, the second can remain latched after recovery. Supplied times must be finite and nondecreasing within one clock domain. Equality triggers the timeout; a late message is evaluated against preceding silence before being recorded. Acknowledgment with no outstanding alert does not extend a wait.
 
-The future monitor must evaluate periodically even when no serial data arrives. Serial classification is now implemented separately below; runtime clock choice, history and real serial integration remain future work. The separate sensor-error module below is now implemented. Tests are written but not executed, per the user's Linux deferral.
+The future monitor must evaluate periodically even when no serial data arrives. Serial classification is now implemented separately below; monotonic timing and real serial integration are prepared in the terminal monitor. History remains future work. The separate sensor-error module below is now implemented. Tests are written but not executed, per the user's Linux deferral.
 
 ## Sensor-fault state
 
@@ -92,7 +111,7 @@ The module does not choose a real clock, read serial ports, or mutate the commun
 
 Valid readings require finite numeric `temp_c`, `humidity_pct`, `pressure_hpa` and `gas_ohms`; bools and numeric strings are invalid. Patient safety limits are not checked here. Only a valid result contains a complete dictionary of committable values. Incomplete/error/ignored results contain no partial replacement data.
 
-The new reading-state and router modules retain old measurements and their original receipt timestamp on incomplete readings, expose incomplete status immediately, and count them as sensor errors. Unreadable/non-object/unknown input is ignored without resetting communication timing. The parser remains stateless. The separate router now updates in-memory readings and fault snapshots, but does not read ports or display a dashboard. All its tests await Linux execution.
+The new reading-state and router modules retain old measurements and their original receipt timestamp on incomplete readings, expose incomplete status immediately, and count them as sensor errors. Unreadable/non-object/unknown input is ignored without resetting communication timing. The parser remains stateless. The router updates in-memory readings and fault snapshots. The new terminal loop supplies port input; a dashboard remains future work. All its tests await Linux execution.
 
 ## Monitoring state and routing
 
@@ -102,7 +121,7 @@ Before the first complete reading, values and receipt time are absent. The input
 
 `monitoring_status(state)` prioritizes actual communication loss. Otherwise it reports the latest input status. Expose the separate communication and sensor alert flags as well: fresh input can coexist with a communication alert awaiting acknowledgment. Fresh describes structural input and contact status, not gas readiness or room safety.
 
-Receipt time uses the supplied fault-clock domain. It is not an ESP32 acquisition timestamp or necessarily a calendar timestamp. Real clock selection, display conversion and the scheduled loop are not implemented. The gas metadata consumer below is implemented separately. BSEC firmware source is now prepared but uncompiled. See the [design](docs/superpowers/specs/2026-11-08-monitoring-state-design.md).
+Receipt time uses the supplied fault-clock domain. It is not an ESP32 acquisition timestamp or necessarily a calendar timestamp. The terminal loop now supplies monotonic time, estimated UTC conversion, and scheduled fault checks. The gas metadata consumer below is implemented separately. BSEC firmware source is now prepared but uncompiled. See the [design](docs/superpowers/specs/2026-11-08-monitoring-state-design.md).
 
 ## Bosch gas status
 
@@ -116,7 +135,7 @@ The user selected three-second BSEC LP sampling. The firmware source now subscri
 
 ## Selected monitoring intervals
 
-Planned intervals are camera occupancy processing every **60 seconds**, fault evaluation every **5 seconds**, and dashboard refresh every **10 seconds**. The new experimental ESP32 source selects **3-second** BSEC LP acquisition. Physical timing remains unverified. These Python cadences are recorded decisions; camera/monitor/dashboard scheduling is not implemented yet.
+Planned intervals are camera occupancy processing every **60 seconds**, fault evaluation every **5 seconds**, and dashboard refresh every **10 seconds**. The new experimental ESP32 source selects **3-second** BSEC LP acquisition. Physical timing remains unverified. Five-second fault scheduling is implemented in source. Camera and dashboard scheduling remain future work.
 
 ESP32 startup configuration is deferred as a [future side note](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md#future-side-note--esp32-sampling-configuration-deferred). Laptop YAML does not currently control the ESP32 sampling rate.
 
