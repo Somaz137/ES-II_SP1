@@ -38,7 +38,7 @@
 - [ ] Execute tests in the pinned Linux environment; intentionally deferred by user.
 - [ ] Record actual Linux results before merge readiness is claimed.
 - [x] Review the source; no implementation findings. Corrected stale branch-selection and YAML-decision text in the handoff/status documents.
-- [ ] Publish a draft change; keep full-verification status pending.
+- [x] Publish draft PR #3 (https://github.com/Somaz137/ES-II_SP1/pull/3); full-verification status remains pending.
 
 ## Verification policy
 
