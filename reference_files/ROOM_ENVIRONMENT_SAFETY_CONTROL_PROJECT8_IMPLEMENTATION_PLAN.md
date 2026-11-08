@@ -40,7 +40,8 @@ PRs #1 through #5 merged into main on 8 November 2026. The code remains unverifi
 | Communication-fault tracker | `communication_fault.py` implements initialization, recognized-message receipt, periodic evaluation and acknowledgment; takes supplied times and is not connected to serial/UI yet |
 | Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; not connected to serial/UI yet |
 | Serial parser / validator | `serial_parser.py` and `measurement_validation.py` classify decoded lines and check four finite numeric fields; no hardware, tracker mutation or committed-reading storage yet |
-| Automated tests | All five test files (configuration, communication, sensor, measurement validation, serial parser) written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
+| Reading state and router | reading_state.py, monitoring_state.py and message_router.py retain complete values/time, expose initial waiting and latest input states, and connect parser classifications to both fault trackers. Real I/O, clock and scheduler remain future work. |
+| Automated tests | All seven test files (configuration, communication, sensor, measurement validation, serial parser, retained readings, routing) written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
 
 ## Approved gas readiness design
 
@@ -145,16 +146,16 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - A sensor-error episode begins on a sensor-error message. Further error messages do not restart its timer. Persistent errors trigger a separate alert after 120 seconds.
 - A valid measurement resets the sensor-error waiting period and automatically clears that alert. Sensor-error recovery does not remove the separate communication-alert acknowledgment requirement.
 - Track the start of the current sensor-error episode as well as last communication and last successful measurement.
-- Technical configuration, both pure fault trackers, serial classification and finite-field measurement validation are implemented; tests are written but execution is deferred to Linux. Recognized reading/error types, incomplete-field treatment and ignored input are selected. Actual committed-reading retention/routing, runtime clock/scheduling, persistence/history and hardware integration remain future work.
+- Technical configuration, both pure fault trackers, serial classification and finite-field measurement validation are implemented; tests are written but execution is deferred to Linux. Recognized reading/error types, incomplete-field treatment and ignored input are selected. Committed-reading retention and routing now exist in separate modules. Runtime clock/scheduling, persistence/history and hardware integration remain future work.
 - Implementation details: immutable snapshots; timeout equality uses >=; late communication preserves its elapsed fault before recording recovery; no-op acknowledgments do not extend waits. Sensor pauses begin when timeout status is supplied, not retroactively. Existing sensor alerts remain until a valid reading; an error with no remaining wait alerts on resume. These details are explicit in the designs and deferred tests.
 
 ## Selected serial-input handling
 
 - Type=reading requires temp_c, humidity_pct, pressure_hpa and gas_ohms as finite numeric values, excluding bools/numeric strings. Missing/unusable values produce incomplete_reading with no partial values to commit.
-- Incomplete readings preserve the last complete committed snapshot and original timestamp at the future consumer, indicate incomplete current input immediately, and start/continue the existing sensor-error episode without restarting it. Explicit type=error is sensor_error and also contains no committable measurements.
+- Incomplete readings preserve the last complete committed snapshot and original timestamp in the reading-state/router consumer, indicate incomplete current input immediately, and start/continue the existing sensor-error episode without restarting it. Explicit type=error is sensor_error and also contains no committable measurements.
 - Decoder failures, non-object JSON and missing/unknown record types are ignored. They do not reset communication time or directly change sensor-error state; scheduled fault checks continue.
-- Only valid_reading carries replacement measurements. Patient/physical range limits are not introduced by structural validation. Parser is stateless and not wired into the experimental reader yet.
-- After every checkpoint response, compare verified VIGIL behavior. It has no BME680 serial parser; distinguish architectural analogy from a direct equivalent.
+- Only valid_reading carries replacement measurements. Patient/physical range limits are not introduced by structural validation. Parser remains stateless. The new router connects it to reading/fault state, but is not wired into the experimental reader yet.
+- Use fewer build checkpoints for routine choices, as requested. After each meaningful checkpoint response, compare verified VIGIL behavior. It has no BME680 serial parser; distinguish architectural analogy from a direct equivalent.
 
 ## Next information needed
 

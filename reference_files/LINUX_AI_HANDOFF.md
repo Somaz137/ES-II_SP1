@@ -20,9 +20,12 @@ The user explicitly deferred testing **until returning to Linux**. Do not set up
 - Merge result before this documentation update: a15b1bdfc6a1db87b9c8a89dcec4b109a3ca9e0a.
 - The setup shell script is absent. Full pytest execution remains deferred to Linux.
 - Use main for continuation. Inspect the current remote and local state before changing branches. Preserve local work.
+- Current feature: codex/monitoring-state adds retained-reading state and routing on top of main. This feature is prepared as a draft, not merged. Use this branch or a merged successor for its seven test files.
 - Human overview: [README_HUMAN.md](../README_HUMAN.md). Keep AI continuation instructions in this handoff rather than the human guide.
 
 ## Read these files
+
+Also read reading_state.py, monitoring_state.py, message_router.py, tests/test_reading_state.py, tests/test_message_router.py, and the monitoring-state spec/plan in docs/superpowers.
 
 | File | Authority / purpose |
 |---|---|
@@ -57,6 +60,7 @@ The original PDFs and VIGIL source are not included in this repository. The prio
 - Follow course-prescribed versions and procedures. Flag missing specifications and obtain the user's agreement before introducing alternatives, unpinned dependencies, hardware procedures or algorithms.
 - Do not recreate, rename or upgrade the existing working Ubuntu env by default.
 - Keep distinct responsibilities in small Python files and focused functions; related helpers may share a file. A thin entry point connects them.
+- The user requested fewer build checkpoints. Group routine implementation choices and pause for consequential unresolved behavior, hardware, dependency or scope decisions.
 - VibeWise learning mode is active. Explain unfamiliar concepts; ask for the learner's approach on meaningful unresolved decisions. Implement only the scope they agree to; an explanation or suggestion is not their design decision.
 - After every checkpoint answer, explain the verified corresponding VIGIL behavior. State when it has no direct equivalent rather than inventing reference behavior.
 - Use Impeccable for dashboard work. Use the user's requested GitHub/Superpowers/Computer/Browser/Plugin Management capabilities where relevant; load available instructions before use.
@@ -74,14 +78,22 @@ git branch --show-current
 git fetch origin
 ```
 
-All five component PRs are now merged. With a clean working tree and an existing local main branch, continue with:
+PRs #1 through #5 are merged, but the reading-state/router feature starts on codex/monitoring-state. Check remote merge state before selecting a branch. With a clean working tree and an existing local feature branch, use:
 
 ```bash
-git switch main
-git pull --ff-only origin main
+git switch codex/monitoring-state
+git pull --ff-only origin codex/monitoring-state
 ```
 
-If no local main branch exists, create its tracking checkout with git switch --track origin/main instead of the switch command above. If local changes or divergent commits prevent continuation, report the state and ask before resolving it. Do not force checkout, reset, clean, delete or silently stash work.
+If no local feature branch exists, use git switch --track origin/codex/monitoring-state instead of the switch command above. If this feature is already merged, use main or its merged successor. If local changes or divergent commits prevent continuation, report the state and ask before resolving it. Do not force checkout, reset, clean, delete or silently stash work.
+
+## Reading-state/router continuation
+
+The new pure routing layer connects actual parsing, retained values and both fault trackers. Initial values and measurement time are absent, with waiting_for_first_measurement status. Recognized error/incomplete input changes the latest input status without inventing measurements. Complete readings replace all four values and host receipt time. Use one finite nondecreasing clock domain for all calls.
+
+process_serial_line(state, line, now) returns a new combined snapshot. Ignored lines still evaluate timeouts. evaluate_monitoring_faults(state, now) must also run during silence. acknowledge_monitoring_communication(state, now) preserves actual contact facts and sensor pause. The summary status does not replace either alert flag and never establishes gas readiness or room safety. No real clock, timestamp display conversion or serial/scheduler connection is implemented.
+
+Tests now include test_reading_state.py and test_message_router.py, for seven test files total. All execution remains deferred to Linux. Next implementation work is real input/runtime integration and the separately approved gas readiness design, not reimplementing the pure router.
 
 ## Step 2 — Verify the existing Linux environment
 
@@ -122,7 +134,7 @@ python3 tools/check_setup.py
 
 Read every CHECK / NOT INSTALLED result: the script does not fail its exit code on version mismatches, and metadata does not prove successful imports. Missing USB/camera devices do not block hardware-free configuration tests. If dependencies differ, report the mismatch and consult the manual/user before reinstalling or upgrading. The user previously reported requirements installation successful; do not repeat it automatically.
 
-## Step 3 — Run the full configuration, fault and parser suite on Linux
+## Step 3 — Run the full configuration, fault, parser and routing suite on Linux
 
 From the repository root in the pinned environment:
 
@@ -144,7 +156,7 @@ The new communication tests cover startup at time zero, configurable durations, 
 
 The sensor tests cover explicit-error startup, independent duration, repeated errors, valid-reading reset/auto-clear, excluded paused time, repeated pause/resume, simultaneous timeout boundaries, preserved existing alerts and last-valid-measurement time, immutable states and invalid/backwards inputs. Two cases use the actual communication module to distinguish its timeout status from its acknowledgment latch. No sensor tests or application modules have been executed.
 
-The new validator/parser tests cover every required field, finite numbers, bool/string/nonfinite rejection, no invented patient thresholds, real JSON lines, explicit errors, missing/unusable diagnostic text, partial fields, whitespace, extra metadata, overflow, garbled/unknown/non-object input, deep decoder input and decoded-text caller contract. These tests also remain unexecuted. Run all five test files through the full suite command above.
+The new validator/parser tests cover every required field, finite numbers, bool/string/nonfinite rejection, no invented patient thresholds, real JSON lines, explicit errors, missing/unusable diagnostic text, partial fields, whitespace, extra metadata, overflow, garbled/unknown/non-object input, deep decoder input and decoded-text caller contract. These tests also remain unexecuted. Run all seven test files through the full suite command above.
 
 Expected: full collection and all tests pass. Inspect any collection/import failures as well as assertion failures. Do not replace PyYAML with a mock or parser workaround.
 
@@ -193,7 +205,7 @@ The configuration functions, both pure fault trackers, serial classification and
 
 Sensor pauses start at the supplied timeout-status transition, not retroactively at the last message. Time before that pause still counts. Existing sensor alerts remain until a valid reading; no new sensor alert is raised while paused. If no waiting time remains when an error resumes, alert immediately; if the returned message is valid, reset/clear instead. The future loop must update communication, synchronize its actual timeout status with the sensor tracker, process recognized sensor records, and publish the final resulting snapshots rather than transient intermediate states. Real polling and clock selection are not yet implemented.
 
-Serial parsing now returns valid_reading, sensor_error, incomplete_reading or ignored. Recognized readings need all four expected finite numeric fields; bools and numeric strings are invalid. Incomplete readings must preserve the last complete committed values/time, immediately indicate incomplete input, and count as sensor errors. Ignored input must not reset communication. Only valid_reading carries measurements. The stateless parser does not itself perform these state updates or connect to hardware; this routing/retention is the next integration step.
+Serial parsing now returns valid_reading, sensor_error, incomplete_reading or ignored. Recognized readings need all four expected finite numeric fields; bools and numeric strings are invalid. Incomplete readings must preserve the last complete committed values/time, immediately indicate incomplete input, and count as sensor errors. Ignored input must not reset communication. Only valid_reading carries measurements. The stateless parser does not itself perform these state updates or connect to hardware; the separate router now performs routing and retention in memory. Connecting it to actual serial I/O remains the next runtime integration step.
 
 ## Remaining milestones after configuration verification
 
@@ -204,7 +216,7 @@ These are an ordered roadmap, not approval to invent unresolved choices.
 | Verify communication state | Run the written startup, message, acknowledgment and re-alert cases; fix scoped defects with evidence | Existing startup choice is normal timeout from program start; retain documented boundary behavior; actual runtime clock and persistence remain open |
 | Verify sensor state | Run the written error, valid-reading, pause/resume and interaction cases using the full suite | Pause/resume and auto-clear are agreed; do not reimplement them. Message classification/finite validation is now implemented; actual timing/scheduling and persistence remain open |
 | Verify fault interaction | Run the written actual-module interaction cases as part of the full Linux suite | Use communication.timed_out for pause; acknowledgment latch alone must neither pause nor resume sensor timing |
-| Reading-state and serial integration | Route the already-classified results into fault trackers, preserve last committed values/time, and evaluate silence independently of record receipt | Parsed kinds/finite-field checks are implemented. Agree runtime clock/order, committed-state interface, USB disconnect/reconnection/framing and actual port; avoid blocking five-second fault evaluation |
+| Serial/runtime integration | Connect the implemented router and periodic evaluator to actual I/O | Pure routing, retention and ordering are implemented. Agree runtime clock, USB disconnect/reconnection/framing and actual port. Avoid blocking five-second fault evaluation |
 | BME680 verification | Confirm board/breakout, actual readings and failure records using the single-sensor starting point | Arduino IDE 2.3.10 status; missing Modules 4.2/4.3 or agreed external procedure; ESP32 core and BME680 library/version approval; wiring before flashing |
 | Camera occupancy | Acquire camera input and determine occupied/absent/uncertain/failure behavior | Camera type/connection and approved detection method; motion alone must not be assumed equivalent to occupancy; no new vision dependency without agreement |
 | Patient profiles and room rules | Load/select a profile, edit patient limits through a form, and apply sustained-breach decisions | Profile format/identity, monitored metrics/units, safe limits, breach duration, changed-limit effect on running timers, recovery/cooldown, occupancy gating, invalid profile behavior |

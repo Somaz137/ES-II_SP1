@@ -45,7 +45,7 @@ This prototype does not use an NVIDIA Jetson Nano.
 6. Python applies the agreed patient rules when measurements are suitable.
 7. The dashboard shows the resulting status.
 
-Only the firmware experiment, input classification, and separate fault components exist today.
+The firmware experiment, input classification, retained readings, and fault routing exist today.
 The complete sequence does not run yet.
 The future design keeps monitoring independent from dashboard refreshes.
 
@@ -74,7 +74,8 @@ Sensor status answers: Do those messages contain usable measurements?
 A recognized error message proves communication, but it does not provide a fresh measurement.
 
 The following table describes the agreed behavior.
-Separate fault components implement the timers, but the monitoring application does not connect them yet.
+The router now connects input classification, retained readings, and both fault components.
+The actual serial loop does not call this router yet.
 
 | Event | Agreed behavior |
 |---|---|
@@ -95,6 +96,11 @@ Acknowledgment does not change the actual last-contact time.
 
 ## Missing or incomplete readings
 
+Before the first complete reading, the state contains no values or measurement time.
+The initial status is waiting for the first measurement.
+Recognized errors change the input status even when no complete reading exists.
+The normal communication timeout still starts immediately.
+
 An incomplete reading must not replace the last complete reading.
 The future dashboard will retain the previous values and their original timestamp.
 It will also indicate that the latest input is incomplete.
@@ -103,7 +109,8 @@ The dashboard must not present retained values as fresh measurements.
 A recognized incomplete reading counts as communication and as a sensor error.
 The sensor alert still waits for the configured error duration.
 The parser already identifies incomplete readings.
-Reading retention, status presentation, and connections to the fault trackers remain future work.
+The new state and router modules retain readings and update the fault trackers.
+The dashboard remains future work.
 
 ## Gas warm-up
 
@@ -164,19 +171,22 @@ Dashboard refreshes and camera observations have their own intervals.
 | `config_validation.py` | Checks the required settings and values. |
 | `communication_fault.py` | Tracks communication timeout and acknowledgment. |
 | `sensor_fault.py` | Tracks persistent measurement errors and recovery. |
+| `reading_state.py` | Retains complete values, receipt time, and the latest input status. |
+| `monitoring_state.py` | Combines reading state and both fault trackers. |
+| `message_router.py` | Connects decoded serial input to those states. |
 | `serial_parser.py` | Classifies a decoded serial line. |
 | `measurement_validation.py` | Checks the four required measurement fields. |
 | `firmware/room_environment_safety_control_bme680.ino` | Contains the experimental ESP32 sensor reader. |
 | `tools/read_sensor.py` | Prints JSON records from a selected serial port. It does not connect the monitoring components. |
 | `tools/check_setup.py` | Reports environment metadata. It does not prove that the application works. |
-| `tests/` | Contains five test files. Test execution remains deferred to Linux. |
+| `tests/` | Contains seven test files. Test execution remains deferred to Linux. |
 | `reference_files/` | Contains the course reference, implementation plan, Linux handoff, and VIGIL comparison. |
 | `docs/superpowers/` | Contains detailed component designs and implementation checklists. |
 
 ## What remains
 
 1. Execute the existing tests in the approved Linux environment.
-2. Connect the parser, retained readings, and fault trackers.
+2. Connect the new routing layer to the actual serial reader.
 3. Add serial recovery, periodic checks, and gas readiness handling.
 4. Check real sensor operation and select the camera method.
 5. Define patient profiles and environmental alert rules.
