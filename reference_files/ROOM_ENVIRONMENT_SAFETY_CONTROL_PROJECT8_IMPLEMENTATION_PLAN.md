@@ -88,7 +88,7 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - Use VibeWise learning mode, Impeccable for dashboard design, and the requested GitHub, Superpowers, Computer, Browser, and Plugin Management capabilities where relevant. VibeWise's local learning skill has been read and is active; Impeccable is available.
 - Develop from Windows for now; Ubuntu runtime checks are deferred. Requirements installation and specified versions are user-reported, not independently verified.
 - Keep distinct responsibilities in small Python modules with focused functions; related helpers may share a module. A small main program connects components.
-- Use VIGIL as a reference and reuse appropriate code snippets after inspecting them. Do not transfer its posture logic, defaults, dependencies, or deployment unchanged. See [comparison](VIGIL_COMPARISON.md).
+- Use VIGIL as a reference and reuse appropriate code snippets after inspecting them. The original local source was inspected on 8 November 2026; the comparison now records source-backed behavior and concrete reuse limitations. Do not transfer its posture logic, defaults, dependencies, or deployment unchanged. See [comparison](VIGIL_COMPARISON.md).
 
 ## Confirmed fault-monitoring design
 
