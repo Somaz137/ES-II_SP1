@@ -37,7 +37,8 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 | Technical alert settings | Implemented as `config/alerts.yaml`, `config_loader.py`, and `config_validation.py`; startup-only loading, not yet connected to the sensor reader |
 | Communication-fault tracker | `communication_fault.py` implements initialization, recognized-message receipt, periodic evaluation and acknowledgment; takes supplied times and is not connected to serial/UI yet |
 | Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; not connected to serial/UI yet |
-| Automated tests | `tests/test_config.py`, `tests/test_communication_fault.py`, and `tests/test_sensor_fault.py` written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
+| Serial parser / validator | `serial_parser.py` and `measurement_validation.py` classify decoded lines and check four finite numeric fields; no hardware, tracker mutation or committed-reading storage yet |
+| Automated tests | All five test files (configuration, communication, sensor, measurement validation, serial parser) written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
 
 ## Selected execution intervals
 
@@ -129,8 +130,16 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - A sensor-error episode begins on a sensor-error message. Further error messages do not restart its timer. Persistent errors trigger a separate alert after 120 seconds.
 - A valid measurement resets the sensor-error waiting period and automatically clears that alert. Sensor-error recovery does not remove the separate communication-alert acknowledgment requirement.
 - Track the start of the current sensor-error episode as well as last communication and last successful measurement.
-- Technical configuration and both pure fault trackers are implemented; tests are written but all execution is deferred to Linux. Startup communication timing and sensor pause/resume are confirmed. Message-recognition/measurement validation criteria, actual runtime clock/scheduling, history/persistence and hardware integration remain unresolved.
+- Technical configuration, both pure fault trackers, serial classification and finite-field measurement validation are implemented; tests are written but execution is deferred to Linux. Recognized reading/error types, incomplete-field treatment and ignored input are selected. Actual committed-reading retention/routing, runtime clock/scheduling, persistence/history and hardware integration remain future work.
 - Implementation details: immutable snapshots; timeout equality uses >=; late communication preserves its elapsed fault before recording recovery; no-op acknowledgments do not extend waits. Sensor pauses begin when timeout status is supplied, not retroactively. Existing sensor alerts remain until a valid reading; an error with no remaining wait alerts on resume. These details are explicit in the designs and deferred tests.
+
+## Selected serial-input handling
+
+- Type=reading requires temp_c, humidity_pct, pressure_hpa and gas_ohms as finite numeric values, excluding bools/numeric strings. Missing/unusable values produce incomplete_reading with no partial values to commit.
+- Incomplete readings preserve the last complete committed snapshot and original timestamp at the future consumer, indicate incomplete current input immediately, and start/continue the existing sensor-error episode without restarting it. Explicit type=error is sensor_error and also contains no committable measurements.
+- Decoder failures, non-object JSON and missing/unknown record types are ignored. They do not reset communication time or directly change sensor-error state; scheduled fault checks continue.
+- Only valid_reading carries replacement measurements. Patient/physical range limits are not introduced by structural validation. Parser is stateless and not wired into the experimental reader yet.
+- After every checkpoint response, compare verified VIGIL behavior. It has no BME680 serial parser; distinguish architectural analogy from a direct equivalent.
 
 ## Next information needed
 
@@ -147,6 +156,7 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - Environment: Module 2.2 pp. 8–10.
 - Flask/SQLite/configuration/testing architecture: Module 3.4 and VIGIL ZIP.
 - Full extraction: [manual reference](ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md). Original PDFs/ZIP are absent from this repository.
+
 
 
 

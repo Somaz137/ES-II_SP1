@@ -2,7 +2,7 @@
 
 Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
-**Current scope:** one room, one BME680 and one camera. Code includes dependency definitions, environment diagnostics, an experimental ESP32/BME680 serial test, technical-alert configuration loading/validation, and pure communication/sensor-fault tracking. The full monitoring application is not implemented. Hardware operation has not been verified.
+**Current scope:** one room, one BME680 and one camera. Code includes dependency definitions, environment diagnostics, an experimental ESP32/BME680 serial test, technical-alert configuration loading/validation, pure communication/sensor-fault tracking, and serial-message classification/measurement validation. The full monitoring application is not implemented. Hardware operation has not been verified.
 
 ## Start here
 
@@ -31,9 +31,12 @@ The original lecture PDFs and VIGIL ZIP are not included. The reference is an ex
 | `tests/test_communication_fault.py` | Deferred Linux scenarios for startup, recovery, acknowledgment and timeout boundaries |
 | `sensor_fault.py` | Persistent sensor-error timing, communication-driven pause/resume and valid-measurement recovery |
 | `tests/test_sensor_fault.py` | Deferred sensor scenarios, including use of the real communication-state module |
+| `measurement_validation.py` | Requires the four measurement fields as finite numeric values; no safety thresholds |
+| `serial_parser.py` | Classifies decoded lines; only valid readings carry committable measurements |
+| `tests/test_measurement_validation.py`, `tests/test_serial_parser.py` | Deferred validation and real JSON classification cases |
 | `.gitignore` | Excludes environments, caches, editor metadata, and logs |
 
-No rule engine, occupancy detector, database, patient settings form, dashboard, or notification worker exists yet. Configuration, communication-fault and sensor-fault tests are written; all remaining test execution is deferred to the pinned Linux environment.
+No rule engine, occupancy detector, database, patient settings form, dashboard, or notification worker exists yet. Configuration, fault-tracker, measurement-validation and serial-parser tests are written; all remaining test execution is deferred to the pinned Linux environment.
 
 ## Technical alert settings
 
@@ -61,7 +64,7 @@ Use `communication_timeout_s` from the loaded settings. The normal initial wait 
 
 `timed_out` and `alert_active` are separate: the first describes missing communication, the second can remain latched after recovery. Supplied times must be finite and nondecreasing within one clock domain. Equality triggers the timeout; a late message is evaluated against preceding silence before being recorded. Acknowledgment with no outstanding alert does not extend a wait.
 
-The future monitor must evaluate periodically even when no serial data arrives. Parsing, runtime clock choice, history and serial integration remain future work. The separate sensor-error module below is now implemented. Tests are written but not executed, per the user's Linux deferral.
+The future monitor must evaluate periodically even when no serial data arrives. Serial classification is now implemented separately below; runtime clock choice, committed-reading state, history and serial integration remain future work. The separate sensor-error module below is now implemented. Tests are written but not executed, per the user's Linux deferral.
 
 ## Sensor-fault state
 
@@ -71,7 +74,15 @@ Explicit error messages start or continue an episode; repeated errors do not res
 
 Pass `communication.timed_out` to periodic sensor evaluation, not `communication.alert_active`. Active error time accumulates until a pause is reported, stays unchanged while paused, and resumes when communication returns. Acknowledgment alone does not resume it. Existing sensor alerts stay until a valid measurement; no new sensor alert is raised while paused. If the full wait accumulated before a pause, an error on resume alerts immediately; a valid measurement clears/reset instead.
 
-The module does not choose a real clock, parse serial data, or mutate the communication tracker. Callers must update both trackers for recognized messages and evaluate periodically during silence. Tests are written but not executed; run the full suite on Linux as described in the handoff.
+The module does not choose a real clock, read serial ports, or mutate the communication tracker. Callers must update both trackers for recognized messages and evaluate periodically during silence. Tests are written but not executed; run the full suite on Linux as described in the handoff.
+
+## Serial classification and measurement validation
+
+`parse_serial_line(line)` in `serial_parser.py` returns `valid_reading`, `sensor_error`, `incomplete_reading` or `ignored`. It accepts decoded text, uses the starter firmware's JSON types and calls `validate_measurements(data)` from `measurement_validation.py`.
+
+Valid readings require finite numeric `temp_c`, `humidity_pct`, `pressure_hpa` and `gas_ohms`; bools and numeric strings are invalid. Patient safety limits are not checked here. Only a valid result contains a complete dictionary of committable values. Incomplete/error/ignored results contain no partial replacement data.
+
+The next consumer must retain old measurements and their original timestamp on incomplete readings, expose incomplete status immediately, and count them as sensor errors. Unreadable/non-object/unknown input is ignored without resetting communication timing. This stateless layer does not yet update trackers, store readings, read ports or display a dashboard. All its tests await Linux execution.
 
 ## Selected monitoring intervals
 
@@ -98,6 +109,7 @@ Gas resistance is raw ohms, not calibrated AQI, CO2, or CO. This is a teaching p
 ## VIGIL reference and project-specific decisions
 
 See [VIGIL comparison](reference_files/VIGIL_COMPARISON.md) for the verified manual-backed differences and authorized code-reuse scope. The current project name is **Room Environment Safety Control**; the repository remains `ES-II_SP1`.
+
 
 
 
