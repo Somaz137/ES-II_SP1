@@ -1,0 +1,5 @@
+# Host-only startup settings. These do not change BME680 acquisition.
+fault_check_interval_s: 5
+# Transport implementation settings; neither is an alert duration.
+serial_retry_interval_s: 5
+serial_poll_interval_s: 0.05

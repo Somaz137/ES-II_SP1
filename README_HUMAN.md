@@ -6,7 +6,7 @@ This guide explains the project for students, reviewers, and future team members
 It describes the project purpose, current code, and planned behavior.
 It contains no instructions for an AI assistant.
 
-**Current status:** The repository contains separate components, but it does not contain a complete monitoring application.
+**Current status:** The repository contains a terminal serial monitor and separate monitoring components. The complete room-safety application is not implemented.
 Hardware operation and the full test suite still need checks in the approved Linux environment.
 
 ## What the project does
@@ -27,7 +27,7 @@ The project does not yet define those control functions.
 |---|---|---|
 | BME680 | Measures temperature, humidity, pressure, and gas resistance | Experimental firmware exists. Physical operation remains unverified. |
 | ESP32 | Reads the BME680 and sends measurements through USB serial | Experimental firmware exists. |
-| Laptop | Runs the Python monitoring logic | Separate components exist. Their integration remains future work. |
+| Laptop | Runs the Python monitoring logic | A terminal serial loop connects readings and fault tracking. Runtime checks remain pending. |
 | Camera | Supplies images for occupancy detection | Connection and detection method remain undecided. |
 | Dashboard | Shows room status and accepts alert acknowledgments | Not implemented. |
 
@@ -46,8 +46,31 @@ This prototype does not use an NVIDIA Jetson Nano.
 7. The dashboard shows the resulting status.
 
 The firmware experiment, input classification, retained readings, and fault routing exist today.
-The complete sequence does not run yet.
+The terminal monitor connects steps 1 through 5 in source. Real operation still needs checks. Patient rules and the dashboard remain future work.
 The future design keeps monitoring independent from dashboard refreshes.
+
+## Terminal monitor
+
+The new source connects serial input to the parser and fault trackers.
+It requires an explicitly selected ESP32 port.
+It retries that port after connection errors.
+A retry does not reset the two-minute communication timer.
+Opening the port can reset some ESP32 boards.
+That physical behavior still needs a check.
+
+The terminal shows JSON records with the last complete reading, its age, and its receipt time.
+The calendar time is an estimate based on the computer clock at startup.
+It is not the time when the ESP32 measured the room.
+Old readings keep their original receipt time.
+Gas warm-up and calibration show unavailable when communication or current measurements fail.
+
+Fault checks continue during silence, even if the port cannot open.
+The default check interval is five seconds.
+Output can also change when a new record arrives.
+This terminal output has a separate schedule from the planned dashboard.
+
+The monitor has no camera processing, patient rules, database, notifications, or acknowledgment control yet.
+Tests and real operation remain pending on the project Linux setup.
 
 ## Measurements and their meaning
 
@@ -75,7 +98,7 @@ A recognized error message proves communication, but it does not provide a fresh
 
 The following table describes the agreed behavior.
 The router now connects input classification, retained readings, and both fault components.
-The actual serial loop does not call this router yet.
+The new terminal loop calls this router and checks faults during silence.
 
 | Event | Agreed behavior |
 |---|---|
@@ -89,7 +112,7 @@ The actual serial loop does not call this router yet.
 | Unreadable or unknown input arrives | Ignore that input. Continue checking for communication timeout. |
 
 Communication recovery does not dismiss an outstanding communication alert.
-A person must acknowledge that alert.
+A person must acknowledge that alert. The terminal monitor has no acknowledgment control yet. Its communication alert remains active after recovery. The dashboard control remains future work.
 Acknowledgment during an outage dismisses the alert and starts another two-minute wait.
 Continued silence causes another alert after that wait.
 Acknowledgment does not change the actual last-contact time.
@@ -160,10 +183,10 @@ See the [BSEC integration design](docs/superpowers/specs/2026-11-08-bsec-status-
 | Sensor error timeout | 120 seconds | Exists in `config/alerts.yaml`. |
 | BME680 sampling | Every three seconds | BSEC low-power mode selected. New firmware source remains unverified. |
 | Camera processing | Every 60 seconds | Planned. |
-| Fault checks | Every 5 seconds | Planned. |
+| Fault checks | Every 5 seconds | Implemented in source. Runtime checks remain pending. |
 | Dashboard refresh | Every 10 seconds | Planned. |
 | Patient profiles | Apply valid changes during monitoring | Planned. Format and validation remain undecided. |
-| Technical settings | Apply changes at program startup | Loader exists. Startup integration remains future work. |
+| Technical settings | Apply changes at program startup | The terminal monitor loads both technical YAML files once. |
 
 Laptop YAML does not currently control the ESP32 sampling interval.
 That configuration mechanism remains deferred.
@@ -177,6 +200,12 @@ Dashboard refreshes and camera observations have their own intervals.
 
 | File or folder | Purpose |
 |---|---|
+| `monitor.py` | Starts the local terminal monitor. |
+| `serial_transport.py` | Reads complete serial lines and retries a lost connection. |
+| `monitoring_loop.py` | Routes messages and checks faults during silence. |
+| `status_output.py` | Formats readings, ages, and fault facts as JSON. |
+| `config/runtime.yaml` | Sets host polling, retry, and fault-check intervals. |
+| `runtime_settings.py` | Loads and checks host timing settings. |
 | `config/alerts.yaml` | Stores the two technical fault durations. |
 | `config_loader.py` | Reads the YAML settings. |
 | `config_validation.py` | Checks the required settings and values. |
@@ -192,16 +221,16 @@ Dashboard refreshes and camera observations have their own intervals.
 | `firmware/README.md` | Explains firmware configuration and remaining hardware checks. |
 | `tools/read_sensor.py` | Prints JSON records from a selected serial port. It does not connect the monitoring components. |
 | `tools/check_setup.py` | Reports environment metadata. It does not prove that the application works. |
-| `tests/` | Contains eight test files. Test execution remains deferred to Linux. |
+| `tests/` | Contains eleven Python test files. Test execution remains deferred to Linux. |
 | `reference_files/` | Contains the course reference, implementation plan, Linux handoff, and VIGIL comparison. |
 | `docs/superpowers/` | Contains detailed component designs and implementation checklists. |
 
 ## What remains
 
 1. Execute the existing tests in the approved Linux environment.
-2. Connect the new routing layer to the actual serial reader.
+2. Check the terminal monitor, retained values, serial recovery, and periodic fault checks.
 3. Check firmware dependencies and sensor supply.
-4. Check the new firmware and add laptop serial recovery and periodic checks.
+4. Check the new firmware with the laptop monitor.
 5. Check real sensor operation and select the camera method.
 6. Define patient profiles and environmental alert rules.
 7. Add storage, event history, and the dashboard.
