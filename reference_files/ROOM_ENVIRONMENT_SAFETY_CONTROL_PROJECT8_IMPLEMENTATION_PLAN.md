@@ -39,6 +39,27 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 | Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; not connected to serial/UI yet |
 | Automated tests | `tests/test_config.py`, `tests/test_communication_fault.py`, and `tests/test_sensor_fault.py` written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
 
+## Selected execution intervals
+
+These are design decisions, not an implemented monitoring loop.
+
+| Operation | Selected interval | Current control/status |
+|---|---|---|
+| BME680 acquisition | Approximately 1 second | Existing experimental ESP32 firmware timing; actual hardware rate unverified |
+| Camera occupancy processing | 60 seconds | Latest learner choice; supersedes the earlier 5-second proposal; Python scheduling not implemented |
+| Fault evaluation | 5 seconds | Selected for future Python monitoring loop |
+| Dashboard refresh | 10 seconds | Selected for future dashboard |
+
+The future Python-side technical settings should load at startup. The camera processing interval does not select a capture frame rate or buffering policy; those remain open. Occupancy may reflect the previous observation until the next one-minute processing check. When five-second fault evaluation is integrated, timeout detection occurs on the next check, potentially almost five seconds after the duration expires plus scheduling/processing delay.
+
+## Future side note — ESP32 sampling configuration (deferred)
+
+The learner explicitly declined adding ESP32 startup configuration now and requested that the idea be kept for later.
+
+Possible later extension: read a desired acquisition interval from laptop YAML and send it to the ESP32 over USB serial at startup, with agreed firmware handling and confirmation. No command format, firmware implementation, dependency version, or automatic action is selected or authorized by this note.
+
+For the current prototype, leave the ESP32's approximately one-second acquisition timing in its firmware. Do not add a YAML field that appears to control actual acquisition without implementing the ESP32 path; changing Python read/poll delays would not change the sensor's firmware sampling interval. This defers actual YAML-to-ESP32 interval control, rather than implementing a misleading host-only setting.
+
 ## Existing sensor test
 
 - `firmware/room_environment_safety_control_bme680.ino` uses Adafruit BME680, GPIO21 SDA/GPIO22 SCL, addresses 0x76 then 0x77, and JSON at 115200 baud approximately once per second.

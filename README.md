@@ -73,6 +73,12 @@ Pass `communication.timed_out` to periodic sensor evaluation, not `communication
 
 The module does not choose a real clock, parse serial data, or mutate the communication tracker. Callers must update both trackers for recognized messages and evaluate periodically during silence. Tests are written but not executed; run the full suite on Linux as described in the handoff.
 
+## Selected monitoring intervals
+
+Planned intervals are camera occupancy processing every **60 seconds**, fault evaluation every **5 seconds**, and dashboard refresh every **10 seconds**. The experimental ESP32 keeps its approximately **1-second** sensor-acquisition timing. These Python cadences are recorded decisions; camera/monitor/dashboard scheduling is not implemented yet.
+
+ESP32 startup configuration is deferred as a [future side note](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md#future-side-note--esp32-sampling-configuration-deferred). Laptop YAML does not currently control the ESP32 sampling rate.
+
 ## Environment and setup policy
 
 The recorded working environment is **`env`**, with Python **3.10.12** on Ubuntu **22.04**. Requirements installation was reported successful; individual import/version checks remain pending. See the implementation plan for the current verification steps.
