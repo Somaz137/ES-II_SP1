@@ -36,7 +36,29 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 | Notifications/local alarm | Not implemented; channel and optional wiring undefined |
 | Technical alert settings | Implemented as `config/alerts.yaml`, `config_loader.py`, and `config_validation.py`; startup-only loading, not yet connected to the sensor reader |
 | Communication-fault tracker | `communication_fault.py` implements initialization, recognized-message receipt, periodic evaluation and acknowledgment; takes supplied times and is not connected to serial/UI yet |
-| Automated tests | `tests/test_config.py` and `tests/test_communication_fault.py` written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
+| Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; not connected to serial/UI yet |
+| Automated tests | `tests/test_config.py`, `tests/test_communication_fault.py`, and `tests/test_sensor_fault.py` written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
+
+## Selected execution intervals
+
+These are design decisions, not an implemented monitoring loop.
+
+| Operation | Selected interval | Current control/status |
+|---|---|---|
+| BME680 acquisition | Approximately 1 second | Existing experimental ESP32 firmware timing; actual hardware rate unverified |
+| Camera occupancy processing | 60 seconds | Latest learner choice; supersedes the earlier 5-second proposal; Python scheduling not implemented |
+| Fault evaluation | 5 seconds | Selected for future Python monitoring loop |
+| Dashboard refresh | 10 seconds | Selected for future dashboard |
+
+The future Python-side technical settings should load at startup. The camera processing interval does not select a capture frame rate or buffering policy; those remain open. Occupancy may reflect the previous observation until the next one-minute processing check. When five-second fault evaluation is integrated, timeout detection occurs on the next check, potentially almost five seconds after the duration expires plus scheduling/processing delay.
+
+## Future side note — ESP32 sampling configuration (deferred)
+
+The learner explicitly declined adding ESP32 startup configuration now and requested that the idea be kept for later.
+
+Possible later extension: read a desired acquisition interval from laptop YAML and send it to the ESP32 over USB serial at startup, with agreed firmware handling and confirmation. No command format, firmware implementation, dependency version, or automatic action is selected or authorized by this note.
+
+For the current prototype, leave the ESP32's approximately one-second acquisition timing in its firmware. Do not add a YAML field that appears to control actual acquisition without implementing the ESP32 path; changing Python read/poll delays would not change the sensor's firmware sampling interval. This defers actual YAML-to-ESP32 interval control, rather than implementing a misleading host-only setting.
 
 ## Existing sensor test
 
@@ -107,8 +129,8 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - A sensor-error episode begins on a sensor-error message. Further error messages do not restart its timer. Persistent errors trigger a separate alert after 120 seconds.
 - A valid measurement resets the sensor-error waiting period and automatically clears that alert. Sensor-error recovery does not remove the separate communication-alert acknowledgment requirement.
 - Track the start of the current sensor-error episode as well as last communication and last successful measurement.
-- Technical-alert configuration and pure communication-fault tracking are implemented, with tests written but execution deferred to Linux. Startup communication timing is confirmed: normal timeout from program startup. Actual message-recognition criteria, clock selection, sensor-fault mixed silence/error behavior and hardware integration remain unresolved.
-- Implementation details: immutable communication snapshots; timeout equality uses >=; a late message preserves the elapsed timeout before recording recovery; acknowledgment without an outstanding alert does not extend a wait. These details are documented in the communication design and deferred tests.
+- Technical configuration and both pure fault trackers are implemented; tests are written but all execution is deferred to Linux. Startup communication timing and sensor pause/resume are confirmed. Message-recognition/measurement validation criteria, actual runtime clock/scheduling, history/persistence and hardware integration remain unresolved.
+- Implementation details: immutable snapshots; timeout equality uses >=; late communication preserves its elapsed fault before recording recovery; no-op acknowledgments do not extend waits. Sensor pauses begin when timeout status is supplied, not retroactively. Existing sensor alerts remain until a valid reading; an error with no remaining wait alerts on resume. These details are explicit in the designs and deferred tests.
 
 ## Next information needed
 
@@ -125,5 +147,6 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - Environment: Module 2.2 pp. 8–10.
 - Flask/SQLite/configuration/testing architecture: Module 3.4 and VIGIL ZIP.
 - Full extraction: [manual reference](ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md). Original PDFs/ZIP are absent from this repository.
+
 
 
