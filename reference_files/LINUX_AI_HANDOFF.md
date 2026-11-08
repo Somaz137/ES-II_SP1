@@ -19,13 +19,14 @@ The user explicitly deferred testing **until returning to Linux**. Do not set up
 - PRs #1 through #5 merged into main on 8 November 2026. They contain the rename, technical settings, both fault trackers and serial parser/validator.
 - Merge result before this documentation update: a15b1bdfc6a1db87b9c8a89dcec4b109a3ca9e0a.
 - The setup shell script is absent. Full pytest execution remains deferred to Linux.
-- Use main for continuation. Inspect the current remote and local state before changing branches. Preserve local work.
-- Current feature: codex/monitoring-state adds retained-reading state and routing on top of main. This feature is prepared as a draft, not merged. Use this branch or a merged successor for its seven test files.
+- Main contains PRs #1 through #5. For the newest host-side gas feature use codex/bsec-status or its merged successor. Preserve local work.
+- Current feature: codex/bsec-status adds Bosch gas metadata consumption on top of unmerged PR #6. No BSEC firmware integration or new Python dependency.
+- Previous feature: PR #6 on codex/monitoring-state adds retained readings and routing with seven test files. The BSEC status branch builds on it and adds the eighth test file.
 - Human overview: [README_HUMAN.md](../README_HUMAN.md). Keep AI continuation instructions in this handoff rather than the human guide.
 
 ## Read these files
 
-Also read reading_state.py, monitoring_state.py, message_router.py, tests/test_reading_state.py, tests/test_message_router.py, and the monitoring-state spec/plan in docs/superpowers.
+Also read gas_readiness.py, tests/test_gas_readiness.py, the BSEC status spec/plan, reading_state.py, monitoring_state.py, message_router.py, tests/test_reading_state.py, tests/test_message_router.py, and the monitoring-state spec/plan in docs/superpowers.
 
 | File | Authority / purpose |
 |---|---|
@@ -78,14 +79,14 @@ git branch --show-current
 git fetch origin
 ```
 
-PRs #1 through #5 are merged, but the reading-state/router feature starts on codex/monitoring-state. Check remote merge state before selecting a branch. With a clean working tree and an existing local feature branch, use:
+PRs #1 through #5 are merged. The current BSEC status feature builds on unmerged PR #6. Check remote merge state before selecting a branch. With a clean working tree and an existing local feature branch, use:
 
 ```bash
-git switch codex/monitoring-state
-git pull --ff-only origin codex/monitoring-state
+git switch codex/bsec-status
+git pull --ff-only origin codex/bsec-status
 ```
 
-If no local feature branch exists, use git switch --track origin/codex/monitoring-state instead of the switch command above. If this feature is already merged, use main or its merged successor. If local changes or divergent commits prevent continuation, report the state and ask before resolving it. Do not force checkout, reset, clean, delete or silently stash work.
+If no local feature branch exists, use git switch --track origin/codex/bsec-status instead of the switch command above. If this feature is already merged, use main or its merged successor. If local changes or divergent commits prevent continuation, report the state and ask before resolving it. Do not force checkout, reset, clean, delete or silently stash work.
 
 ## Reading-state/router continuation
 
@@ -93,7 +94,7 @@ The new pure routing layer connects actual parsing, retained values and both fau
 
 process_serial_line(state, line, now) returns a new combined snapshot. Ignored lines still evaluate timeouts. evaluate_monitoring_faults(state, now) must also run during silence. acknowledge_monitoring_communication(state, now) preserves actual contact facts and sensor pause. The summary status does not replace either alert flag and never establishes gas readiness or room safety. No real clock, timestamp display conversion or serial/scheduler connection is implemented.
 
-Tests now include test_reading_state.py and test_message_router.py, for seven test files total. All execution remains deferred to Linux. Next implementation work is real input/runtime integration and the separately approved gas readiness design, not reimplementing the pure router.
+Tests now include test_reading_state.py and test_message_router.py, for eight test files total. All execution remains deferred to Linux. Next implementation work is real input/runtime integration and the separately approved gas readiness design, not reimplementing the pure router.
 
 ## Step 2 — Verify the existing Linux environment
 
@@ -156,7 +157,7 @@ The new communication tests cover startup at time zero, configurable durations, 
 
 The sensor tests cover explicit-error startup, independent duration, repeated errors, valid-reading reset/auto-clear, excluded paused time, repeated pause/resume, simultaneous timeout boundaries, preserved existing alerts and last-valid-measurement time, immutable states and invalid/backwards inputs. Two cases use the actual communication module to distinguish its timeout status from its acknowledgment latch. No sensor tests or application modules have been executed.
 
-The new validator/parser tests cover every required field, finite numbers, bool/string/nonfinite rejection, no invented patient thresholds, real JSON lines, explicit errors, missing/unusable diagnostic text, partial fields, whitespace, extra metadata, overflow, garbled/unknown/non-object input, deep decoder input and decoded-text caller contract. These tests also remain unexecuted. Run all seven test files through the full suite command above.
+The new validator/parser tests cover every required field, finite numbers, bool/string/nonfinite rejection, no invented patient thresholds, real JSON lines, explicit errors, missing/unusable diagnostic text, partial fields, whitespace, extra metadata, overflow, garbled/unknown/non-object input, deep decoder input and decoded-text caller contract. These tests also remain unexecuted. Run all eight test files through the full suite command above.
 
 Expected: full collection and all tests pass. Inspect any collection/import failures as well as assertion failures. Do not replace PyYAML with a mock or parser workaround.
 
@@ -243,14 +244,12 @@ Do not delete files merely because they are not runtime dependencies. The user o
 
 ## Approved gas readiness design
 
-The user approved gas-only warm-up handling on 8 November 2026. This is a design decision, not implemented behavior.
+The user approved Bosch BSEC status integration on 8 November 2026, superseding the earlier host timer/YAML warm-up proposal. No gas_warmup_s field or fixed countdown is selected.
 
-- Continue monitoring and receiving ESP32 messages during gas warm-up. Show gas monitoring as unavailable rather than asserting a fully safe room.
-- Keep temperature, humidity and pressure subject to their own validity and settling checks. Gate gas evaluation separately.
-- Expected gas warm-up alone is not a sensor fault. Actual measurement errors and communication loss retain the existing fault rules.
-- Keep the planned warm-up duration in startup-loaded technical YAML and readiness logic in a separate Python module. Exact settings, duration and readiness criteria still need definition. No such YAML key exists yet.
-- A completed wait does not prove calibration. Current firmware reports raw gas resistance, not calibrated AQI or gas concentration.
-- Distinguish physical sensor restart from Python restart. Restart reporting and integration with the current all-four-fields parser remain unresolved. Do not accept missing or invalid measurements as warm-up without an agreed protocol.
-- Adafruit's BME680 guide recommends 48-hour initial conditioning and 30 minutes in the intended mode for subsequent use. This is external guidance, not a newly selected course procedure or a configured default: https://learn.adafruit.com/adafruit-bme680-humidity-temperature-barometic-pressure-voc-gas/overview
-- VIGIL has no gas warm-up equivalent. Its separate monitoring/dashboard pattern remains a useful architectural reference.
+Python status handling is implemented: gas_readiness.py validates an optional bsec object with integer stabilization_status, run_in_status and iaq_accuracy. The parser/router retains a coherent immutable snapshot from each recognized record. Missing/invalid metadata becomes unknown without changing measurement validity or inventing sensor faults. Warm-up and IAQ calibration are separate descriptions. Current gas warm-up status is unavailable during communication timeout or bad measurement input. None of these labels establishes room safety or certified calibration.
 
+Current firmware remains the experimental Adafruit reader with no BSEC output. Therefore actual BSEC behavior remains unverified and cannot activate from Python changes alone. Bosch datasheet Revision 1.9 documents 1Hz CONT for short-term testing only and LP updates every three seconds. The user previously selected continuous one-second sampling. Obtain the LP mode decision before replacing firmware. Keep actual fault checks five seconds, camera processing sixty seconds, dashboard ten seconds, and both fault timeouts 120 seconds.
+
+Candidate inspected wrapper: Bosch-BSEC2-Library release 1.10.2610, algorithm 2.6.1.0. This is not an installed or selected exact version. Exact BME68x dependency, ESP32 core and BME680 configuration need approval/verification. No dependency installation, flashing or runtime testing occurred. Preserve course-pinned Arduino IDE and Python requirements. State persistence is a potential later integration, not implemented.
+
+See [BSEC status design](../docs/superpowers/specs/2026-11-08-bsec-status-design.md) for the contract and manufacturer sources. VIGIL has no direct gas readiness equivalent.

@@ -10,6 +10,7 @@ from communication_fault import (
     evaluate_communication_fault,
 )
 from reading_state import InputStatus, ReadingState
+from gas_readiness import GasReadiness, gas_warmup_status
 from sensor_fault import (
     SensorFaultState,
     create_sensor_state,
@@ -24,6 +25,7 @@ class MonitoringState:
     communication: CommunicationFaultState
     sensor: SensorFaultState
     reading: ReadingState = field(default_factory=ReadingState)
+    gas: GasReadiness = field(default_factory=GasReadiness)
 
 
 def create_monitoring_state(
@@ -74,3 +76,17 @@ def monitoring_status(
     if state.communication.timed_out:
         return "communication_lost"
     return state.reading.input_status
+
+
+def current_gas_warmup_status(
+    state: MonitoringState,
+) -> Literal["unavailable", "unknown", "warming_up", "warmup_complete"]:
+    """Hide live readiness when communication or the latest measurement fails.
+
+    Call periodic fault evaluation even during silence. The communication
+    acknowledgment latch does not imply current communication loss.
+    Warmup complete is not a gas-evaluation policy or room safety verdict.
+    """
+    if state.communication.timed_out or state.reading.input_status != "fresh":
+        return "unavailable"
+    return gas_warmup_status(state.gas)

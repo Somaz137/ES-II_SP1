@@ -8,7 +8,7 @@ Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
 **For people:** Read [README_HUMAN.md](README_HUMAN.md) for the project purpose, data flow, alert behavior, gas warm-up decision and remaining work.
 
-PRs #1 through #5 are merged into main. Gas warm-up handling is approved as a design and remains unimplemented. See the [approved design](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md#approved-gas-readiness-design).
+PRs #1 through #5 are merged into main. Python consumption of Bosch gas status is implemented in this feature branch. BSEC firmware integration remains pending a sampling decision. See the [approved design](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md#approved-gas-readiness-design).
 
 **Returning to Linux?** Read the [Linux AI handoff](reference_files/LINUX_AI_HANDOFF.md) first. Testing is explicitly deferred to the existing Linux environment; it has not been completed on Windows.
 
@@ -40,6 +40,8 @@ The original lecture PDFs and VIGIL ZIP are not included. The reference is an ex
 | `monitoring_state.py` | Combined fault/reading state, periodic evaluation and communication acknowledgment |
 | `message_router.py` | Connects decoded serial classification to retained readings and both trackers |
 | `tests/test_reading_state.py`, `tests/test_message_router.py` | Deferred reading retention and real-component routing scenarios |
+| `gas_readiness.py` | Validates reported BSEC status and separates warm-up from IAQ calibration |
+| `tests/test_gas_readiness.py` | Deferred status validation and interpretation cases |
 | `serial_parser.py` | Classifies decoded lines; only valid readings carry committable measurements |
 | `tests/test_measurement_validation.py`, `tests/test_serial_parser.py` | Deferred validation and real JSON classification cases |
 | `.gitignore` | Excludes environments, caches, editor metadata, and logs |
@@ -100,7 +102,17 @@ Before the first complete reading, values and receipt time are absent. The input
 
 `monitoring_status(state)` prioritizes actual communication loss. Otherwise it reports the latest input status. Expose the separate communication and sensor alert flags as well: fresh input can coexist with a communication alert awaiting acknowledgment. Fresh describes structural input and contact status, not gas readiness or room safety.
 
-Receipt time uses the supplied fault-clock domain. It is not an ESP32 acquisition timestamp or necessarily a calendar timestamp. Real clock selection, display conversion and the scheduled loop are not implemented. Gas readiness remains a separate approved but unimplemented feature. See the [design](docs/superpowers/specs/2026-11-08-monitoring-state-design.md).
+Receipt time uses the supplied fault-clock domain. It is not an ESP32 acquisition timestamp or necessarily a calendar timestamp. Real clock selection, display conversion and the scheduled loop are not implemented. The gas metadata consumer below is implemented separately. BSEC firmware integration remains pending. See the [design](docs/superpowers/specs/2026-11-08-monitoring-state-design.md).
+
+## Bosch gas status
+
+Optional JSON metadata uses a bsec object with integer stabilization_status (0/1), run_in_status (0/1), and iaq_accuracy (0..3). All three fields must be valid. Missing, partial or malformed metadata produces unknown gas status without invalidating otherwise complete measurements. The unchanged legacy firmware therefore leaves gas status unknown.
+
+The parser carries a frozen GasReadiness snapshot, and the router retains the latest recognized record's snapshot. gas_warmup_status returns unknown, warming_up or warmup_complete. gas_calibration_status reports the separate IAQ algorithm state. current_gas_warmup_status masks live status as unavailable on actual communication timeout or non-fresh measurement input. Retained calibration metadata must also be presented with this availability context. Continue periodic fault checks during silence.
+
+No host warm-up timer or countdown exists. Completed warm-up does not assert calibration or room safety. No IAQ estimate or environmental threshold policy is added. The earlier timer/YAML warm-up proposal is superseded. The two fault durations in config/alerts.yaml are unchanged.
+
+BSEC firmware is not installed, compiled or integrated. Bosch documents CONT 1Hz for short-term testing, whereas LP updates every three seconds. The existing continuous one-second firmware remains unchanged pending the user's mode choice and exact dependency/core approval. See the [BSEC design](docs/superpowers/specs/2026-11-08-bsec-status-design.md).
 
 ## Selected monitoring intervals
 
@@ -127,7 +139,3 @@ Gas resistance is raw ohms, not calibrated AQI, CO2, or CO. This is a teaching p
 ## VIGIL reference and project-specific decisions
 
 See [VIGIL comparison](reference_files/VIGIL_COMPARISON.md) for the verified manual-backed differences and authorized code-reuse scope. The current project name is **Room Environment Safety Control**; the repository remains `ES-II_SP1`.
-
-
-
-

@@ -23,7 +23,8 @@ def process_serial_line(
 
     Supply finite, nondecreasing times in the same domain as startup and
     periodic checks. Ignored lines still allow fault checks. This function
-    performs no port access, scheduling, notification or gas readiness work.
+    performs no port access, scheduling or notification. Reported BSEC status
+    is retained separately, without a host warm-up timer.
     """
     parsed = parse_serial_line(line)
     if parsed.kind == "ignored":
@@ -44,4 +45,7 @@ def process_serial_line(
         reading = record_reading_problem(state.reading, kind, parsed.message)
         sensor = record_sensor_error(sensor, now)
 
-    return replace(state, communication=communication, sensor=sensor, reading=reading)
+    return replace(
+        state, communication=communication, sensor=sensor, reading=reading,
+        gas=parsed.gas,
+    )
