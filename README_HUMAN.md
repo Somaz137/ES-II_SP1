@@ -117,8 +117,9 @@ The dashboard remains future work.
 The selected design uses status reports from Bosch BSEC software.
 Python does not declare readiness after a fixed waiting period.
 The new Python module can read these reports.
-The current ESP32 firmware does not yet send them.
-Gas status therefore remains unknown with the current firmware.
+The new firmware source prepares these reports.
+Compilation and hardware checks remain pending.
+The earlier firmware reports no BSEC status, so Python shows unknown until the new firmware supplies valid reports.
 
 BSEC reports initial stabilization and stabilization after power-on.
 A zero flag means stabilization continues.
@@ -141,11 +142,12 @@ Temperature, humidity, and pressure still need their own validity and settling c
 The dashboard and environmental gas rules remain future work.
 The new code does not calculate an air quality index from raw resistance.
 
-The firmware integration still needs a sampling decision.
-Bosch describes one-second BSEC operation for short-term testing.
-Its low-power mode updates every three seconds.
-The earlier project choice was continuous one-second sampling.
-The existing firmware keeps that timing until the user selects the BSEC operating mode.
+The user selected three-second BSEC low-power sampling.
+The new firmware source uses that mode.
+BSEC controls when the sensor acquires data.
+The firmware sends each new measurement once.
+Failures produce error messages instead of repeated old measurements.
+Exact library versions, sensor supply, and hardware operation still need checks before use.
 
 Initial sensor conditioning remains separate from this software status handling.
 See the [BSEC integration design](docs/superpowers/specs/2026-11-08-bsec-status-design.md) for the protocol and manufacturer references.
@@ -156,7 +158,7 @@ See the [BSEC integration design](docs/superpowers/specs/2026-11-08-bsec-status-
 |---|---|---|
 | Communication timeout | 120 seconds | Exists in `config/alerts.yaml`. |
 | Sensor error timeout | 120 seconds | Exists in `config/alerts.yaml`. |
-| BME680 sampling | Approximately once per second | Fixed in experimental ESP32 firmware. |
+| BME680 sampling | Every three seconds | BSEC low-power mode selected. New firmware source remains unverified. |
 | Camera processing | Every 60 seconds | Planned. |
 | Fault checks | Every 5 seconds | Planned. |
 | Dashboard refresh | Every 10 seconds | Planned. |
@@ -186,7 +188,8 @@ Dashboard refreshes and camera observations have their own intervals.
 | `gas_readiness.py` | Checks reported Bosch warm-up and calibration status. |
 | `serial_parser.py` | Classifies a decoded serial line. |
 | `measurement_validation.py` | Checks the four required measurement fields. |
-| `firmware/room_environment_safety_control_bme680.ino` | Contains the experimental ESP32 sensor reader. |
+| `firmware/room_environment_safety_control_bme680.ino` | Prepares BSEC low-power readings and gas status reports. |
+| `firmware/README.md` | Explains firmware configuration and remaining hardware checks. |
 | `tools/read_sensor.py` | Prints JSON records from a selected serial port. It does not connect the monitoring components. |
 | `tools/check_setup.py` | Reports environment metadata. It does not prove that the application works. |
 | `tests/` | Contains eight test files. Test execution remains deferred to Linux. |
@@ -197,8 +200,8 @@ Dashboard refreshes and camera observations have their own intervals.
 
 1. Execute the existing tests in the approved Linux environment.
 2. Connect the new routing layer to the actual serial reader.
-3. Select BSEC sampling and firmware dependencies.
-4. Add serial recovery, periodic checks, and the BSEC firmware connection.
+3. Check firmware dependencies and sensor supply.
+4. Check the new firmware and add laptop serial recovery and periodic checks.
 5. Check real sensor operation and select the camera method.
 6. Define patient profiles and environmental alert rules.
 7. Add storage, event history, and the dashboard.

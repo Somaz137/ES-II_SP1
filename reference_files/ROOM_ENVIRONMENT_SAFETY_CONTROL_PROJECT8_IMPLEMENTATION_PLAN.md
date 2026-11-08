@@ -40,9 +40,19 @@ PRs #1 through #5 merged into main on 8 November 2026. The code remains unverifi
 | Communication-fault tracker | `communication_fault.py` implements initialization, recognized-message receipt, periodic evaluation and acknowledgment; takes supplied times and is not connected to serial/UI yet |
 | Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; not connected to serial/UI yet |
 | Serial parser / validator | `serial_parser.py` and `measurement_validation.py` classify decoded lines and check four finite numeric fields; no hardware, tracker mutation or committed-reading storage yet |
-| Bosch gas status | gas_readiness.py plus parser/router integration consumes status metadata. Legacy firmware reports no BSEC metadata, so gas remains unknown. No host warm-up timer. Firmware sampling/dependencies remain unresolved. |
+| Bosch gas status | gas_readiness.py plus parser/router integration consumes status metadata. Legacy firmware reports no BSEC metadata, so gas remains unknown. No host warm-up timer. Firmware source now uses selected three-second LP. Exact dependencies/supply and hardware verification remain pending. |
 | Reading state and router | reading_state.py, monitoring_state.py and message_router.py retain complete values/time, expose initial waiting and latest input states, and connect parser classifications to both fault trackers. Real I/O, clock and scheduler remain future work. |
 | Automated tests | All eight test files (configuration, communication, sensor, measurement validation, serial parser, retained readings, routing, gas status) written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
+
+## BSEC firmware source prepared
+
+The user approved three-second LP sampling. This feature prepares firmware source on top of PR #7. BSEC controls sampling, only new callback data produces readings, and errors remain recognized communication. No fixed gas warm-up countdown is added. Camera processing stays60 seconds, fault checks5 seconds, dashboard10 seconds, and both host fault durations120 seconds.
+
+Read [firmware/README.md](../firmware/README.md) before installation or compilation. Exact BSEC/BME68x/core versions remain to agree and verify. The inspected API references are candidates, not installed dependencies. Confirm the physical sensor die supply, then set ROOM_BME680_SUPPLY_MV to1800 or3300. Its default zero deliberately stops compilation. Do not guess from breakout VIN. No firmware compilation, tests, flashing, service or hardware operation ran on Windows.
+
+The inspected wrapper converts pressure to hPa before callback. The sketch uses that value without a second division. Recheck this contract if using a different wrapper and verify physical units. Do not copy generic raw-pressure units blindly. State persistence, automatic sensor reinitialization and custom temperature compensation remain future work.
+
+Eight Python test files remain, with an added JSON fixture consumer case. A separate portable C++ formatter test is written in firmware/tests/test_bsec_serial_format.cpp. Execute it on Linux using an agreed available C++11 toolchain, then compile the sketch only after dependency/supply confirmation. These tests are not part of pytest's C++ execution and remain unrun.
 
 ## Approved gas readiness design
 
@@ -50,7 +60,7 @@ The user approved Bosch BSEC status integration on 8 November 2026, superseding 
 
 Python status handling is implemented: gas_readiness.py validates an optional bsec object with integer stabilization_status, run_in_status and iaq_accuracy. The parser/router retains a coherent immutable snapshot from each recognized record. Missing/invalid metadata becomes unknown without changing measurement validity or inventing sensor faults. Warm-up and IAQ calibration are separate descriptions. Current gas warm-up status is unavailable during communication timeout or bad measurement input. None of these labels establishes room safety or certified calibration.
 
-Current firmware remains the experimental Adafruit reader with no BSEC output. Therefore actual BSEC behavior remains unverified and cannot activate from Python changes alone. Bosch datasheet Revision 1.9 documents 1Hz CONT for short-term testing only and LP updates every three seconds. The user previously selected continuous one-second sampling. Obtain the LP mode decision before replacing firmware. Keep actual fault checks five seconds, camera processing sixty seconds, dashboard ten seconds, and both fault timeouts 120 seconds.
+New firmware source targets BSEC LP and emits recognized JSON measurements/errors plus gas metadata. Physical operation remains unverified. It is not compiled or flashed, and old firmware supplies no BSEC metadata. Bosch datasheet Revision 1.9 documents 1Hz CONT for short-term testing only and LP updates every three seconds. The user now approved three-second LP sampling. This supersedes continuous one-second sampling. New firmware source is prepared but uncompiled and not flashed. Keep actual fault checks five seconds, camera processing sixty seconds, dashboard ten seconds, and both fault timeouts 120 seconds.
 
 Candidate inspected wrapper: Bosch-BSEC2-Library release 1.10.2610, algorithm 2.6.1.0. This is not an installed or selected exact version. Exact BME68x dependency, ESP32 core and BME680 configuration need approval/verification. No dependency installation, flashing or runtime testing occurred. Preserve course-pinned Arduino IDE and Python requirements. State persistence is a potential later integration, not implemented.
 
@@ -62,7 +72,7 @@ These are design decisions, not an implemented monitoring loop.
 
 | Operation | Selected interval | Current control/status |
 |---|---|---|
-| BME680 acquisition | Approximately 1 second | Existing experimental ESP32 firmware timing; actual hardware rate unverified |
+| BME680 acquisition | 3 seconds | Selected BSEC LP mode in new source; hardware timing unverified |
 | Camera occupancy processing | 60 seconds | Latest learner choice; supersedes the earlier 5-second proposal; Python scheduling not implemented |
 | Fault evaluation | 5 seconds | Selected for future Python monitoring loop |
 | Dashboard refresh | 10 seconds | Selected for future dashboard |
@@ -75,14 +85,14 @@ The learner explicitly declined adding ESP32 startup configuration now and reque
 
 Possible later extension: read a desired acquisition interval from laptop YAML and send it to the ESP32 over USB serial at startup, with agreed firmware handling and confirmation. No command format, firmware implementation, dependency version, or automatic action is selected or authorized by this note.
 
-For the current prototype, leave the ESP32's approximately one-second acquisition timing in its firmware. Do not add a YAML field that appears to control actual acquisition without implementing the ESP32 path; changing Python read/poll delays would not change the sensor's firmware sampling interval. This defers actual YAML-to-ESP32 interval control, rather than implementing a misleading host-only setting.
+For the current prototype, the new BSEC firmware selects the approved three-second LP interval. Laptop-to-ESP32 sampling configuration remains deferred. Do not add a YAML field that appears to control actual acquisition without implementing the ESP32 path; changing Python read/poll delays would not change the sensor's firmware sampling interval. This defers actual YAML-to-ESP32 interval control, rather than implementing a misleading host-only setting.
 
 ## Existing sensor test
 
-- `firmware/room_environment_safety_control_bme680.ino` uses Adafruit BME680, GPIO21 SDA/GPIO22 SCL, addresses 0x76 then 0x77, and JSON at 115200 baud approximately once per second.
+- `firmware/room_environment_safety_control_bme680.ino` now targets Bosch BSEC2/BME68x, GPIO21 SDA/GPIO22 SCL, addresses 0x76 then 0x77, and JSON at 115200 baud at the selected three-second LP interval (not hardware-verified).
 - `tools/read_sensor.py` prints parsed records. It does not store data, validate measurement fields, reconnect after USB loss, or apply safety rules.
 - Firmware does not retry initialization after a sensor is missing at boot.
-- Adafruit library choice, sampling settings, and JSON schema are starter adaptations, not prescribed by the available manuals.
+- Bosch integration and JSON schema are user-approved project adaptations, not prescribed by the available manuals.
 - Earlier README proposals of ESP32 core 3.3.12 and Adafruit BME680 2.0.6 were external, unapproved suggestions. They are not selected dependencies.
 
 ## Implementation sequence
