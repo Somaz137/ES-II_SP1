@@ -16,7 +16,13 @@ Python will compare environmental measurements with limits in the selected patie
 The dashboard will show measurements, occupancy, faults, and alerts.
 Patient limits and environmental alert rules still need agreement.
 
-The current prototype uses one room, one ESP32, one BME680, and one camera.
+The current prototype uses one room, one DOIT ESP32 DevKit V1, one BME680, and one camera.
+The board uses the classic ESP32 chip.
+The BME680 uses GPIO21 for SDA and GPIO22 for SCL.
+The user confirmed a 3.3 V sensor supply.
+The firmware configuration uses that value.
+Select DOIT ESP32 DEVKIT V1 in Arduino IDE before compilation.
+See the [firmware guide](firmware/README.md) for the remaining setup checks.
 Expansion to several rooms remains a future option.
 The name does not imply automatic control of fans, heaters, or other equipment.
 The project does not yet define those control functions.
@@ -170,7 +176,8 @@ The new firmware source uses that mode.
 BSEC controls when the sensor acquires data.
 The firmware sends each new measurement once.
 Failures produce error messages instead of repeated old measurements.
-Exact library versions, sensor supply, and hardware operation still need checks before use.
+The sensor supply is confirmed as 3.3 V.
+Exact library versions and hardware operation still need checks before use.
 
 Initial sensor conditioning remains separate from this software status handling.
 See the [BSEC integration design](docs/superpowers/specs/2026-11-08-bsec-status-design.md) for the protocol and manufacturer references.
@@ -229,7 +236,7 @@ Dashboard refreshes and camera observations have their own intervals.
 
 1. Execute the existing tests in the approved Linux environment.
 2. Check the terminal monitor, retained values, serial recovery, and periodic fault checks.
-3. Check firmware dependencies and sensor supply.
+3. Check firmware dependencies and the configured 3.3 V sensor supply.
 4. Check the new firmware with the laptop monitor.
 5. Check real sensor operation and select the camera method.
 6. Define patient profiles and environmental alert rules.

@@ -1,4 +1,4 @@
-# ESP32 BSEC firmware
+# DOIT ESP32 DevKit V1 BSEC firmware
 
 This source prepares BSEC low-power acquisition every three seconds.
 It does not establish a working hardware integration.
@@ -6,13 +6,50 @@ No firmware build, test, installation or flashing occurred on Windows.
 
 ## Before compilation on Linux
 
-1. Check the actual ESP32 board and sensor breakout.
-2. Agree on exact firmware dependencies and ESP32 core versions.
-3. Check the BME680 supply voltage from board documentation or measurement.
-4. Set ROOM_BME680_SUPPLY_MV in bsec_board_config.h to 1800 or 3300.
+1. Use the DOIT ESP32 DevKit V1 with the classic ESP32 chip.
+2. Select **DOIT ESP32 DEVKIT V1** in Arduino IDE 2.3.10.
+3. Check the installed firmware libraries and ESP32 core version.
+4. Select the actual USB serial port.
 
-The initial value zero deliberately stops compilation.
+The user confirmed a 3.3 V sensor supply on 8 November 2026.
+ROOM_BME680_SUPPLY_MV therefore defaults to 3300 in bsec_board_config.h.
+The header rejects supply values other than 1800 and 3300.
 Breakout VIN and the BME680 supply can differ.
+Check this setting again if you change the sensor breakout.
+
+## Board configuration
+
+| Setting | Value |
+|---|---|
+| Arduino board | DOIT ESP32 DEVKIT V1 |
+| Arduino board identifier | esp32:esp32:esp32doit-devkit-v1 |
+| Sensor SDA | GPIO21 |
+| Sensor SCL | GPIO22 |
+| Serial speed | 115200 baud |
+| Sensor supply | 3.3 V, confirmed by the user |
+| BSEC sampling | Low-power mode, one acquisition every three seconds |
+
+Connect sensor SDA to GPIO21 and sensor SCL to GPIO22.
+Connect the sensor ground to the board ground.
+Use the breakout documentation to identify its power terminal.
+The header stores the pins and serial speed as named constants.
+The sketch uses those constants during startup.
+The header rejects compilation for C3, S2, S3, and other chip types.
+It checks the selected chip type, not the physical board.
+Select the DOIT board explicitly in the IDE.
+Recompile the sketch for this board before uploading.
+
+Bosch BSEC2 includes a binary for the classic ESP32 chip.
+Bosch BME68x reads the sensor and is required by BSEC2.
+Wire comes with the Espressif ESP32 Arduino core.
+Python requirements.txt does not install these firmware libraries.
+The exact core and library versions still require agreement and a Linux build check.
+
+Python receives the same JSON records at the same serial speed.
+Its parser, fault rules, and gas readiness rules need no change for this board.
+Select the actual device path when you start the laptop monitor.
+Opening the port can reset the board. Check this behavior on Linux.
+
 The source includes the matching Bosch three-second, four-day-history configuration.
 Four days describes baseline history, not a required warm-up wait.
 
@@ -34,7 +71,7 @@ Use the upstream distribution rather than copying those files into this reposito
 ## Source organization
 
 - room_environment_safety_control_bme680.ino handles BSEC setup, callbacks, and errors.
-- bsec_board_config.h contains the explicit supply selection and reporting intervals.
+- bsec_board_config.h contains the chip check, pins, serial speed, supply selection, and reporting intervals.
 - bsec_serial_format.h converts scalar values and status fields to JSON.
 - tests/test_bsec_serial_format.cpp checks the formatter without a sensor or Arduino library.
 
@@ -73,7 +110,9 @@ Check real pressure units independently before accepting hardware results.
 
 - Build and execute the portable formatter test using an available Linux C++11 toolchain.
 - Execute the full Python suite in the existing approved environment.
-- Compile the sketch with the approved Arduino setup and checked supply configuration.
+- Compile for DOIT ESP32 DEVKIT V1 with the approved Arduino setup and the 3300 supply setting.
+- Check that a C3 target fails with the board-selection message.
+- Check that an invalid supply value fails with the supply-selection message.
 - Check three-second fresh output and correct measurement units.
 - Check that startup, missing-data and read failures continue recognized error reporting.
 - Check reported warm-up transitions without a host countdown.

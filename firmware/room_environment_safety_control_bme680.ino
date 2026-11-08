@@ -1,10 +1,11 @@
 // Room Environment Safety Control: experimental BSEC LP acquisition.
+// Target: DOIT ESP32 DEVKIT V1 with the classic ESP32 chip.
 // Reference APIs: BSEC2 1.10.2610 and BME68x wrapper v1.3.40408.
 // Installed toolchain compatibility and hardware remain unverified.
-// USB 115200; I2C SDA21/SCL22. Confirm supply in bsec_board_config.h.
+// Board pins, serial speed and confirmed supply: bsec_board_config.h.
 #include <Wire.h>
-#include <bsec2.h>
 #include "bsec_board_config.h"
+#include <bsec2.h>
 #include "bsec_serial_format.h"
 
 const uint8_t roomBsecConfig[] = {
@@ -103,8 +104,8 @@ void receiveRoomSample(const bme68xData data, const bsecOutputs outputs,
 }
 
 void setup() {
-  Serial.begin(115200);
-  Wire.begin(21, 22);
+  Serial.begin(ROOM_SERIAL_BAUD);
+  Wire.begin(ROOM_I2C_SDA_PIN, ROOM_I2C_SCL_PIN);
   if (!roomSensor.begin(BME68X_I2C_ADDR_LOW, Wire) &&
       !roomSensor.begin(BME68X_I2C_ADDR_HIGH, Wire)) {
     reportRoomError(roomStartupError);

@@ -1,6 +1,11 @@
 # Room Environment Safety Control — Project 8
 
-Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
+Room Environment Safety Monitor for an Ubuntu 22.04 laptop and DOIT ESP32 DevKit V1.
+
+**Selected board:** DOIT ESP32 DEVKIT V1 with the classic ESP32 chip.
+The BME680 uses GPIO21 for SDA and GPIO22 for SCL.
+The user confirmed a 3.3 V sensor supply.
+See [firmware setup](firmware/README.md) for board selection and pending build checks.
 
 **Current scope:** one room, one BME680 and one camera. Code includes dependency definitions, environment diagnostics, an experimental ESP32/BME680 serial test, technical-alert configuration loading/validation, pure communication/sensor-fault tracking, and serial-message classification/measurement validation. A terminal serial monitor now connects these components in source. The full room-safety application is not implemented. Hardware operation has not been verified.
 
@@ -131,7 +136,7 @@ The parser carries a frozen GasReadiness snapshot, and the router retains the la
 
 No host warm-up timer or countdown exists. Completed warm-up does not assert calibration or room safety. No IAQ estimate or environmental threshold policy is added. The earlier timer/YAML warm-up proposal is superseded. The two fault durations in config/alerts.yaml are unchanged.
 
-The user selected three-second BSEC LP sampling. The firmware source now subscribes at BSEC_SAMPLE_RATE_LP and sends new callback measurements with status metadata. It continues recognized error reporting without panic loops. It is not installed, compiled, flashed or hardware-verified. Exact dependency/core versions and the physical supply still need agreement/checks. See [firmware guidance](firmware/README.md). See the [BSEC design](docs/superpowers/specs/2026-11-08-bsec-status-design.md).
+The user selected three-second BSEC LP sampling. The firmware source now subscribes at BSEC_SAMPLE_RATE_LP and sends new callback measurements with status metadata. It continues recognized error reporting without panic loops. It is not installed, compiled, flashed or hardware-verified. Exact dependency/core versions still need agreement and checks. The user confirmed a 3.3 V sensor supply. See [firmware guidance](firmware/README.md). See the [BSEC design](docs/superpowers/specs/2026-11-08-bsec-status-design.md).
 
 ## Selected monitoring intervals
 
@@ -149,9 +154,9 @@ Use the exact course-prescribed versions. Obtain approval before selecting unspe
 
 ## Sensor test limitations
 
-The firmware and reader use the same JSON format and baud rate. They are experimental code, not proof of a working hardware integration. The sketch now targets Bosch BSEC2 and BME68x firmware libraries. Exact installed library/core versions remain unapproved. Reference API releases are documented in firmware/README.md. Python requirements are unchanged. The supply selector defaults to zero and deliberately prevents compilation until the BME680 supply is confirmed.
+The firmware and reader use the same JSON format and baud rate. They are experimental code, not proof of a working hardware integration. The sketch now targets Bosch BSEC2 and BME68x firmware libraries. Exact installed library/core versions remain unapproved. Reference API releases are documented in firmware/README.md. Python requirements are unchanged. The user confirmed a 3.3 V sensor supply. The supply selector defaults to 3300. The board check rejects non-classic ESP32 chip targets.
 
-Confirm the board, breakout, toolchain, and missing course instructions before installing dependencies or flashing. Electrical guidance and manual pin assignments are in the reference.
+The selected board is DOIT ESP32 DevKit V1. Check the breakout, toolchain, and missing course instructions before installing dependencies or flashing. Electrical guidance and manual pin assignments are in the reference.
 
 Gas resistance is raw ohms, not calibrated AQI, CO2, or CO. This is a teaching prototype; patient-specific safe limits have not been defined.
 
