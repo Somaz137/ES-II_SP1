@@ -28,7 +28,7 @@ Current project name: **Room Environment Safety Control**. The original course t
 |---|---|---|
 | Purpose | Bed posture, bed-exit and fall monitoring | Occupied-room environmental monitoring with patient-specific limits |
 | Hardware | Jetson camera/GPIO; optional CSI pipeline | Ubuntu laptop + ESP32/BME680 and webcam; Windows development currently |
-| Configuration | Central config.yaml; loaded at startup/import, no application live-reload path found | Dedicated YAML fault timeouts, 120 seconds each; restart/live application still undecided |
+| Configuration | Central config.yaml; loaded at startup/import, no application live-reload path found | Dedicated YAML fault timeouts, 120 seconds each, loaded at startup; patient-profile updates during monitoring are a separate selected future feature |
 | Alarm filtering | Eight-frame debounce; 60-second suppression check on qualifying transitions; CRITICAL configured types bypass suppression | Time-based communication and sensor-error tracking, each 120 seconds; environmental breach duration still undecided |
 | Communication | Health heartbeat normally every 15 seconds. /api/status marks stale at three heartbeat intervals (45 seconds by default); /healthz uses a separate hardcoded 60-second cutoff | Recognized ESP32 reading/error messages update last-contact time; error receipt must not make measurements fresh |
 | Acknowledgment | Database ack flag, name, timestamp. No acknowledgment feedback into AlarmManager. Still-open acknowledged conditions remain in the active query | Communication alert acknowledgment during silence dismisses it and starts another 120-second wait; this needs new logic |
@@ -58,6 +58,7 @@ Current project name: **Room Environment Safety Control**. The original course t
 7. **Camera failure/heartbeat coupling:** failed cap.read() continues before health logging. The stale warning indicates processing stopped, but does not distinguish process failure from camera acquisition failure. The program does not reopen the camera in that branch.
 8. **Startup and clocks:** initialization runs before the guarded main loop, and timing uses time.time(). The source is a teaching prototype rather than proof of unconditional recovery. Our startup, clock and restart behavior remains to be agreed.
 
-## Next open decision
+## Current scope and next verification
 
-Whether edits to the dedicated timeout YAML apply on restart or during monitoring is still open. VIGIL uses startup loading; authorization to reference its code does not settle our choice or add its dependencies.
+The learner selected startup loading for technical timeouts and live patient-profile updates as a later feature. Current prototype scope is one room, one BME680 and one camera; expansion and Jetson migration are deferred. Technical configuration modules and their tests are written; full pytest and YAML-integration verification awaits the approved Windows/Ubuntu environment. Reference-code permission does not add dependencies or select unapproved hardware versions.
+

@@ -2,9 +2,11 @@
 
 Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
-**Current scope:** dependency definitions, environment diagnostics, and an ESP32/BME680 serial test. The full monitoring application is not implemented. Hardware operation has not been verified.
+**Current scope:** one room, one BME680 and one camera. Code includes dependency definitions, environment diagnostics, an experimental ESP32/BME680 serial test, and technical-alert configuration loading/validation. The full monitoring application is not implemented. Hardware operation has not been verified.
 
 ## Start here
+
+**Returning to Linux?** Read the [Linux AI handoff](reference_files/LINUX_AI_HANDOFF.md) first. Testing is explicitly deferred to the existing Linux environment; it has not been completed on Windows.
 
 | File | Role |
 |---|---|
@@ -21,10 +23,32 @@ The original lecture PDFs and VIGIL ZIP are not included. The reference is an ex
 | `firmware/room_environment_safety_control_bme680.ino` | Experimental Adafruit BME680 reader; GPIO21/22 I2C, 115200-baud JSON records |
 | `tools/read_sensor.py` | Prints JSON received from an explicitly selected serial port |
 | `tools/check_setup.py` | Reports Python/package metadata, device paths, and serial group membership |
+| `config/alerts.yaml` | Separate communication and sensor-error timeouts, initially 120 seconds each |
+| `config_loader.py` | `load_alert_settings(path)` reads a validated YAML settings snapshot |
+| `config_validation.py` | `validate_alert_settings(data)` checks both required positive, finite numeric durations |
+| `tests/test_config.py` | Hardware-free configuration loading and validation tests |
 | `setup_ubuntu.sh` | Legacy starter installer; see warning below |
 | `.gitignore` | Excludes environments, caches, editor metadata, and logs |
 
-No rule engine, occupancy detector, database, patient settings form, dashboard, notification worker, or automated tests exist yet.
+No rule engine, occupancy detector, database, patient settings form, dashboard, or notification worker exists yet. Configuration tests are written; the full pytest run is pending the pinned environment.
+
+## Technical alert settings
+
+Edit `config/alerts.yaml` to set `communication_timeout_s` and `sensor_error_timeout_s`, in seconds. Both are required positive, finite numbers; booleans and numeric strings are invalid.
+
+The future monitor should call the loader once during startup and keep its returned settings:
+
+```python
+from config_loader import load_alert_settings
+
+settings = load_alert_settings("config/alerts.yaml")
+```
+
+The loader does not watch the file. Restart the monitor to apply technical-setting changes once startup integration is added. Patient-profile live updates are a separate future feature. This step does not implement timers or connect the loader to the experimental serial reader.
+
+From the repository root, using the pinned project environment, run the full test suite with `python -m pytest`.
+
+Verification so far: Python 3.10 grammar checks passed for the new modules/tests; a host-interpreter, standard-library-only validator smoke check passed one valid and 27 invalid inputs. PyYAML integration and the pytest suite have not run: the available Windows environments do not contain the approved dependency versions. No dependencies were installed or replaced.
 
 ## Environment and setup policy
 
@@ -45,3 +69,4 @@ Gas resistance is raw ohms, not calibrated AQI, CO2, or CO. This is a teaching p
 ## VIGIL reference and project-specific decisions
 
 See [VIGIL comparison](reference_files/VIGIL_COMPARISON.md) for the verified manual-backed differences and authorized code-reuse scope. The current project name is **Room Environment Safety Control**; the repository remains `ES-II_SP1`.
+

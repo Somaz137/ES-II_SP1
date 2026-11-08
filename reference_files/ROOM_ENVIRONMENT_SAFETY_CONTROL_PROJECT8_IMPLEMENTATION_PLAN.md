@@ -4,6 +4,8 @@
 **Project:** Idea 8, Room Environment Safety Monitor.  
 **Platform:** Ubuntu 22.04 laptop + ESP32 over USB serial.
 
+**Current prototype scope:** one room, one BME680 and one camera. Earlier multi-room expansion and Jetson migration proposals are deferred.
+
 This file owns current progress and decisions. The [manual reference](ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md) owns course facts and source citations. The [README](../README.md) is the short entry point; [requirements.txt](../requirements.txt) owns executable Python pins.
 
 ## Operating constraints
@@ -16,6 +18,8 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 - This is an educational prototype. Do not invent patient limits or claim clinical safety.
 
 ## Current status
+
+**Linux continuation:** Follow [LINUX_AI_HANDOFF.md](LINUX_AI_HANDOFF.md) for the current branch, environment checks, configuration test command, remaining milestones and cleanup assessment. The user explicitly deferred all remaining testing to their Linux setup. No Windows environment or alternate Windows interpreter is selected.
 
 | Area | Evidence and state |
 |---|---|
@@ -30,7 +34,8 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 | Rules and configuration form | Not implemented; patient limits and timing undefined |
 | SQLite and dashboard | Not implemented |
 | Notifications/local alarm | Not implemented; channel and optional wiring undefined |
-| Automated tests | None present |
+| Technical alert settings | Implemented as `config/alerts.yaml`, `config_loader.py`, and `config_validation.py`; startup-only loading, not yet connected to the sensor reader |
+| Automated tests | `tests/test_config.py` written; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
 
 ## Existing sensor test
 
@@ -42,7 +47,9 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 
 ## Implementation sequence
 
-### A — Verify the existing environment
+### A - Verify the existing environment
+
+The user is currently on Windows and authorized an isolated environment in `C:\Users\User\OneDrive\Desktop\ES-II_SP1`. That folder is outside this session's writable roots; do not install there until it is writable. Available Windows interpreters do not match the recorded Python 3.10.12 environment. Python.org provides no Windows installer for 3.10.12; do not substitute another version without user agreement. Keep the existing Ubuntu environment unchanged and defer its checks until available.
 
 Inside the existing activated `env`, the manual documents:
 
@@ -92,14 +99,14 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 
 ## Confirmed fault-monitoring design
 
-- Store communication and sensor-error timeouts in a separate YAML file; both are initially 120 seconds. Filename, exact keys, validation and loading/reloading policy await agreement.
+- Store timeouts in `config/alerts.yaml` under `communication_timeout_s` and `sensor_error_timeout_s`, both initially 120 seconds. The loader validates a mapping with both finite, positive numeric values, rejecting bools and numeric strings. Technical settings load at startup initially; patient profiles will update while monitoring continues. Live patient-profile behavior remains a later feature.
 - Track last recognized ESP32 communication separately from last successful measurement. A recognized sensor-error message resets the communication timer but does not make measurements fresh.
 - After 120 seconds without recognized communication, raise a communication alert while the application continues running. Display last successful measurement time.
 - Communication alerts require acknowledgment even when messages resume. If acknowledged while communication is still missing, dismiss the alert and wait another 120 seconds; alert again if communication is still missing. Acknowledgment does not modify actual last-contact or last-measurement times.
 - A sensor-error episode begins on a sensor-error message. Further error messages do not restart its timer. Persistent errors trigger a separate alert after 120 seconds.
 - A valid measurement resets the sensor-error waiting period and automatically clears that alert. Sensor-error recovery does not remove the separate communication-alert acknowledgment requirement.
 - Track the start of the current sensor-error episode as well as last communication and last successful measurement.
-- Startup, recognized/valid message criteria, clock mechanism and mixed silence/error episodes remain unresolved. No fault-monitoring application code has been implemented or approved for implementation yet.
+- Technical-alert configuration loading/validation and its tests are implemented under the approved scope. Fault startup timing, recognized/valid message criteria, clock mechanism and mixed silence/error episodes remain unresolved; no fault trackers or hardware integration have been implemented in this step.
 
 ## Next information needed
 
@@ -116,3 +123,4 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - Environment: Module 2.2 pp. 8–10.
 - Flask/SQLite/configuration/testing architecture: Module 3.4 and VIGIL ZIP.
 - Full extraction: [manual reference](ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md). Original PDFs/ZIP are absent from this repository.
+
