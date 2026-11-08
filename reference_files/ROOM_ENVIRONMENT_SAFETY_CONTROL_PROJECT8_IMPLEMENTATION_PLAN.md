@@ -40,21 +40,21 @@ PRs #1 through #5 merged into main on 8 November 2026. The code remains unverifi
 | Communication-fault tracker | `communication_fault.py` implements initialization, recognized-message receipt, periodic evaluation and acknowledgment; takes supplied times and is not connected to serial/UI yet |
 | Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; not connected to serial/UI yet |
 | Serial parser / validator | `serial_parser.py` and `measurement_validation.py` classify decoded lines and check four finite numeric fields; no hardware, tracker mutation or committed-reading storage yet |
+| Bosch gas status | gas_readiness.py plus parser/router integration consumes status metadata. Legacy firmware reports no BSEC metadata, so gas remains unknown. No host warm-up timer. Firmware sampling/dependencies remain unresolved. |
 | Reading state and router | reading_state.py, monitoring_state.py and message_router.py retain complete values/time, expose initial waiting and latest input states, and connect parser classifications to both fault trackers. Real I/O, clock and scheduler remain future work. |
-| Automated tests | All seven test files (configuration, communication, sensor, measurement validation, serial parser, retained readings, routing) written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
+| Automated tests | All eight test files (configuration, communication, sensor, measurement validation, serial parser, retained readings, routing, gas status) written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
 
 ## Approved gas readiness design
 
-The user approved gas-only warm-up handling on 8 November 2026. This is a design decision, not implemented behavior.
+The user approved Bosch BSEC status integration on 8 November 2026, superseding the earlier host timer/YAML warm-up proposal. No gas_warmup_s field or fixed countdown is selected.
 
-- Continue monitoring and receiving ESP32 messages during gas warm-up. Show gas monitoring as unavailable rather than asserting a fully safe room.
-- Keep temperature, humidity and pressure subject to their own validity and settling checks. Gate gas evaluation separately.
-- Expected gas warm-up alone is not a sensor fault. Actual measurement errors and communication loss retain the existing fault rules.
-- Keep the planned warm-up duration in startup-loaded technical YAML and readiness logic in a separate Python module. Exact settings, duration and readiness criteria still need definition. No such YAML key exists yet.
-- A completed wait does not prove calibration. Current firmware reports raw gas resistance, not calibrated AQI or gas concentration.
-- Distinguish physical sensor restart from Python restart. Restart reporting and integration with the current all-four-fields parser remain unresolved. Do not accept missing or invalid measurements as warm-up without an agreed protocol.
-- Adafruit's BME680 guide recommends 48-hour initial conditioning and 30 minutes in the intended mode for subsequent use. This is external guidance, not a newly selected course procedure or a configured default: https://learn.adafruit.com/adafruit-bme680-humidity-temperature-barometic-pressure-voc-gas/overview
-- VIGIL has no gas warm-up equivalent. Its separate monitoring/dashboard pattern remains a useful architectural reference.
+Python status handling is implemented: gas_readiness.py validates an optional bsec object with integer stabilization_status, run_in_status and iaq_accuracy. The parser/router retains a coherent immutable snapshot from each recognized record. Missing/invalid metadata becomes unknown without changing measurement validity or inventing sensor faults. Warm-up and IAQ calibration are separate descriptions. Current gas warm-up status is unavailable during communication timeout or bad measurement input. None of these labels establishes room safety or certified calibration.
+
+Current firmware remains the experimental Adafruit reader with no BSEC output. Therefore actual BSEC behavior remains unverified and cannot activate from Python changes alone. Bosch datasheet Revision 1.9 documents 1Hz CONT for short-term testing only and LP updates every three seconds. The user previously selected continuous one-second sampling. Obtain the LP mode decision before replacing firmware. Keep actual fault checks five seconds, camera processing sixty seconds, dashboard ten seconds, and both fault timeouts 120 seconds.
+
+Candidate inspected wrapper: Bosch-BSEC2-Library release 1.10.2610, algorithm 2.6.1.0. This is not an installed or selected exact version. Exact BME68x dependency, ESP32 core and BME680 configuration need approval/verification. No dependency installation, flashing or runtime testing occurred. Preserve course-pinned Arduino IDE and Python requirements. State persistence is a potential later integration, not implemented.
+
+See [BSEC status design](../docs/superpowers/specs/2026-11-08-bsec-status-design.md) for the contract and manufacturer sources. VIGIL has no direct gas readiness equivalent.
 
 ## Selected execution intervals
 
@@ -172,7 +172,3 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - Environment: Module 2.2 pp. 8–10.
 - Flask/SQLite/configuration/testing architecture: Module 3.4 and VIGIL ZIP.
 - Full extraction: [manual reference](ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md). Original PDFs/ZIP are absent from this repository.
-
-
-
-

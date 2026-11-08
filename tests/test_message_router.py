@@ -177,3 +177,73 @@ def test_non_text_input_remains_a_caller_error_without_mutating_state():
     with pytest.raises(TypeError):
         process_serial_line(state, None, 10)
     assert state.communication.last_updated_at == 0
+
+
+def bsec_line(stabilization=1, run_in=1, accuracy=3):
+    payload = json.loads(VALID)
+    payload["bsec"] = {"stabilization_status": stabilization,
+                       "run_in_status": run_in, "iaq_accuracy": accuracy}
+    return json.dumps(payload)
+
+
+def test_warmup_does_not_start_sensor_fault_or_block_other_measurements():
+    from monitoring_state import current_gas_warmup_status
+    state = process_serial_line(start(), bsec_line(0, 0, 0), 10)
+    state = process_serial_line(state, bsec_line(0, 0, 0), 70)
+    state = process_serial_line(state, bsec_line(0, 0, 0), 130)
+    assert state.reading.last_reading.temp_c == 24
+    assert state.reading.last_reading.received_at == 130
+    assert state.sensor.error_started_at is None
+    assert not state.sensor.alert_active
+    assert current_gas_warmup_status(state) == "warming_up"
+
+
+def test_completed_warmup_keeps_calibration_state_separate():
+    from gas_readiness import gas_calibration_status
+    from monitoring_state import current_gas_warmup_status
+    state = process_serial_line(start(), bsec_line(1, 1, 2), 10)
+    assert current_gas_warmup_status(state) == "warmup_complete"
+    assert gas_calibration_status(state.gas) == "calibrating"
+
+
+@pytest.mark.parametrize("line", [VALID, bsec_line(1, 1, "3")])
+def test_missing_or_bad_metadata_replaces_previous_ready_status(line):
+    from monitoring_state import current_gas_warmup_status
+    state = process_serial_line(start(), bsec_line(), 10)
+    state = process_serial_line(state, line, 20)
+    assert monitoring_status(state) == "fresh"
+    assert current_gas_warmup_status(state) == "unknown"
+    assert not state.sensor.alert_active
+
+
+def test_silence_hides_ready_status_but_recovery_does_not_require_ack_for_status():
+    from monitoring_state import current_gas_warmup_status
+    state = process_serial_line(start(), bsec_line(), 10)
+    state = process_serial_line(state, "garbage", 20)
+    assert current_gas_warmup_status(state) == "warmup_complete"
+    state = evaluate_monitoring_faults(state, 130)
+    assert current_gas_warmup_status(state) == "unavailable"
+    state = process_serial_line(state, bsec_line(), 131)
+    assert state.communication.alert_active
+    assert current_gas_warmup_status(state) == "warmup_complete"
+
+
+@pytest.mark.parametrize("payload", [
+    {"type": "error", "message": "BSEC error"},
+    {"type": "reading", "temp_c": 24},
+])
+def test_measurement_problem_hides_readiness_even_if_flags_report_complete(payload):
+    from monitoring_state import current_gas_warmup_status
+    payload["bsec"] = {"stabilization_status": 1, "run_in_status": 1, "iaq_accuracy": 3}
+    state = process_serial_line(start(), bsec_line(), 10)
+    state = process_serial_line(state, json.dumps(payload), 20)
+    assert current_gas_warmup_status(state) == "unavailable"
+    assert state.reading.last_reading.received_at == 10
+    assert state.sensor.error_started_at == 20
+
+
+def test_reported_restart_returns_to_warming_without_host_timer():
+    from monitoring_state import current_gas_warmup_status
+    state = process_serial_line(start(), bsec_line(), 10)
+    state = process_serial_line(state, bsec_line(1, 0, 0), 11)
+    assert current_gas_warmup_status(state) == "warming_up"

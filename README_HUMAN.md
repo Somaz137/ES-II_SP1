@@ -112,34 +112,43 @@ The parser already identifies incomplete readings.
 The new state and router modules retain readings and update the fault trackers.
 The dashboard remains future work.
 
-## Gas warm-up
+## Gas warm-up and calibration
 
-**Decision approved. Implementation remains future work.**
+The selected design uses status reports from Bosch BSEC software.
+Python does not declare readiness after a fixed waiting period.
+The new Python module can read these reports.
+The current ESP32 firmware does not yet send them.
+Gas status therefore remains unknown with the current firmware.
+
+BSEC reports initial stabilization and stabilization after power-on.
+A zero flag means stabilization continues.
+Both flags must equal one for the warmup_complete status.
+This status does not prove that calibration finished or that the room is safe.
+
+A separate IAQ accuracy value describes the calibration state.
+The labels are stabilizing, calibration_required, calibrating, and calibrated.
+These labels describe the algorithm report.
+They do not certify measurement accuracy.
+
+Missing or invalid status information produces unknown status.
+A complete environmental reading remains usable even when its gas metadata is unknown.
+Expected warm-up does not start a sensor error period.
+Actual communication loss or measurement errors retain their normal fault rules.
+Current gas status becomes unavailable when communication times out or the latest input contains measurement errors.
 
 The program will continue during gas warm-up.
-The dashboard will show that gas monitoring is unavailable during this period.
-Gas warm-up alone must not cause a sensor fault or a fully safe room status.
-Actual communication loss and measurement errors will retain their normal fault rules.
+Temperature, humidity, and pressure still need their own validity and settling checks.
+The dashboard and environmental gas rules remain future work.
+The new code does not calculate an air quality index from raw resistance.
 
-Temperature, humidity, and pressure can continue through their own validity and settling checks.
-Gas evaluation will remain unavailable until the selected readiness conditions permit it.
-A completed timer will mean that the configured warm-up period ended.
-It will not prove calibration accuracy.
+The firmware integration still needs a sampling decision.
+Bosch describes one-second BSEC operation for short-term testing.
+Its low-power mode updates every three seconds.
+The earlier project choice was continuous one-second sampling.
+The existing firmware keeps that timing until the user selects the BSEC operating mode.
 
-Adafruit recommends 48 hours of initial conditioning and 30 minutes in the intended operating mode for subsequent use.
-This guidance concerns settling of the gas sensing element.
-It does not establish a universal two-hour calibration rule.
-See the [Adafruit BME680 guide](https://learn.adafruit.com/adafruit-bme680-humidity-temperature-barometic-pressure-voc-gas/overview).
-
-The future design will place warm-up timing in technical YAML settings.
-The exact settings and readiness checks still need definition.
-No warm-up setting exists in the current YAML file.
-Restarting Python must not automatically imply that the physical sensor restarted.
-The project still needs a way to identify the sensor's actual restart state.
-
-The current parser requires all four numeric fields.
-The warm-up implementation must distinguish gas readiness from missing or invalid gas measurements.
-It must not hide real sensor errors.
+Initial sensor conditioning remains separate from this software status handling.
+See the [BSEC integration design](docs/superpowers/specs/2026-11-08-bsec-status-design.md) for the protocol and manufacturer references.
 
 ## Settings and timing
 
@@ -174,12 +183,13 @@ Dashboard refreshes and camera observations have their own intervals.
 | `reading_state.py` | Retains complete values, receipt time, and the latest input status. |
 | `monitoring_state.py` | Combines reading state and both fault trackers. |
 | `message_router.py` | Connects decoded serial input to those states. |
+| `gas_readiness.py` | Checks reported Bosch warm-up and calibration status. |
 | `serial_parser.py` | Classifies a decoded serial line. |
 | `measurement_validation.py` | Checks the four required measurement fields. |
 | `firmware/room_environment_safety_control_bme680.ino` | Contains the experimental ESP32 sensor reader. |
 | `tools/read_sensor.py` | Prints JSON records from a selected serial port. It does not connect the monitoring components. |
 | `tools/check_setup.py` | Reports environment metadata. It does not prove that the application works. |
-| `tests/` | Contains seven test files. Test execution remains deferred to Linux. |
+| `tests/` | Contains eight test files. Test execution remains deferred to Linux. |
 | `reference_files/` | Contains the course reference, implementation plan, Linux handoff, and VIGIL comparison. |
 | `docs/superpowers/` | Contains detailed component designs and implementation checklists. |
 
@@ -187,12 +197,13 @@ Dashboard refreshes and camera observations have their own intervals.
 
 1. Execute the existing tests in the approved Linux environment.
 2. Connect the new routing layer to the actual serial reader.
-3. Add serial recovery, periodic checks, and gas readiness handling.
-4. Check real sensor operation and select the camera method.
-5. Define patient profiles and environmental alert rules.
-6. Add storage, event history, and the dashboard.
-7. Add the agreed notification method.
-8. Demonstrate normal operation, faults, and recovery with actual hardware.
+3. Select BSEC sampling and firmware dependencies.
+4. Add serial recovery, periodic checks, and the BSEC firmware connection.
+5. Check real sensor operation and select the camera method.
+6. Define patient profiles and environmental alert rules.
+7. Add storage, event history, and the dashboard.
+8. Add the agreed notification method.
+9. Demonstrate normal operation, faults, and recovery with actual hardware.
 
 The project does not yet contain a complete rule engine, occupancy detector, database, dashboard, or notification worker.
 It remains an educational prototype.
@@ -207,7 +218,7 @@ This project monitors room conditions and uses a camera for occupancy.
 | Main input | Camera posture classifications | BME680 measurements and planned occupancy observations |
 | Uncertain input | Occlusion preserves the last committed state | Incomplete readings will preserve the last complete values and timestamp |
 | Configuration | Loads settings at startup | Technical settings load at startup. Patient profiles will support changes during monitoring. |
-| Gas warm-up | No equivalent feature | Separate gas readiness state planned |
+| Gas warm-up | No equivalent feature | Python reads Bosch status. Firmware integration remains future work. |
 | Communication acknowledgment | Records acknowledgment in the database | Acknowledgment during silence starts another timeout period |
 | Monitoring and dashboard | Separate monitor and web components | Same separation planned |
 

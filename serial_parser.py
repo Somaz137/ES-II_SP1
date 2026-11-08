@@ -1,10 +1,11 @@
 """Classify decoded ESP32 serial lines without hardware or tracker side effects."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from typing import Literal
 
 from measurement_validation import MEASUREMENT_FIELDS, validate_measurements
+from gas_readiness import GasReadiness, parse_gas_readiness
 
 MessageKind = Literal[
     "valid_reading", "sensor_error", "incomplete_reading", "ignored"
@@ -18,6 +19,7 @@ class ParsedSerialMessage:
     kind: MessageKind
     measurements: dict[str, int | float] | None = None
     message: str | None = None
+    gas: GasReadiness = field(default_factory=GasReadiness)
 
 
 def parse_serial_line(line: str) -> ParsedSerialMessage:
@@ -46,7 +48,10 @@ def parse_serial_line(line: str) -> ParsedSerialMessage:
         message = payload.get("message")
         if not isinstance(message, str) or not message.strip():
             message = "Sensor reported an error."
-        return ParsedSerialMessage(kind="sensor_error", message=message)
+        return ParsedSerialMessage(
+            kind="sensor_error", message=message,
+            gas=parse_gas_readiness(payload.get("bsec")),
+        )
 
     if record_type != "reading":
         return ParsedSerialMessage(kind="ignored")
@@ -54,10 +59,13 @@ def parse_serial_line(line: str) -> ParsedSerialMessage:
     try:
         validate_measurements(payload)
     except ValueError as error:
-        return ParsedSerialMessage(kind="incomplete_reading", message=str(error))
+        return ParsedSerialMessage(
+            kind="incomplete_reading", message=str(error),
+            gas=parse_gas_readiness(payload.get("bsec")),
+        )
 
     return ParsedSerialMessage(
         kind="valid_reading",
         measurements={field: payload[field] for field in MEASUREMENT_FIELDS},
+        gas=parse_gas_readiness(payload.get("bsec")),
     )
-
