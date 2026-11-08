@@ -19,7 +19,7 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 
 ## Current status
 
-PRs #1 through #5 merged into main on 8 November 2026. The code remains unverified by the full Linux test suite. See [README_HUMAN.md](../README_HUMAN.md) for the human overview.
+PRs #1 through #9 are merged into main as of 8 November 2026. The code remains unverified by the full Linux test suite. See [README_HUMAN.md](../README_HUMAN.md) for the human overview.
 
 **Linux continuation:** Follow [LINUX_AI_HANDOFF.md](LINUX_AI_HANDOFF.md) for the current branch, environment checks, configuration test command, remaining milestones and cleanup assessment. The user explicitly deferred all remaining testing to their Linux setup. No Windows environment or alternate Windows interpreter is selected.
 
@@ -46,7 +46,7 @@ PRs #1 through #5 merged into main on 8 November 2026. The code remains unverifi
 
 ## Terminal serial runtime prepared
 
-The current feature adds monitor.py, monitoring_loop.py, serial_transport.py, status_output.py, runtime_settings.py and config/runtime.yaml on top of PR #8. It uses the existing dependency pins. It loads both YAML files once and keeps one monitoring state across connection failures/retries. Fault checks run every five seconds even with no open port. Retry interval (five seconds) and polling interval (0.05 seconds) are implementation settings, not extra fault delays or BME680 sampling controls.
+The current feature adds monitor.py, monitoring_loop.py, serial_transport.py, status_output.py, runtime_settings.py and config/runtime.yaml from PR #9, now merged into main. It uses the existing dependency pins. It loads both YAML files once and keeps one monitoring state across connection failures/retries. Fault checks run every five seconds even with no open port. Retry interval (five seconds) and polling interval (0.05 seconds) are implementation settings, not extra fault delays or BME680 sampling controls.
 
 The serial port must be explicit. Opening it may reset the ESP32. Bounded nonblocking reads preserve partial lines; overlong/invalid-UTF-8 input does not reset communication. Failed reads/open attempts close and retry the same selected device. No device auto-selection, permission edits or firmware commands occur. Missed periodic ticks use current monotonic time, without replaying timestamps. OS/port/output delays can postpone checks; this is not a real-time guarantee.
 
@@ -54,13 +54,13 @@ Terminal JSON reports original complete measurements, host receipt age and an ex
 
 Tests are written but unrun, including real-component routing with fake serial endpoints/time, retries, retained readings, silence, error/noise, delayed checks, byte framing and cleanup. There are now eleven Python test files plus separate firmware C++ tests. No application imports, test execution, device access, installations or firmware operation occurred during this step. Python grammar inspection is not runtime verification.
 
-Linux continuation: select codex/serial-runtime or its merged successor without discarding local work. Verify the existing env and run the full pinned suite first. After firmware/dependency/supply issues are settled separately, identify the actual port and close competing readers. Use `python3 monitor.py --port /dev/ttyUSB0` only if that is the verified device; substitute the actual path otherwise. Check initial empty state, fresh readings, retained values/time through USB disconnect, two-minute alerts, recovered contact with a latched communication alert, error-to-valid recovery and Ctrl+C cleanup. Do not perform live sensor rewiring without an agreed hardware procedure.
+Linux continuation: select main without discarding local work. Verify the existing env and run the full pinned suite first. After firmware/dependency/supply issues are settled separately, identify the actual port and close competing readers. Use `python3 monitor.py --port /dev/ttyUSB0` only if that is the verified device; substitute the actual path otherwise. Check initial empty state, fresh readings, retained values/time through USB disconnect, two-minute alerts, recovered contact with a latched communication alert, error-to-valid recovery and Ctrl+C cleanup. Do not perform live sensor rewiring without an agreed hardware procedure.
 
 See the [runtime design](../docs/superpowers/specs/2026-11-08-serial-runtime-design.md) and [verification plan](../docs/superpowers/plans/2026-11-08-serial-runtime.md). VIGIL also separates monitoring from its dashboard; USB framing/reconnect is project-specific. The original BSEC firmware and all prior pure modules remain unchanged.
 
 ## BSEC firmware source prepared
 
-The user approved three-second LP sampling. This feature prepares firmware source on top of PR #7. BSEC controls sampling, only new callback data produces readings, and errors remain recognized communication. No fixed gas warm-up countdown is added. Camera processing stays60 seconds, fault checks5 seconds, dashboard10 seconds, and both host fault durations120 seconds.
+The user approved three-second LP sampling. PR #8 added the firmware source and is now merged into main. BSEC controls sampling, only new callback data produces readings, and errors remain recognized communication. No fixed gas warm-up countdown is added. Camera processing stays60 seconds, fault checks5 seconds, dashboard10 seconds, and both host fault durations120 seconds.
 
 Read [firmware/README.md](../firmware/README.md) before installation or compilation. Exact BSEC/BME68x/core versions remain to agree and verify. The inspected API references are candidates, not installed dependencies. Confirm the physical sensor die supply, then set ROOM_BME680_SUPPLY_MV to1800 or3300. Its default zero deliberately stops compilation. Do not guess from breakout VIN. No firmware compilation, tests, flashing, service or hardware operation ran on Windows.
 

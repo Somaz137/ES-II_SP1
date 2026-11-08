@@ -8,7 +8,7 @@ Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
 **For people:** Read [README_HUMAN.md](README_HUMAN.md) for the project purpose, data flow, alert behavior, gas warm-up decision and remaining work.
 
-PRs #1 through #5 are merged into main. Python consumption of Bosch gas status is implemented in this feature branch. Three-second LP sampling is selected and BSEC firmware source is prepared. Compilation and hardware verification remain pending. See the [approved design](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md#approved-gas-readiness-design).
+PRs #1 through #9 are merged into main. Python consumption of Bosch gas status is merged into main. Three-second LP sampling is selected and BSEC firmware source is prepared. Compilation and hardware verification remain pending. See the [approved design](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md#approved-gas-readiness-design).
 
 **Returning to Linux?** Read the [Linux AI handoff](reference_files/LINUX_AI_HANDOFF.md) first. Testing is explicitly deferred to the existing Linux environment; it has not been completed on Windows.
 
@@ -37,7 +37,7 @@ The thin entry point loads `config/alerts.yaml` and `config/runtime.yaml` once, 
 
 Runtime defaults: fault checks five seconds, serial retry five seconds, transport polling 0.05 seconds. The last two are implementation controls, not alert durations or sensor acquisition rates. Neither YAML file changes firmware sampling. Partial records are buffered; invalid UTF-8 or oversized lines are discarded. Port-open status does not prove recognized messages. All tests and hardware checks remain deferred. No acknowledgment CLI exists yet; communication alerts remain latched after recovery until a future controller uses the existing acknowledgment API. No database persists state across process restarts.
 
-See the [serial runtime design](docs/superpowers/specs/2026-11-08-serial-runtime-design.md) and [Linux verification plan](docs/superpowers/plans/2026-11-08-serial-runtime.md). This draft builds on PR #8 and does not merge it.
+See the [serial runtime design](docs/superpowers/specs/2026-11-08-serial-runtime-design.md) and [Linux verification plan](docs/superpowers/plans/2026-11-08-serial-runtime.md). PRs #6 through #9 are now merged. Use main for Linux verification.
 
 ## Existing code
 

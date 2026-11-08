@@ -16,13 +16,13 @@ The user explicitly deferred testing **until returning to Linux**. Do not set up
 - Runtime target: Ubuntu 22.04 laptop, recorded Python 3.10.12, existing virtual environment named env.
 - ESP32 supplies environmental measurements to the laptop over USB serial. Camera connection and occupancy method are not yet selected.
 - Multi-room monitoring, extra sensor buses/hubs and Jetson migration were discussed but **deferred**. Do not implement them.
-- PRs #1 through #5 merged into main on 8 November 2026. They contain the rename, technical settings, both fault trackers and serial parser/validator.
-- Merge result before this documentation update: a15b1bdfc6a1db87b9c8a89dcec4b109a3ca9e0a.
+- PRs #1 through #9 are merged into main as of 8 November 2026. They contain the rename, technical settings, both fault trackers and serial parser/validator.
+- Merge result before this handoff correction: ca30bbc856b11e7141086893fb605f5418870afb.
 - The setup shell script is absent. Full pytest execution remains deferred to Linux.
-- Main contains PRs #1 through #5. For the newest host-side gas feature use codex/serial-runtime or its merged successor. Preserve local work.
-- Current feature: codex/serial-runtime connects terminal serial I/O and scheduled faults on top of PR #8. No runtime tests, port access or firmware build/install/flash occurred.
+- Continue from main. The former feature branches are historical; preserve local work before switching.
+- Current merged milestone: terminal serial monitoring, scheduled faults and BSEC source. No runtime test, firmware build or hardware success is established.
 - Previous gas feature: codex/bsec-status adds Python metadata consumption.
-- Previous feature: PR #6 on codex/monitoring-state adds retained readings and routing with seven test files. The BSEC status branch builds on it and adds the eighth test file.
+- PR #6 added retained readings/routing; #7 added gas metadata; #8 added firmware source; #9 added the terminal runtime. There are eleven Python test files, plus separate firmware C++ tests.
 - Human overview: [README_HUMAN.md](../README_HUMAN.md). Keep AI continuation instructions in this handoff rather than the human guide.
 
 ## Read these files
@@ -80,14 +80,14 @@ git branch --show-current
 git fetch origin
 ```
 
-PRs #1 through #5 are merged. The current serial runtime feature builds on PR #8 and its predecessors. Check remote merge state before selecting a branch. With a clean working tree and an existing local feature branch, use:
+PRs #1 through #9 are merged. With a clean working tree, continue from main:
 
 ```bash
-git switch codex/serial-runtime
-git pull --ff-only origin codex/serial-runtime
+git switch main
+git pull --ff-only origin main
 ```
 
-If no local feature branch exists, use git switch --track origin/codex/serial-runtime instead of the switch command above. If this feature is already merged, use main or its merged successor. If local changes or divergent commits prevent continuation, report the state and ask before resolving it. Do not force checkout, reset, clean, delete or silently stash work.
+If no local main branch exists, use git switch --track origin/main instead of the switch command above. If local changes or divergent commits prevent continuation, report the state and ask before resolving it. Do not force checkout, reset, clean, delete or silently stash work.
 
 ## Reading-state/router continuation
 
@@ -245,7 +245,7 @@ Do not delete files merely because they are not runtime dependencies. The user o
 
 ## Terminal serial runtime prepared
 
-The current feature adds monitor.py, monitoring_loop.py, serial_transport.py, status_output.py, runtime_settings.py and config/runtime.yaml on top of PR #8. It uses the existing dependency pins. It loads both YAML files once and keeps one monitoring state across connection failures/retries. Fault checks run every five seconds even with no open port. Retry interval (five seconds) and polling interval (0.05 seconds) are implementation settings, not extra fault delays or BME680 sampling controls.
+The current feature adds monitor.py, monitoring_loop.py, serial_transport.py, status_output.py, runtime_settings.py and config/runtime.yaml from PR #9, now merged into main. It uses the existing dependency pins. It loads both YAML files once and keeps one monitoring state across connection failures/retries. Fault checks run every five seconds even with no open port. Retry interval (five seconds) and polling interval (0.05 seconds) are implementation settings, not extra fault delays or BME680 sampling controls.
 
 The serial port must be explicit. Opening it may reset the ESP32. Bounded nonblocking reads preserve partial lines; overlong/invalid-UTF-8 input does not reset communication. Failed reads/open attempts close and retry the same selected device. No device auto-selection, permission edits or firmware commands occur. Missed periodic ticks use current monotonic time, without replaying timestamps. OS/port/output delays can postpone checks; this is not a real-time guarantee.
 
@@ -253,13 +253,13 @@ Terminal JSON reports original complete measurements, host receipt age and an ex
 
 Tests are written but unrun, including real-component routing with fake serial endpoints/time, retries, retained readings, silence, error/noise, delayed checks, byte framing and cleanup. There are now eleven Python test files plus separate firmware C++ tests. No application imports, test execution, device access, installations or firmware operation occurred during this step. Python grammar inspection is not runtime verification.
 
-Linux continuation: select codex/serial-runtime or its merged successor without discarding local work. Verify the existing env and run the full pinned suite first. After firmware/dependency/supply issues are settled separately, identify the actual port and close competing readers. Use `python3 monitor.py --port /dev/ttyUSB0` only if that is the verified device; substitute the actual path otherwise. Check initial empty state, fresh readings, retained values/time through USB disconnect, two-minute alerts, recovered contact with a latched communication alert, error-to-valid recovery and Ctrl+C cleanup. Do not perform live sensor rewiring without an agreed hardware procedure.
+Linux continuation: select main without discarding local work. Verify the existing env and run the full pinned suite first. After firmware/dependency/supply issues are settled separately, identify the actual port and close competing readers. Use `python3 monitor.py --port /dev/ttyUSB0` only if that is the verified device; substitute the actual path otherwise. Check initial empty state, fresh readings, retained values/time through USB disconnect, two-minute alerts, recovered contact with a latched communication alert, error-to-valid recovery and Ctrl+C cleanup. Do not perform live sensor rewiring without an agreed hardware procedure.
 
 See the [runtime design](../docs/superpowers/specs/2026-11-08-serial-runtime-design.md) and [verification plan](../docs/superpowers/plans/2026-11-08-serial-runtime.md). VIGIL also separates monitoring from its dashboard; USB framing/reconnect is project-specific. The original BSEC firmware and all prior pure modules remain unchanged.
 
 ## BSEC firmware source prepared
 
-The user approved three-second LP sampling. This feature prepares firmware source on top of PR #7. BSEC controls sampling, only new callback data produces readings, and errors remain recognized communication. No fixed gas warm-up countdown is added. Camera processing stays60 seconds, fault checks5 seconds, dashboard10 seconds, and both host fault durations120 seconds.
+The user approved three-second LP sampling. PR #8 added the firmware source and is now merged into main. BSEC controls sampling, only new callback data produces readings, and errors remain recognized communication. No fixed gas warm-up countdown is added. Camera processing stays60 seconds, fault checks5 seconds, dashboard10 seconds, and both host fault durations120 seconds.
 
 Read [firmware/README.md](../firmware/README.md) before installation or compilation. Exact BSEC/BME68x/core versions remain to agree and verify. The inspected API references are candidates, not installed dependencies. Confirm the physical sensor die supply, then set ROOM_BME680_SUPPLY_MV to1800 or3300. Its default zero deliberately stops compilation. Do not guess from breakout VIN. No firmware compilation, tests, flashing, service or hardware operation ran on Windows.
 
