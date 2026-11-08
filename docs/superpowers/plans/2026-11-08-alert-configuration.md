@@ -4,7 +4,7 @@
 
 **Goal:** Read and validate the two startup-only technical timeout settings.
 
-**Architecture:** Keep YAML in config/alerts.yaml, file parsing in config_loader.py, and pure validation in config_validation.py. The caller keeps a validated settings snapshot.
+**Architecture:** Keep YAML in config/alerts.yaml, file parsing and pure validation in settings.py. The caller keeps a validated settings snapshot.
 
 **Tech Stack:** Python 3.10; PyYAML==6.0.1; pytest==8.2.0.
 
@@ -27,7 +27,7 @@
 
 ## Task 1: Configuration and tests
 
-**Files:** config/alerts.yaml; config_loader.py; config_validation.py; tests/test_config.py.
+**Files:** config/alerts.yaml; settings.py; tests/test_config.py.
 
 **Interfaces:** load_alert_settings(path: str | Path) -> dict; validate_alert_settings(data: object) -> None, raising ValueError on invalid settings.
 

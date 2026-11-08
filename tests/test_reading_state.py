@@ -2,7 +2,7 @@
 
 import pytest
 
-from reading_state import ReadingState, commit_reading, record_reading_problem
+from measurements import ReadingState, commit_reading, record_reading_problem
 
 
 def measurements():

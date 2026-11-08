@@ -4,7 +4,7 @@
 
 **Goal:** Classify incoming text records and validate complete numeric measurements without hardware or tracker side effects.
 
-**Architecture:** measurement_validation.py owns the four-field schema and validation; serial_parser.py uses it after JSON decoding and returns a classification. Only valid results carry committable values.
+**Architecture:** measurements.py owns the four-field schema and validation; serial_parser.py uses it after JSON decoding and returns a classification. Only valid results carry committable values.
 
 **Tech Stack:** Python 3.10 standard library; existing pytest==8.2.0 for deferred tests.
 
@@ -28,7 +28,7 @@
 
 ## Task 1: Measurement validator
 
-**Files:** measurement_validation.py, tests/test_measurement_validation.py.
+**Files:** measurements.py, tests/test_measurement_validation.py.
 **Produces:** MEASUREMENT_FIELDS; validate_measurements(data: object) -> None, raising ValueError for unusable measurements.
 
 - [x] Write finite/missing/type-validation and no-patient-threshold cases before implementation.

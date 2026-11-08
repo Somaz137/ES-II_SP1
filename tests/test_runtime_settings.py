@@ -2,7 +2,7 @@
 
 import pytest
 
-from runtime_settings import load_runtime_settings, validate_runtime_settings
+from settings import load_runtime_settings, validate_runtime_settings
 
 
 def test_runtime_file_loads_startup_snapshot(tmp_path):

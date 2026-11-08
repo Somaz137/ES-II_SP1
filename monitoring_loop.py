@@ -2,8 +2,11 @@
 
 import time
 
-from message_router import process_serial_line
-from monitoring_state import create_monitoring_state, evaluate_monitoring_faults
+from monitoring_state import (
+    create_monitoring_state,
+    evaluate_monitoring_faults,
+    process_serial_line,
+)
 
 
 def run_monitor(

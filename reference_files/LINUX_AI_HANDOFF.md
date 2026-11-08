@@ -9,6 +9,21 @@ This record supersedes earlier pending-test statements in historical preparation
 
 Updated: 8 November 2026.
 
+
+## Moderate Python merge
+
+The user approved the moderate file merge and a complete reference update.
+The main folder now has eleven application Python files.
+settings.py owns settings loading and validation.
+measurements.py owns measurement validation and retained readings.
+monitoring_state.py owns combined state and message routing.
+The existing functions, classes, settings keys, and serial behavior remain unchanged.
+Both YAML files and all eleven test files remain separate.
+Imports in application code and tests use the current modules.
+The original test filenames describe the tested behavior, not separate application modules.
+See [PYTHON_FILE_GUIDE.md](PYTHON_FILE_GUIDE.md) for the current file list.
+
+
 ## DOIT board selection - 8 November 2026
 
 The user selected DOIT ESP32 DevKit V1 with the classic ESP32 chip.
@@ -51,7 +66,7 @@ The user returned to Linux and completed the checks in the linked verification r
 
 ## Read these files
 
-Also read gas_readiness.py, tests/test_gas_readiness.py, the BSEC status spec/plan, reading_state.py, monitoring_state.py, message_router.py, tests/test_reading_state.py, tests/test_message_router.py, and the monitoring-state spec/plan in docs/superpowers.
+Also read gas_readiness.py, tests/test_gas_readiness.py, the BSEC status spec/plan, measurements.py, monitoring_state.py, tests/test_reading_state.py, tests/test_message_router.py, and the monitoring-state spec/plan in docs/superpowers.
 
 | File | Authority / purpose |
 |---|---|
@@ -62,14 +77,13 @@ Also read gas_readiness.py, tests/test_gas_readiness.py, the BSEC status spec/pl
 | docs/superpowers/specs/2026-11-08-alert-configuration-design.md | Approved configuration contract |
 | docs/superpowers/plans/2026-11-08-alert-configuration.md | Configuration implementation and verification checklist |
 | config/alerts.yaml | Technical timeout settings |
-| config_loader.py | load_alert_settings(path) |
-| config_validation.py | validate_alert_settings(data) |
+| `settings.py` | Loads both YAML settings files and checks their values. |
 | tests/test_config.py | Real-file configuration and validation tests |
 | communication_fault.py | Pure startup, contact, timeout and acknowledgment tracking |
 | tests/test_communication_fault.py | Communication scenarios included in the user's Linux suite execution |
 | sensor_fault.py | Sensor-error timing and communication-driven pause/resume |
 | tests/test_sensor_fault.py | Deferred sensor scenarios and actual communication-state interaction cases |
-| measurement_validation.py | Four-field structural numeric validation |
+| `measurements.py` | Checks measurements and retains the last complete reading and its receipt time. |
 | serial_parser.py | Stateless decoded-line classification; no partial committable payloads |
 | tests/test_measurement_validation.py, tests/test_serial_parser.py | Deferred validator and real JSON-line cases |
 | docs/superpowers/specs/2026-11-08-serial-parser-design.md | Agreed classifications, data contract and state-integration boundary |
@@ -269,7 +283,7 @@ Do not delete files merely because they are not runtime dependencies. The user o
 
 ## Terminal serial runtime prepared
 
-The current feature adds monitor.py, monitoring_loop.py, serial_transport.py, status_output.py, runtime_settings.py and config/runtime.yaml from PR #9, now merged into main. It uses the existing dependency pins. It loads both YAML files once and keeps one monitoring state across connection failures/retries. Fault checks run every five seconds even with no open port. Retry interval (five seconds) and polling interval (0.05 seconds) are implementation settings, not extra fault delays or BME680 sampling controls.
+The current feature adds monitor.py, monitoring_loop.py, serial_transport.py, status_output.py, settings.py and config/runtime.yaml from PR #9, now merged into main. It uses the existing dependency pins. It loads both YAML files once and keeps one monitoring state across connection failures/retries. Fault checks run every five seconds even with no open port. Retry interval (five seconds) and polling interval (0.05 seconds) are implementation settings, not extra fault delays or BME680 sampling controls.
 
 The serial port must be explicit. Opening it may reset the ESP32. Bounded nonblocking reads preserve partial lines; overlong/invalid-UTF-8 input does not reset communication. Failed reads/open attempts close and retry the same selected device. No device auto-selection, permission edits or firmware commands occur. Missed periodic ticks use current monotonic time, without replaying timestamps. OS/port/output delays can postpone checks; this is not a real-time guarantee.
 

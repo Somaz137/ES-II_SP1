@@ -4,12 +4,12 @@ import json
 
 import pytest
 
-from message_router import process_serial_line
 from monitoring_state import (
     acknowledge_monitoring_communication,
     create_monitoring_state,
     evaluate_monitoring_faults,
     monitoring_status,
+    process_serial_line,
 )
 
 VALID = json.dumps({"type": "reading", "temp_c": 24, "humidity_pct": 45,

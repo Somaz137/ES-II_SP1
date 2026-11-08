@@ -54,22 +54,25 @@ Upload, breakout wiring, actual pressure units, and physical readings remain unc
 
 ## Main components
 
+The application now uses eleven Python files in the main folder.
+Related settings, measurements, and state updates share files.
+See the [Python file guide](reference_files/PYTHON_FILE_GUIDE.md) for every application, tool, and test file.
+The test filenames remain unchanged so their original test cases are easy to track.
+
 | File | Purpose |
 |---|---|
 | monitor.py | Starts the terminal monitor with an explicitly selected serial port. |
 | serial_transport.py | Reads complete lines, handles partial input, and retries the selected port after connection errors. |
 | monitoring_loop.py | Routes input and checks faults during silence. |
 | status_output.py | Reports retained readings, reading age, estimated receipt time, faults, and gas status. |
-| runtime_settings.py | Loads and validates host timing settings. |
+| `settings.py` | Loads both YAML settings files and checks their values. |
 | config/runtime.yaml | Stores host polling, retry, and fault-check intervals. |
 | config/alerts.yaml | Stores the communication and sensor-error timeouts. |
-| config_loader.py and config_validation.py | Load and validate technical alert settings. |
 | communication_fault.py | Tracks missing communication and alert acknowledgment. |
 | sensor_fault.py | Tracks repeated sensor errors and valid-reading recovery. |
-| measurement_validation.py | Checks complete finite numeric measurements. |
+| `measurements.py` | Checks measurements and retains the last complete reading and its receipt time. |
 | serial_parser.py | Classifies readings, errors, incomplete records, and ignored input. |
-| reading_state.py | Retains the last complete reading and its receipt time. |
-| monitoring_state.py and message_router.py | Combine input, retained readings, and fault states. |
+| `monitoring_state.py` | Stores the combined state and applies incoming messages to readings and fault trackers. |
 | gas_readiness.py | Interprets reported Bosch warm-up and calibration status. |
 | firmware/room_environment_safety_control_bme680.ino | Reads the sensor and sends JSON measurements or error records. |
 | firmware/bsec_board_config.h | Stores board settings and validates chip and supply selections. |

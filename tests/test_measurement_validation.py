@@ -2,7 +2,7 @@
 
 import pytest
 
-from measurement_validation import validate_measurements
+from measurements import validate_measurements
 
 
 def complete_reading():
