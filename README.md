@@ -1,4 +1,4 @@
-# SAFE-ROOM — Project 8
+# Room Environment Safety Control — Project 8
 
 Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
@@ -8,8 +8,8 @@ Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
 | File | Role |
 |---|---|
-| [Implementation plan](reference_files/SAFE_ROOM_PROJECT8_IMPLEMENTATION_PLAN.md) | Current progress, decisions, blockers, and next steps |
-| [Manual reference](reference_files/SAFE_ROOM_MANUAL_REFERENCE.md) | Extracted course facts, source pages, version justification, and constraints |
+| [Implementation plan](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md) | Current progress, decisions, blockers, and next steps |
+| [Manual reference](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md) | Extracted course facts, source pages, version justification, and constraints |
 | [requirements.txt](requirements.txt) | Executable Python package pins |
 
 The original lecture PDFs and VIGIL ZIP are not included. The reference is an extraction, not a replacement for those source files.
@@ -18,7 +18,7 @@ The original lecture PDFs and VIGIL ZIP are not included. The reference is an ex
 
 | File | What it does |
 |---|---|
-| `firmware/safe_room_bme680.ino` | Experimental Adafruit BME680 reader; GPIO21/22 I2C, 115200-baud JSON records |
+| `firmware/room_environment_safety_control_bme680.ino` | Experimental Adafruit BME680 reader; GPIO21/22 I2C, 115200-baud JSON records |
 | `tools/read_sensor.py` | Prints JSON received from an explicitly selected serial port |
 | `tools/check_setup.py` | Reports Python/package metadata, device paths, and serial group membership |
 | `setup_ubuntu.sh` | Legacy starter installer; see warning below |
@@ -41,3 +41,7 @@ The firmware and reader use the same JSON format and baud rate. They are experim
 Confirm the board, breakout, toolchain, and missing course instructions before installing dependencies or flashing. Electrical guidance and manual pin assignments are in the reference.
 
 Gas resistance is raw ohms, not calibrated AQI, CO2, or CO. This is a teaching prototype; patient-specific safe limits have not been defined.
+
+## VIGIL reference and project-specific decisions
+
+See [VIGIL comparison](reference_files/VIGIL_COMPARISON.md) for the verified manual-backed differences and authorized code-reuse scope. The current project name is **Room Environment Safety Control**; the repository remains `ES-II_SP1`.
