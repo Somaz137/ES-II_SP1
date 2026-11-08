@@ -6,7 +6,7 @@ Updated: 8 November 2026.
 
 Continue this existing project rather than generating a replacement. First read this handoff, the implementation plan, the manual reference, and the configuration design/test files listed below.
 
-The user explicitly deferred testing **until returning to Linux**. Do not set up a Windows test environment, select a substitute Windows Python, or infer permission to change dependencies. The immediate Linux task is to verify the implemented configuration step in the existing approved environment, then report the results before progressing through unresolved design decisions.
+The user explicitly deferred testing **until returning to Linux**. Do not set up a Windows test environment, select a substitute Windows Python, or infer permission to change dependencies. The immediate Linux task is to verify the implemented configuration and communication-fault steps in the existing approved environment, then report the results before progressing through unresolved design decisions.
 
 ## Repository state at handoff
 
@@ -18,9 +18,11 @@ The user explicitly deferred testing **until returning to Linux**. Do not set up
 - Multi-room monitoring, extra sensor buses/hubs and Jetson migration were discussed but **deferred**. Do not implement them.
 - Rename/reference work: draft PR #1, https://github.com/Somaz137/ES-II_SP1/pull/1
 - Configuration step: draft PR #2, https://github.com/Somaz137/ES-II_SP1/pull/2
-- At this handoff both PRs are unmerged. PR #2 targets the rename branch, not main.
-- Working branch: codex/technical-alert-config, with implementation commit c8ad133bc37ae2bf29698e5675857eaa4ffb3af8 followed by this handoff update.
-- Check current GitHub/checkout state before acting: the user may merge or change branches after this snapshot. Do not assume main already contains these files. Do not merge either PR automatically.
+- Rename PR #1 and configuration PR #2 were unmerged at the last check. PR #2 targets the rename branch, not main.
+- Communication-fault tracker: draft PR #3, https://github.com/Somaz137/ES-II_SP1/pull/3
+- Current working branch: codex/communication-faults, based on codex/technical-alert-config. Its draft PR targets the configuration branch; inspect the active PR listing for current merge status.
+- Prior configuration implementation commit: c8ad133bc37ae2bf29698e5675857eaa4ffb3af8; prior handoff commit: c533280a24437e534edb87b3807de6184279ec24.
+- Check current GitHub/checkout state before acting: the user may merge or change branches after this snapshot. Do not assume main already contains these files. Do not merge PRs automatically.
 
 ## Read these files
 
@@ -36,6 +38,10 @@ The user explicitly deferred testing **until returning to Linux**. Do not set up
 | config_loader.py | load_alert_settings(path) |
 | config_validation.py | validate_alert_settings(data) |
 | tests/test_config.py | Real-file configuration and validation tests |
+| communication_fault.py | Pure startup, contact, timeout and acknowledgment tracking |
+| tests/test_communication_fault.py | Communication scenarios; written but not run |
+| docs/superpowers/specs/2026-11-08-communication-fault-design.md | Required fault behavior and explicit boundary details |
+| docs/superpowers/plans/2026-11-08-communication-fault.md | Communication implementation and deferred-verification checklist |
 
 The original PDFs and VIGIL source are not included in this repository. The prior AI inspected the user's original VIGIL folder on Windows; do not pretend it exists at that path on Linux. Use the comparison for findings, and obtain the original source if adapting a snippet not available in the checkout.
 
@@ -48,7 +54,7 @@ The original PDFs and VIGIL source are not included in this repository. The prio
 - Use Impeccable for dashboard work. Use the user's requested GitHub/Superpowers/Computer/Browser/Plugin Management capabilities where relevant; load available instructions before use.
 - Appropriate VIGIL snippets may be adapted after inspection. Attribute their origin and preserve our confirmed behavior. Do not copy VIGIL's posture thresholds, Jetson wiring, installer, security issue or alarm lifecycle unchanged.
 - Treat this as an educational prototype. Do not invent patient limits or claim clinical validation.
-- Do not run setup_ubuntu.sh, install services, flash firmware, enable tunnels, or expose a dashboard remotely as part of resuming tests.
+- The legacy setup shell installer has been removed at the user's request. Do not recreate it, install services, flash firmware, enable tunnels, or expose a dashboard remotely as part of resuming tests.
 
 ## Step 1 — Resume the correct checkout safely
 
@@ -60,13 +66,13 @@ git branch --show-current
 git fetch origin
 ```
 
-If the configuration feature is not merged into the current branch, use the codex/technical-alert-config branch. If it exists only on origin and the working tree is clean, create a tracking checkout with:
+If the current checkout does not contain communication_fault.py and tests/test_communication_fault.py, use the codex/communication-faults branch (or a merged successor containing both). Configuration being merged alone does not establish that the communication feature is present. If it exists only on origin and the working tree is clean, create a tracking checkout with:
 
 ```bash
-git switch --track origin/codex/technical-alert-config
+git switch --track origin/codex/communication-faults
 ```
 
-If the local branch already exists, use git switch codex/technical-alert-config instead. Do not run both switch commands indiscriminately. Preserve user changes; do not force checkout, reset, clean, delete or silently stash them. If the PR has since merged, use the branch containing that merged code instead.
+If the local branch already exists, use git switch codex/communication-faults instead. Do not run both switch commands indiscriminately. Preserve user changes; do not force checkout, reset, clean, delete or silently stash them. If the PR has since merged, use the branch containing that merged code instead.
 
 ## Step 2 — Verify the existing Linux environment
 
@@ -107,7 +113,7 @@ python3 tools/check_setup.py
 
 Read every CHECK / NOT INSTALLED result: the script does not fail its exit code on version mismatches, and metadata does not prove successful imports. Missing USB/camera devices do not block hardware-free configuration tests. If dependencies differ, report the mismatch and consult the manual/user before reinstalling or upgrading. The user previously reported requirements installation successful; do not repeat it automatically.
 
-## Step 3 — Run configuration tests on Linux
+## Step 3 — Run configuration and communication tests on Linux
 
 From the repository root in the pinned environment:
 
@@ -118,12 +124,14 @@ python3 -m pytest
 
 Confirm pytest reports 8.2.0 before treating the run as pinned-environment verification.
 
-The tests exercise:
+The configuration tests exercise:
 - Both required timeouts independently, accepting finite positive numeric values.
 - Rejection of non-mapping roots, missing fields, bools, strings and other nonnumeric values, nonpositive values, NaN and infinity.
 - Real YAML loading with distinct values, rather than hardcoded defaults.
 - Malformed/empty YAML and missing files.
 - A previously returned settings snapshot remaining unchanged after a file edit; a new explicit load sees the new settings.
+
+The new communication tests cover startup at time zero, configurable durations, exact timeout boundaries, recognized-message resets, regular communication, restored-but-unacknowledged alerts, late messages, acknowledgment/re-alert timing, no-op acknowledgment, recovery during a waiting period, immutable snapshots and invalid/backwards times. They use supplied times rather than real two-minute waits. No communication tests have been executed yet.
 
 Expected: full collection and all tests pass. Inspect any collection/import failures as well as assertion failures. Do not replace PyYAML with a mock or parser workaround.
 
@@ -131,7 +139,7 @@ Prior verification was limited: one valid and 27 invalid direct validator inputs
 
 On failure, diagnose the cause before editing code. Add a regression test for a real implementation defect, make the smallest scoped fix, then rerun the full suite. Seek agreement before changing the confirmed behavior or package versions.
 
-Record the actual interpreter, dependency versions, command, pass/fail output and any remaining limitation in the implementation plan, feature checklist and PR #2. Mark verification complete only after real evidence. Do not automatically merge.
+Record the actual interpreter, dependency versions, command, pass/fail output and any remaining limitation in the implementation plan, feature checklists and the current communication-fault PR. Mark verification complete only after real evidence. Do not automatically merge.
 
 ## Confirmed behavior to preserve
 
@@ -139,14 +147,14 @@ Record the actual interpreter, dependency versions, command, pass/fail output an
 - Technical settings load once at startup initially. Patient-profile updates will apply while monitoring continues; that later feature is not implemented.
 - Track last recognized ESP32 message, last valid measurement, and beginning of the current sensor-error episode separately.
 - Recognized sensor-error messages reset communication timing, but do not make measurements fresh.
-- No recognized communication for 120 seconds raises a communication alert while the application keeps running.
+- No recognized communication for 120 seconds raises a communication alert while the application keeps running. Before the first message, start the usual timeout at program startup.
 - Communication alerts require acknowledgment even after communication resumes.
 - Acknowledgment while communication is still missing dismisses that alert and begins another 120-second wait; if still missing, alert again. It must not alter actual last-contact/last-measurement timestamps.
 - Persistent sensor errors trigger a separate alert after 120 seconds. Repeated errors do not restart that episode's timer.
 - A valid measurement resets the sensor-error waiting period and automatically clears its alert. It does not remove a separate communication alert's acknowledgment requirement.
 - The dashboard must show when the last successful measurement arrived. Stale values must not appear freshly measured.
 
-The configuration functions exist; these fault trackers and their integration **do not**.
+The configuration functions and pure communication-fault tracker exist. The sensor-error tracker and serial/UI/history integration **do not**. Communication calls return immutable snapshots: retain each returned state, evaluate periodically even during serial silence, and supply finite nondecreasing times from one clock domain. `timed_out` can clear on recovery while `alert_active` remains latched until acknowledgment. Equality at the timeout boundary triggers; a message received at/after that point first preserves the elapsed fault. Acknowledgment with no outstanding alert cannot postpone detection.
 
 ## Remaining milestones after configuration verification
 
@@ -154,8 +162,9 @@ These are an ordered roadmap, not approval to invent unresolved choices.
 
 | Stage | Next work | Decisions/evidence needed before implementing |
 |---|---|---|
-| Fault-state design | Define independent communication/sensor fault state and acknowledgment handling in focused modules | Startup grace period, recognized/valid record criteria, mixed silence/error episodes, exact clock mechanism and restart/persistence behavior |
-| Hardware-free fault tests | Use synthetic messages and injected times to exercise 120-second boundaries, recovery and acknowledgment/re-alert | Approved state transitions, including what happens at the exact boundary and during repeated faults |
+| Verify communication state | Run the written startup, message, acknowledgment and re-alert cases; fix scoped defects with evidence | Existing startup choice is normal timeout from program start; retain documented boundary behavior; actual runtime clock and persistence remain open |
+| Sensor-fault design | Define independent sensor-error state and automatic recovery in its own module | Recognized/valid record criteria, mixed silence/error episodes and restart/persistence behavior; do not reopen confirmed communication startup timing |
+| Sensor-fault tests | Add synthetic sensor-error/valid-measurement cases; existing communication tests already cover acknowledgment/re-alert | Agree unresolved mixed silence/error transitions before implementation; run the full suite on Linux |
 | Serial integration | Feed parsed records into fault tracking; evaluate silence even when no records arrive; keep last valid reading distinct | Serial schema/units, invalid messages, USB disconnect/reconnection behavior and actual port; avoid blocking timer evaluation |
 | BME680 verification | Confirm board/breakout, actual readings and failure records using the single-sensor starting point | Arduino IDE 2.3.10 status; missing Modules 4.2/4.3 or agreed external procedure; ESP32 core and BME680 library/version approval; wiring before flashing |
 | Camera occupancy | Acquire camera input and determine occupied/absent/uncertain/failure behavior | Camera type/connection and approved detection method; motion alone must not be assumed equivalent to occupancy; no new vision dependency without agreement |
@@ -171,12 +180,13 @@ The book's ten-minute environmental breach example is not a selected default. Do
 
 | File/group | Assessment |
 |---|---|
-| setup_ubuntu.sh | Strongest removal/archive candidate. Legacy installer creates a different .venv, upgrades pip and installs system packages; current working env is already reported installed. Do not use it to resume this project. |
+| setup_ubuntu.sh | Removed in the communication feature at explicit user request. Do not restore or recreate it when resuming the approved environment. |
 | docs/superpowers/plans/2026-11-08-alert-configuration.md | Temporary feature checklist; useful until Linux tests finish. Afterwards archive or consolidate into the main implementation plan if desired. |
 | docs/superpowers/specs/2026-11-08-alert-configuration-design.md | Useful record of the agreed function/validation contract, though not required to run the app. |
 | reference_files/VIGIL_COMPARISON.md | Learning/reference document; not runtime code, but preserves verified reuse decisions and prototype defects. |
 | tools/check_setup.py | Useful Linux diagnostic; metadata-only limitation is documented. Keep. |
 | tools/read_sensor.py and firmware/room_environment_safety_control_bme680.ino | Useful experimental hardware starting point, not a completed or verified monitor. Keep pending approved hardware validation. |
-| Configuration modules, tests, requirements.txt, .gitignore, README and manual reference | Active code, checks, dependency pins or necessary guidance. Keep. |
+| Configuration/communication modules, tests, requirements.txt, .gitignore, README and manual reference | Active code, checks, dependency pins or necessary guidance. Keep. |
 
-Do not delete files merely because they are not runtime dependencies. The user requested identification of useless files, not deletion. There is no evidence that the original VIGIL manual generators/exercise files are in this GitHub repository; do not confuse the local VIGIL folder with project contents.
+Do not delete files merely because they are not runtime dependencies. The user originally requested identification, then explicitly authorized removing only setup_ubuntu.sh in the next draft PR. There is no evidence that the original VIGIL manual generators/exercise files are in this GitHub repository; do not confuse the local VIGIL folder with project contents.
+

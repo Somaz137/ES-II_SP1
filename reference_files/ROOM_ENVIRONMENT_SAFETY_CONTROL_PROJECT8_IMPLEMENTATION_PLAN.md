@@ -12,7 +12,7 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 
 - Follow the uploaded manuals and user-approved decisions. Ask before introducing unspecified commands, dependencies, versions, algorithms, or implementation choices.
 - Do not redo completed setup or replace the working `env`.
-- Do not run the legacy `setup_ubuntu.sh` automatically: it creates `.venv`, installs system packages, and upgrades pip.
+- The legacy `setup_ubuntu.sh` was removed at the user's request; preserve the existing approved environment.
 - Missing Modules 4.2/4.3 leave the BME680 driver and sensor procedure unspecified. Existing experimental code does not establish approval.
 - Obtain the relevant decision before system changes, firmware flashing, services, or remote exposure.
 - This is an educational prototype. Do not invent patient limits or claim clinical safety.
@@ -35,7 +35,8 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 | SQLite and dashboard | Not implemented |
 | Notifications/local alarm | Not implemented; channel and optional wiring undefined |
 | Technical alert settings | Implemented as `config/alerts.yaml`, `config_loader.py`, and `config_validation.py`; startup-only loading, not yet connected to the sensor reader |
-| Automated tests | `tests/test_config.py` written; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
+| Communication-fault tracker | `communication_fault.py` implements initialization, recognized-message receipt, periodic evaluation and acknowledgment; takes supplied times and is not connected to serial/UI yet |
+| Automated tests | `tests/test_config.py` and `tests/test_communication_fault.py` written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
 
 ## Existing sensor test
 
@@ -106,14 +107,15 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - A sensor-error episode begins on a sensor-error message. Further error messages do not restart its timer. Persistent errors trigger a separate alert after 120 seconds.
 - A valid measurement resets the sensor-error waiting period and automatically clears that alert. Sensor-error recovery does not remove the separate communication-alert acknowledgment requirement.
 - Track the start of the current sensor-error episode as well as last communication and last successful measurement.
-- Technical-alert configuration loading/validation and its tests are implemented under the approved scope. Fault startup timing, recognized/valid message criteria, clock mechanism and mixed silence/error episodes remain unresolved; no fault trackers or hardware integration have been implemented in this step.
+- Technical-alert configuration and pure communication-fault tracking are implemented, with tests written but execution deferred to Linux. Startup communication timing is confirmed: normal timeout from program startup. Actual message-recognition criteria, clock selection, sensor-fault mixed silence/error behavior and hardware integration remain unresolved.
+- Implementation details: immutable communication snapshots; timeout equality uses >=; a late message preserves the elapsed timeout before recording recovery; acknowledgment without an outstanding alert does not extend a wait. These details are documented in the communication design and deferred tests.
 
 ## Next information needed
 
 1. Whether Arduino IDE 2.3.10 is installed; exact ESP32 and BME680 breakout models.
 2. Whether Modules 4.2/4.3 can be supplied.
 3. Environment verification output from the existing `env`, when the user returns to Ubuntu; do not block current Windows design work on it.
-4. Whether YAML changes apply on restart or during monitoring (pending learner decision).
+4. Technical YAML loading is decided: startup-only initially. Patient-profile live updates are selected as a future feature; their validation and effect on environmental breach timers still need agreement.
 
 ## Source pointers
 
@@ -123,4 +125,5 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - Environment: Module 2.2 pp. 8–10.
 - Flask/SQLite/configuration/testing architecture: Module 3.4 and VIGIL ZIP.
 - Full extraction: [manual reference](ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md). Original PDFs/ZIP are absent from this repository.
+
 
