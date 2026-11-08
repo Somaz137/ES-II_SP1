@@ -22,6 +22,31 @@ The runtime checks used a Linux virtual serial port.
 They did not use a physical ESP32 or BME680.
 Simulated calibrated status does not establish actual sensor calibration.
 
+## Software versions
+
+These values come from the user's setup output, installation messages, and compiler checks.
+They are recorded for reproducibility.
+
+| Component | Recorded version |
+|---|---|
+| Python | 3.10.12 |
+| NumPy | 1.26.4 |
+| opencv-python | 4.11.0.86 |
+| pyserial | 3.5 |
+| Flask | 3.0.3 |
+| PyYAML | 6.0.1 |
+| pytest | 8.2.0 |
+| SQLite | 3.37.2 |
+| g++ | 11.4.0 |
+| Espressif ESP32 board package | 3.3.12 |
+| Bosch BSEC2 | 1.10.2610 |
+| Bosch BME68x Sensor library | 1.3.40408 |
+
+The course requires Arduino IDE 2.3.10.
+A separate check of the installed IDE version was not supplied in this session.
+Firmware compilation succeeded with the recorded ESP32 board package and Bosch library versions.
+This establishes compilation, not physical hardware operation.
+
 ## Remaining checks
 
 - Upload firmware to the physical DOIT ESP32 DevKit V1.
