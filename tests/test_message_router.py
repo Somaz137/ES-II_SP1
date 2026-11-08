@@ -247,3 +247,17 @@ def test_reported_restart_returns_to_warming_without_host_timer():
     state = process_serial_line(start(), bsec_line(), 10)
     state = process_serial_line(state, bsec_line(1, 0, 0), 11)
     assert current_gas_warmup_status(state) == "warming_up"
+
+
+def test_documented_firmware_wire_record_reaches_real_consumer():
+    from pathlib import Path
+    from gas_readiness import gas_calibration_status
+    from monitoring_state import current_gas_warmup_status
+    line = (Path(__file__).parent / "fixtures" / "bsec_reading.json").read_text()
+    state = process_serial_line(start(), line, 3)
+    assert state.reading.last_reading.pressure_hpa == 1005
+    assert state.reading.last_reading.gas_ohms == 12000
+    assert state.communication.last_message_at == 3
+    assert current_gas_warmup_status(state) == "warming_up"
+    assert gas_calibration_status(state.gas) == "calibrating"
+    assert not state.sensor.alert_active

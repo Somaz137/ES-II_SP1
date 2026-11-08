@@ -8,7 +8,7 @@ Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
 **For people:** Read [README_HUMAN.md](README_HUMAN.md) for the project purpose, data flow, alert behavior, gas warm-up decision and remaining work.
 
-PRs #1 through #5 are merged into main. Python consumption of Bosch gas status is implemented in this feature branch. BSEC firmware integration remains pending a sampling decision. See the [approved design](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md#approved-gas-readiness-design).
+PRs #1 through #5 are merged into main. Python consumption of Bosch gas status is implemented in this feature branch. Three-second LP sampling is selected and BSEC firmware source is prepared. Compilation and hardware verification remain pending. See the [approved design](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md#approved-gas-readiness-design).
 
 **Returning to Linux?** Read the [Linux AI handoff](reference_files/LINUX_AI_HANDOFF.md) first. Testing is explicitly deferred to the existing Linux environment; it has not been completed on Windows.
 
@@ -24,7 +24,7 @@ The original lecture PDFs and VIGIL ZIP are not included. The reference is an ex
 
 | File | What it does |
 |---|---|
-| `firmware/room_environment_safety_control_bme680.ino` | Experimental Adafruit BME680 reader; GPIO21/22 I2C, 115200-baud JSON records |
+| `firmware/room_environment_safety_control_bme680.ino` | Experimental BSEC LP reader source; GPIO21/22 I2C, 115200-baud JSON records; uncompiled |
 | `tools/read_sensor.py` | Prints JSON received from an explicitly selected serial port |
 | `tools/check_setup.py` | Reports Python/package metadata, device paths, and serial group membership |
 | `config/alerts.yaml` | Separate communication and sensor-error timeouts, initially 120 seconds each |
@@ -102,21 +102,21 @@ Before the first complete reading, values and receipt time are absent. The input
 
 `monitoring_status(state)` prioritizes actual communication loss. Otherwise it reports the latest input status. Expose the separate communication and sensor alert flags as well: fresh input can coexist with a communication alert awaiting acknowledgment. Fresh describes structural input and contact status, not gas readiness or room safety.
 
-Receipt time uses the supplied fault-clock domain. It is not an ESP32 acquisition timestamp or necessarily a calendar timestamp. Real clock selection, display conversion and the scheduled loop are not implemented. The gas metadata consumer below is implemented separately. BSEC firmware integration remains pending. See the [design](docs/superpowers/specs/2026-11-08-monitoring-state-design.md).
+Receipt time uses the supplied fault-clock domain. It is not an ESP32 acquisition timestamp or necessarily a calendar timestamp. Real clock selection, display conversion and the scheduled loop are not implemented. The gas metadata consumer below is implemented separately. BSEC firmware source is now prepared but uncompiled. See the [design](docs/superpowers/specs/2026-11-08-monitoring-state-design.md).
 
 ## Bosch gas status
 
-Optional JSON metadata uses a bsec object with integer stabilization_status (0/1), run_in_status (0/1), and iaq_accuracy (0..3). All three fields must be valid. Missing, partial or malformed metadata produces unknown gas status without invalidating otherwise complete measurements. The unchanged legacy firmware therefore leaves gas status unknown.
+Optional JSON metadata uses a bsec object with integer stabilization_status (0/1), run_in_status (0/1), and iaq_accuracy (0..3). All three fields must be valid. Missing, partial or malformed metadata produces unknown gas status without invalidating otherwise complete measurements. Previously flashed legacy firmware leaves gas status unknown until replaced with verified BSEC firmware.
 
 The parser carries a frozen GasReadiness snapshot, and the router retains the latest recognized record's snapshot. gas_warmup_status returns unknown, warming_up or warmup_complete. gas_calibration_status reports the separate IAQ algorithm state. current_gas_warmup_status masks live status as unavailable on actual communication timeout or non-fresh measurement input. Retained calibration metadata must also be presented with this availability context. Continue periodic fault checks during silence.
 
 No host warm-up timer or countdown exists. Completed warm-up does not assert calibration or room safety. No IAQ estimate or environmental threshold policy is added. The earlier timer/YAML warm-up proposal is superseded. The two fault durations in config/alerts.yaml are unchanged.
 
-BSEC firmware is not installed, compiled or integrated. Bosch documents CONT 1Hz for short-term testing, whereas LP updates every three seconds. The existing continuous one-second firmware remains unchanged pending the user's mode choice and exact dependency/core approval. See the [BSEC design](docs/superpowers/specs/2026-11-08-bsec-status-design.md).
+The user selected three-second BSEC LP sampling. The firmware source now subscribes at BSEC_SAMPLE_RATE_LP and sends new callback measurements with status metadata. It continues recognized error reporting without panic loops. It is not installed, compiled, flashed or hardware-verified. Exact dependency/core versions and the physical supply still need agreement/checks. See [firmware guidance](firmware/README.md). See the [BSEC design](docs/superpowers/specs/2026-11-08-bsec-status-design.md).
 
 ## Selected monitoring intervals
 
-Planned intervals are camera occupancy processing every **60 seconds**, fault evaluation every **5 seconds**, and dashboard refresh every **10 seconds**. The experimental ESP32 keeps its approximately **1-second** sensor-acquisition timing. These Python cadences are recorded decisions; camera/monitor/dashboard scheduling is not implemented yet.
+Planned intervals are camera occupancy processing every **60 seconds**, fault evaluation every **5 seconds**, and dashboard refresh every **10 seconds**. The new experimental ESP32 source selects **3-second** BSEC LP acquisition. Physical timing remains unverified. These Python cadences are recorded decisions; camera/monitor/dashboard scheduling is not implemented yet.
 
 ESP32 startup configuration is deferred as a [future side note](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md#future-side-note--esp32-sampling-configuration-deferred). Laptop YAML does not currently control the ESP32 sampling rate.
 
@@ -130,7 +130,7 @@ Use the exact course-prescribed versions. Obtain approval before selecting unspe
 
 ## Sensor test limitations
 
-The firmware and reader use the same JSON format and baud rate. They are experimental code, not proof of a working hardware integration. The sketch depends on Adafruit's BME680 library, which is not specified by the available course materials. Neither an ESP32 core version nor a BME680 library version has been approved in the recorded plan.
+The firmware and reader use the same JSON format and baud rate. They are experimental code, not proof of a working hardware integration. The sketch now targets Bosch BSEC2 and BME68x firmware libraries. Exact installed library/core versions remain unapproved. Reference API releases are documented in firmware/README.md. Python requirements are unchanged. The supply selector defaults to zero and deliberately prevents compilation until the BME680 supply is confirmed.
 
 Confirm the board, breakout, toolchain, and missing course instructions before installing dependencies or flashing. Electrical guidance and manual pin assignments are in the reference.
 
