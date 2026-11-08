@@ -1,5 +1,12 @@
 # DOIT ESP32 DevKit V1 BSEC firmware
 
+**Linux checks recorded:** See the [8 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-08.md).
+The user completed Python test execution, firmware formatting, compilation, and the listed virtual-serial scenarios.
+Physical ESP32 and BME680 operation remains unverified.
+The successful Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408.
+This record supersedes earlier pending-test statements in historical preparation notes and design checklists.
+
+
 This source prepares BSEC low-power acquisition every three seconds.
 It does not establish a working hardware integration.
 No firmware build, test, installation or flashing occurred on Windows.
@@ -43,7 +50,8 @@ Bosch BSEC2 includes a binary for the classic ESP32 chip.
 Bosch BME68x reads the sensor and is required by BSEC2.
 Wire comes with the Espressif ESP32 Arduino core.
 Python requirements.txt does not install these firmware libraries.
-The exact core and library versions still require agreement and a Linux build check.
+The user compiled this source with their installed ESP32 board package and both Bosch libraries.
+Compilation succeeded. Firmware upload and physical checks remain pending.
 
 Python receives the same JSON records at the same serial speed.
 Its parser, fault rules, and gas readiness rules need no change for this board.
@@ -55,11 +63,11 @@ Four days describes baseline history, not a required warm-up wait.
 
 ## Dependency references
 
-| Component | Inspected candidate | Approval and verification |
+| Component | Recorded version | Verification |
 |---|---|---|
-| Bosch BSEC2 wrapper | 1.10.2610, algorithm 2.6.1.0 | Source reference only. Exact installation requires agreement. |
-| Bosch BME68x wrapper | v1.3.40408 | Source reference only. Exact installation requires agreement. |
-| ESP32 board core | Not selected | Check installed version and compatibility. |
+| Bosch BSEC2 wrapper | 1.10.2610, algorithm 2.6.1.0 | User installed it. Complete firmware compiled. |
+| Bosch BME68x wrapper | 1.3.40408 | User installed it. Complete firmware compiled. |
+| ESP32 board core | 3.3.12 | User reported it installed. Complete firmware compiled. |
 | Arduino IDE | Course version 2.3.10 | Preserve this requirement. |
 
 This change uses the existing Python dependencies.
@@ -106,11 +114,12 @@ Generic BSEC output documentation describes pressure in Pa.
 Check this version-sensitive behavior before using another wrapper release.
 Check real pressure units independently before accepting hardware results.
 
-## Deferred verification
+## Verification status
 
-- Build and execute the portable formatter test using an available Linux C++11 toolchain.
-- Execute the full Python suite in the existing approved environment.
-- Compile for DOIT ESP32 DEVKIT V1 with the approved Arduino setup and the 3300 supply setting.
+- Completed: user reported the portable formatter test passed using C++11.
+- Completed: user supplied Linux Python-suite output with 301 collected cases and no reported failures.
+- Completed: Arduino Verify compiled for DOIT ESP32 DEVKIT V1 with the 3300 supply setting.
+- Pending checks follow. Virtual-serial results do not establish physical sensor operation.
 - Check that a C3 target fails with the board-selection message.
 - Check that an invalid supply value fails with the supply-selection message.
 - Check three-second fresh output and correct measurement units.
