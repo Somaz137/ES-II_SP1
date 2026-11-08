@@ -36,6 +36,10 @@ The original lecture PDFs and VIGIL ZIP are not included. The reference is an ex
 | `sensor_fault.py` | Persistent sensor-error timing, communication-driven pause/resume and valid-measurement recovery |
 | `tests/test_sensor_fault.py` | Deferred sensor scenarios, including use of the real communication-state module |
 | `measurement_validation.py` | Requires the four measurement fields as finite numeric values; no safety thresholds |
+| `reading_state.py` | Immutable complete readings, original receipt time and current input quality |
+| `monitoring_state.py` | Combined fault/reading state, periodic evaluation and communication acknowledgment |
+| `message_router.py` | Connects decoded serial classification to retained readings and both trackers |
+| `tests/test_reading_state.py`, `tests/test_message_router.py` | Deferred reading retention and real-component routing scenarios |
 | `serial_parser.py` | Classifies decoded lines; only valid readings carry committable measurements |
 | `tests/test_measurement_validation.py`, `tests/test_serial_parser.py` | Deferred validation and real JSON classification cases |
 | `.gitignore` | Excludes environments, caches, editor metadata, and logs |
@@ -68,7 +72,7 @@ Use `communication_timeout_s` from the loaded settings. The normal initial wait 
 
 `timed_out` and `alert_active` are separate: the first describes missing communication, the second can remain latched after recovery. Supplied times must be finite and nondecreasing within one clock domain. Equality triggers the timeout; a late message is evaluated against preceding silence before being recorded. Acknowledgment with no outstanding alert does not extend a wait.
 
-The future monitor must evaluate periodically even when no serial data arrives. Serial classification is now implemented separately below; runtime clock choice, committed-reading state, history and serial integration remain future work. The separate sensor-error module below is now implemented. Tests are written but not executed, per the user's Linux deferral.
+The future monitor must evaluate periodically even when no serial data arrives. Serial classification is now implemented separately below; runtime clock choice, history and real serial integration remain future work. The separate sensor-error module below is now implemented. Tests are written but not executed, per the user's Linux deferral.
 
 ## Sensor-fault state
 
@@ -86,7 +90,17 @@ The module does not choose a real clock, read serial ports, or mutate the commun
 
 Valid readings require finite numeric `temp_c`, `humidity_pct`, `pressure_hpa` and `gas_ohms`; bools and numeric strings are invalid. Patient safety limits are not checked here. Only a valid result contains a complete dictionary of committable values. Incomplete/error/ignored results contain no partial replacement data.
 
-The next consumer must retain old measurements and their original timestamp on incomplete readings, expose incomplete status immediately, and count them as sensor errors. Unreadable/non-object/unknown input is ignored without resetting communication timing. This stateless layer does not yet update trackers, store readings, read ports or display a dashboard. All its tests await Linux execution.
+The new reading-state and router modules retain old measurements and their original receipt timestamp on incomplete readings, expose incomplete status immediately, and count them as sensor errors. Unreadable/non-object/unknown input is ignored without resetting communication timing. The parser remains stateless. The separate router now updates in-memory readings and fault snapshots, but does not read ports or display a dashboard. All its tests await Linux execution.
+
+## Monitoring state and routing
+
+Use `create_monitoring_state(started_at, communication_timeout_s, sensor_error_timeout_s)` from `monitoring_state.py`, passing the loaded YAML durations. Retain each returned snapshot from `process_serial_line(state, line, now)` in `message_router.py`. Use `evaluate_monitoring_faults(state, now)` periodically even with no input, and `acknowledge_monitoring_communication(state, now)` for communication acknowledgment.
+
+Before the first complete reading, values and receipt time are absent. The input status is waiting_for_first_measurement until a recognized reading/error changes it. Communication timing still begins at program startup. Error/incomplete input retains the previous complete measurements and original receipt time. Ignored lines retain input state while evaluating faults.
+
+`monitoring_status(state)` prioritizes actual communication loss. Otherwise it reports the latest input status. Expose the separate communication and sensor alert flags as well: fresh input can coexist with a communication alert awaiting acknowledgment. Fresh describes structural input and contact status, not gas readiness or room safety.
+
+Receipt time uses the supplied fault-clock domain. It is not an ESP32 acquisition timestamp or necessarily a calendar timestamp. Real clock selection, display conversion and the scheduled loop are not implemented. Gas readiness remains a separate approved but unimplemented feature. See the [design](docs/superpowers/specs/2026-11-08-monitoring-state-design.md).
 
 ## Selected monitoring intervals
 
