@@ -6,7 +6,7 @@ Updated: 8 November 2026.
 
 Continue this existing project rather than generating a replacement. First read this handoff, the implementation plan, the manual reference, and the configuration design/test files listed below.
 
-The user explicitly deferred testing **until returning to Linux**. Do not set up a Windows test environment, select a substitute Windows Python, or infer permission to change dependencies. The immediate Linux task is to verify the implemented configuration and communication-fault steps in the existing approved environment, then report the results before progressing through unresolved design decisions.
+The user explicitly deferred testing **until returning to Linux**. Do not set up a Windows test environment, select a substitute Windows Python, or infer permission to change dependencies. The immediate Linux task is to verify the implemented configuration, communication-fault and sensor-fault steps in the existing approved environment, then report the results before progressing through unresolved design decisions.
 
 ## Repository state at handoff
 
@@ -20,7 +20,7 @@ The user explicitly deferred testing **until returning to Linux**. Do not set up
 - Configuration step: draft PR #2, https://github.com/Somaz137/ES-II_SP1/pull/2
 - Rename PR #1 and configuration PR #2 were unmerged at the last check. PR #2 targets the rename branch, not main.
 - Communication-fault tracker: draft PR #3, https://github.com/Somaz137/ES-II_SP1/pull/3
-- Current working branch: codex/communication-faults, based on codex/technical-alert-config. Its draft PR targets the configuration branch; inspect the active PR listing for current merge status.
+- Current working branch: codex/sensor-faults, based on codex/communication-faults. Its new draft PR targets the communication branch; inspect the active PR listing for current merge status.
 - Prior configuration implementation commit: c8ad133bc37ae2bf29698e5675857eaa4ffb3af8; prior handoff commit: c533280a24437e534edb87b3807de6184279ec24.
 - Check current GitHub/checkout state before acting: the user may merge or change branches after this snapshot. Do not assume main already contains these files. Do not merge PRs automatically.
 
@@ -40,6 +40,10 @@ The user explicitly deferred testing **until returning to Linux**. Do not set up
 | tests/test_config.py | Real-file configuration and validation tests |
 | communication_fault.py | Pure startup, contact, timeout and acknowledgment tracking |
 | tests/test_communication_fault.py | Communication scenarios; written but not run |
+| sensor_fault.py | Sensor-error timing and communication-driven pause/resume |
+| tests/test_sensor_fault.py | Deferred sensor scenarios and actual communication-state interaction cases |
+| docs/superpowers/specs/2026-11-08-sensor-fault-design.md | Confirmed sensor behavior and explicit pause-boundary details |
+| docs/superpowers/plans/2026-11-08-sensor-fault.md | Sensor implementation and deferred-verification checklist |
 | docs/superpowers/specs/2026-11-08-communication-fault-design.md | Required fault behavior and explicit boundary details |
 | docs/superpowers/plans/2026-11-08-communication-fault.md | Communication implementation and deferred-verification checklist |
 
@@ -66,13 +70,13 @@ git branch --show-current
 git fetch origin
 ```
 
-If the current checkout does not contain communication_fault.py and tests/test_communication_fault.py, use the codex/communication-faults branch (or a merged successor containing both). Configuration being merged alone does not establish that the communication feature is present. If it exists only on origin and the working tree is clean, create a tracking checkout with:
+If the current checkout does not contain sensor_fault.py and tests/test_sensor_fault.py as well as the earlier configuration/communication files, use the codex/sensor-faults branch (or a merged successor containing them). Earlier features being merged alone does not establish that the sensor feature is present. If it exists only on origin and the working tree is clean, create a tracking checkout with:
 
 ```bash
-git switch --track origin/codex/communication-faults
+git switch --track origin/codex/sensor-faults
 ```
 
-If the local branch already exists, use git switch codex/communication-faults instead. Do not run both switch commands indiscriminately. Preserve user changes; do not force checkout, reset, clean, delete or silently stash them. If the PR has since merged, use the branch containing that merged code instead.
+If the local branch already exists, use git switch codex/sensor-faults instead. Do not run both switch commands indiscriminately. Preserve user changes; do not force checkout, reset, clean, delete or silently stash them. If the PR has since merged, use the branch containing that merged code instead.
 
 ## Step 2 — Verify the existing Linux environment
 
@@ -113,7 +117,7 @@ python3 tools/check_setup.py
 
 Read every CHECK / NOT INSTALLED result: the script does not fail its exit code on version mismatches, and metadata does not prove successful imports. Missing USB/camera devices do not block hardware-free configuration tests. If dependencies differ, report the mismatch and consult the manual/user before reinstalling or upgrading. The user previously reported requirements installation successful; do not repeat it automatically.
 
-## Step 3 — Run configuration and communication tests on Linux
+## Step 3 — Run configuration and both fault-tracker tests on Linux
 
 From the repository root in the pinned environment:
 
@@ -133,13 +137,15 @@ The configuration tests exercise:
 
 The new communication tests cover startup at time zero, configurable durations, exact timeout boundaries, recognized-message resets, regular communication, restored-but-unacknowledged alerts, late messages, acknowledgment/re-alert timing, no-op acknowledgment, recovery during a waiting period, immutable snapshots and invalid/backwards times. They use supplied times rather than real two-minute waits. No communication tests have been executed yet.
 
+The sensor tests cover explicit-error startup, independent duration, repeated errors, valid-reading reset/auto-clear, excluded paused time, repeated pause/resume, simultaneous timeout boundaries, preserved existing alerts and last-valid-measurement time, immutable states and invalid/backwards inputs. Two cases use the actual communication module to distinguish its timeout status from its acknowledgment latch. No sensor tests or application modules have been executed.
+
 Expected: full collection and all tests pass. Inspect any collection/import failures as well as assertion failures. Do not replace PyYAML with a mock or parser workaround.
 
 Prior verification was limited: one valid and 27 invalid direct validator inputs passed on the Windows host; new files parsed against Python 3.10 grammar; an independent source review found no implementation issues. **No full pytest or real PyYAML loading run has been completed yet.** Do not repeat those limited checks and call the full step verified.
 
 On failure, diagnose the cause before editing code. Add a regression test for a real implementation defect, make the smallest scoped fix, then rerun the full suite. Seek agreement before changing the confirmed behavior or package versions.
 
-Record the actual interpreter, dependency versions, command, pass/fail output and any remaining limitation in the implementation plan, feature checklists and the current communication-fault PR. Mark verification complete only after real evidence. Do not automatically merge.
+Record the actual interpreter, dependency versions, command, pass/fail output and any remaining limitation in the implementation plan, feature checklists and the current sensor-fault PR. Mark verification complete only after real evidence. Do not automatically merge.
 
 ## Confirmed behavior to preserve
 
@@ -152,9 +158,12 @@ Record the actual interpreter, dependency versions, command, pass/fail output an
 - Acknowledgment while communication is still missing dismisses that alert and begins another 120-second wait; if still missing, alert again. It must not alter actual last-contact/last-measurement timestamps.
 - Persistent sensor errors trigger a separate alert after 120 seconds. Repeated errors do not restart that episode's timer.
 - A valid measurement resets the sensor-error waiting period and automatically clears its alert. It does not remove a separate communication alert's acknowledgment requirement.
+- Sensor-error time pauses on communication.timed_out, preserving elapsed active time and excluding paused time. Another sensor-error message resumes the remaining wait; a valid measurement resets it. Acknowledgment alone never resumes timing.
 - The dashboard must show when the last successful measurement arrived. Stale values must not appear freshly measured.
 
-The configuration functions and pure communication-fault tracker exist. The sensor-error tracker and serial/UI/history integration **do not**. Communication calls return immutable snapshots: retain each returned state, evaluate periodically even during serial silence, and supply finite nondecreasing times from one clock domain. `timed_out` can clear on recovery while `alert_active` remains latched until acknowledgment. Equality at the timeout boundary triggers; a message received at/after that point first preserves the elapsed fault. Acknowledgment with no outstanding alert cannot postpone detection.
+The configuration functions and both pure fault trackers exist. Serial/UI/history integration **does not**. Communication calls return immutable snapshots: retain each returned state, evaluate periodically even during serial silence, and supply finite nondecreasing times from one clock domain. `timed_out` can clear on recovery while `alert_active` remains latched until acknowledgment. Equality at the timeout boundary triggers; a message received at/after that point first preserves the elapsed fault. Acknowledgment with no outstanding alert cannot postpone detection.
+
+Sensor pauses start at the supplied timeout-status transition, not retroactively at the last message. Time before that pause still counts. Existing sensor alerts remain until a valid reading; no new sensor alert is raised while paused. If no waiting time remains when an error resumes, alert immediately; if the returned message is valid, reset/clear instead. The future loop must update communication, synchronize its actual timeout status with the sensor tracker, process recognized sensor records, and publish the final resulting snapshots rather than transient intermediate states. Real polling and clock selection are not yet implemented.
 
 ## Remaining milestones after configuration verification
 
@@ -163,8 +172,8 @@ These are an ordered roadmap, not approval to invent unresolved choices.
 | Stage | Next work | Decisions/evidence needed before implementing |
 |---|---|---|
 | Verify communication state | Run the written startup, message, acknowledgment and re-alert cases; fix scoped defects with evidence | Existing startup choice is normal timeout from program start; retain documented boundary behavior; actual runtime clock and persistence remain open |
-| Sensor-fault design | Define independent sensor-error state and automatic recovery in its own module | Recognized/valid record criteria, mixed silence/error episodes and restart/persistence behavior; do not reopen confirmed communication startup timing |
-| Sensor-fault tests | Add synthetic sensor-error/valid-measurement cases; existing communication tests already cover acknowledgment/re-alert | Agree unresolved mixed silence/error transitions before implementation; run the full suite on Linux |
+| Verify sensor state | Run the written error, valid-reading, pause/resume and interaction cases using the full suite | Pause/resume and auto-clear are agreed; do not reimplement them. Real message validation, timing/scheduling and persistence remain open |
+| Verify fault interaction | Run the written actual-module interaction cases as part of the full Linux suite | Use communication.timed_out for pause; acknowledgment latch alone must neither pause nor resume sensor timing |
 | Serial integration | Feed parsed records into fault tracking; evaluate silence even when no records arrive; keep last valid reading distinct | Serial schema/units, invalid messages, USB disconnect/reconnection behavior and actual port; avoid blocking timer evaluation |
 | BME680 verification | Confirm board/breakout, actual readings and failure records using the single-sensor starting point | Arduino IDE 2.3.10 status; missing Modules 4.2/4.3 or agreed external procedure; ESP32 core and BME680 library/version approval; wiring before flashing |
 | Camera occupancy | Acquire camera input and determine occupied/absent/uncertain/failure behavior | Camera type/connection and approved detection method; motion alone must not be assumed equivalent to occupancy; no new vision dependency without agreement |
@@ -186,7 +195,8 @@ The book's ten-minute environmental breach example is not a selected default. Do
 | reference_files/VIGIL_COMPARISON.md | Learning/reference document; not runtime code, but preserves verified reuse decisions and prototype defects. |
 | tools/check_setup.py | Useful Linux diagnostic; metadata-only limitation is documented. Keep. |
 | tools/read_sensor.py and firmware/room_environment_safety_control_bme680.ino | Useful experimental hardware starting point, not a completed or verified monitor. Keep pending approved hardware validation. |
-| Configuration/communication modules, tests, requirements.txt, .gitignore, README and manual reference | Active code, checks, dependency pins or necessary guidance. Keep. |
+| Configuration/communication/sensor modules, tests, requirements.txt, .gitignore, README and manual reference | Active code, checks, dependency pins or necessary guidance. Keep. |
 
 Do not delete files merely because they are not runtime dependencies. The user originally requested identification, then explicitly authorized removing only setup_ubuntu.sh in the next draft PR. There is no evidence that the original VIGIL manual generators/exercise files are in this GitHub repository; do not confuse the local VIGIL folder with project contents.
+
 

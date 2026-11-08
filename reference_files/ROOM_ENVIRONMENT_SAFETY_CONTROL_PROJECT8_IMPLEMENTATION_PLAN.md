@@ -36,7 +36,8 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 | Notifications/local alarm | Not implemented; channel and optional wiring undefined |
 | Technical alert settings | Implemented as `config/alerts.yaml`, `config_loader.py`, and `config_validation.py`; startup-only loading, not yet connected to the sensor reader |
 | Communication-fault tracker | `communication_fault.py` implements initialization, recognized-message receipt, periodic evaluation and acknowledgment; takes supplied times and is not connected to serial/UI yet |
-| Automated tests | `tests/test_config.py` and `tests/test_communication_fault.py` written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
+| Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; not connected to serial/UI yet |
+| Automated tests | `tests/test_config.py`, `tests/test_communication_fault.py`, and `tests/test_sensor_fault.py` written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
 
 ## Existing sensor test
 
@@ -107,8 +108,8 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - A sensor-error episode begins on a sensor-error message. Further error messages do not restart its timer. Persistent errors trigger a separate alert after 120 seconds.
 - A valid measurement resets the sensor-error waiting period and automatically clears that alert. Sensor-error recovery does not remove the separate communication-alert acknowledgment requirement.
 - Track the start of the current sensor-error episode as well as last communication and last successful measurement.
-- Technical-alert configuration and pure communication-fault tracking are implemented, with tests written but execution deferred to Linux. Startup communication timing is confirmed: normal timeout from program startup. Actual message-recognition criteria, clock selection, sensor-fault mixed silence/error behavior and hardware integration remain unresolved.
-- Implementation details: immutable communication snapshots; timeout equality uses >=; a late message preserves the elapsed timeout before recording recovery; acknowledgment without an outstanding alert does not extend a wait. These details are documented in the communication design and deferred tests.
+- Technical configuration and both pure fault trackers are implemented; tests are written but all execution is deferred to Linux. Startup communication timing and sensor pause/resume are confirmed. Message-recognition/measurement validation criteria, actual runtime clock/scheduling, history/persistence and hardware integration remain unresolved.
+- Implementation details: immutable snapshots; timeout equality uses >=; late communication preserves its elapsed fault before recording recovery; no-op acknowledgments do not extend waits. Sensor pauses begin when timeout status is supplied, not retroactively. Existing sensor alerts remain until a valid reading; an error with no remaining wait alerts on resume. These details are explicit in the designs and deferred tests.
 
 ## Next information needed
 
@@ -125,5 +126,6 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - Environment: Module 2.2 pp. 8–10.
 - Flask/SQLite/configuration/testing architecture: Module 3.4 and VIGIL ZIP.
 - Full extraction: [manual reference](ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md). Original PDFs/ZIP are absent from this repository.
+
 
 

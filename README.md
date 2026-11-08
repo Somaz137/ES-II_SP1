@@ -2,7 +2,7 @@
 
 Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
-**Current scope:** one room, one BME680 and one camera. Code includes dependency definitions, environment diagnostics, an experimental ESP32/BME680 serial test, technical-alert configuration loading/validation, and pure communication-fault tracking. The full monitoring application is not implemented. Hardware operation has not been verified.
+**Current scope:** one room, one BME680 and one camera. Code includes dependency definitions, environment diagnostics, an experimental ESP32/BME680 serial test, technical-alert configuration loading/validation, and pure communication/sensor-fault tracking. The full monitoring application is not implemented. Hardware operation has not been verified.
 
 ## Start here
 
@@ -29,9 +29,11 @@ The original lecture PDFs and VIGIL ZIP are not included. The reference is an ex
 | `tests/test_config.py` | Hardware-free configuration loading and validation tests |
 | `communication_fault.py` | Startup/message timeout tracking and acknowledgment/re-alert logic, with caller-supplied time |
 | `tests/test_communication_fault.py` | Deferred Linux scenarios for startup, recovery, acknowledgment and timeout boundaries |
+| `sensor_fault.py` | Persistent sensor-error timing, communication-driven pause/resume and valid-measurement recovery |
+| `tests/test_sensor_fault.py` | Deferred sensor scenarios, including use of the real communication-state module |
 | `.gitignore` | Excludes environments, caches, editor metadata, and logs |
 
-No rule engine, occupancy detector, database, patient settings form, dashboard, or notification worker exists yet. Configuration and communication-fault tests are written; all remaining test execution is deferred to the pinned Linux environment.
+No rule engine, occupancy detector, database, patient settings form, dashboard, or notification worker exists yet. Configuration, communication-fault and sensor-fault tests are written; all remaining test execution is deferred to the pinned Linux environment.
 
 ## Technical alert settings
 
@@ -59,7 +61,17 @@ Use `communication_timeout_s` from the loaded settings. The normal initial wait 
 
 `timed_out` and `alert_active` are separate: the first describes missing communication, the second can remain latched after recovery. Supplied times must be finite and nondecreasing within one clock domain. Equality triggers the timeout; a late message is evaluated against preceding silence before being recorded. Acknowledgment with no outstanding alert does not extend a wait.
 
-The future monitor must evaluate periodically even when no serial data arrives. Parsing, sensor-error tracking, runtime clock choice, history and serial integration remain outside this step. Tests are written but not executed, per the user's Linux deferral.
+The future monitor must evaluate periodically even when no serial data arrives. Parsing, runtime clock choice, history and serial integration remain future work. The separate sensor-error module below is now implemented. Tests are written but not executed, per the user's Linux deferral.
+
+## Sensor-fault state
+
+`sensor_fault.py` provides `create_sensor_state`, `record_sensor_error`, `record_valid_measurement`, and `evaluate_sensor_fault`. Use `sensor_error_timeout_s` from the loaded settings and retain the returned immutable states.
+
+Explicit error messages start or continue an episode; repeated errors do not reset it. A valid measurement resets the timer and automatically clears its alert. Errors and pauses preserve the last-valid-measurement timestamp.
+
+Pass `communication.timed_out` to periodic sensor evaluation, not `communication.alert_active`. Active error time accumulates until a pause is reported, stays unchanged while paused, and resumes when communication returns. Acknowledgment alone does not resume it. Existing sensor alerts stay until a valid measurement; no new sensor alert is raised while paused. If the full wait accumulated before a pause, an error on resume alerts immediately; a valid measurement clears/reset instead.
+
+The module does not choose a real clock, parse serial data, or mutate the communication tracker. Callers must update both trackers for recognized messages and evaluate periodically during silence. Tests are written but not executed; run the full suite on Linux as described in the handoff.
 
 ## Environment and setup policy
 
@@ -80,5 +92,6 @@ Gas resistance is raw ohms, not calibrated AQI, CO2, or CO. This is a teaching p
 ## VIGIL reference and project-specific decisions
 
 See [VIGIL comparison](reference_files/VIGIL_COMPARISON.md) for the verified manual-backed differences and authorized code-reuse scope. The current project name is **Room Environment Safety Control**; the repository remains `ES-II_SP1`.
+
 
 
