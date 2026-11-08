@@ -1,5 +1,12 @@
 # Room Environment Safety Control — Implementation Plan and Current Status
 
+**Linux checks recorded:** See the [8 November verification record](LINUX_VERIFICATION_2026-11-08.md).
+The user completed Python test execution, firmware formatting, compilation, and the listed virtual-serial scenarios.
+Physical ESP32 and BME680 operation remains unverified.
+The successful Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408.
+This record supersedes earlier pending-test statements in historical preparation notes and design checklists.
+
+
 **Updated:** 8 November 2026  
 **Project:** Idea 8, Room Environment Safety Monitor.  
 **Platform:** Ubuntu 22.04 laptop + ESP32 over USB serial.
@@ -20,9 +27,9 @@ SDA uses GPIO21. SCL uses GPIO22. Serial uses 115200 baud.
 The board header stores these values and rejects other ESP32 chip types.
 The chip check cannot identify the physical development board.
 This decision supersedes earlier statements that the board or supply is unknown.
-Exact ESP32 core and Bosch library versions remain unresolved.
+The user compiled with their installed ESP32 board package and both Bosch libraries.
 Preserve the existing Python dependencies and gas readiness behavior.
-Compilation, tests, and physical checks remain deferred to Linux.
+Linux compilation, formatter execution, Python-suite execution, and listed virtual-serial checks are recorded. Physical checks remain pending.
 See [firmware guidance](../firmware/README.md) for setup and checks.
 
 ## Operating constraints
@@ -36,7 +43,7 @@ See [firmware guidance](../firmware/README.md) for setup and checks.
 
 ## Current status
 
-PRs #1 through #9 are merged into main as of 8 November 2026. The code remains unverified by the full Linux test suite. See [README_HUMAN.md](../README_HUMAN.md) for the human overview.
+PRs #1 through #10 are merged into main as of 8 November 2026. The user executed the Linux suite and supplied output with no reported failures. See [README_HUMAN.md](../README_HUMAN.md) for the human overview.
 
 **Linux continuation:** Follow [LINUX_AI_HANDOFF.md](LINUX_AI_HANDOFF.md) for the current branch, environment checks, configuration test command, remaining milestones and cleanup assessment. The user explicitly deferred all remaining testing to their Linux setup. No Windows environment or alternate Windows interpreter is selected.
 
@@ -44,22 +51,22 @@ PRs #1 through #9 are merged into main as of 8 November 2026. The code remains u
 |---|---|
 | Ubuntu/Python | User previously confirmed Ubuntu 22.04 and Python 3.10.12 |
 | Virtual environment | User confirmed working `env` |
-| Requirements | User reported successful installation; individual import/version verification pending |
+| Requirements | Setup diagnostic reported all pinned package versions; Python suite and virtual-serial runtime executed. Camera and web features remain untested. |
 | Diagnostics | `tools/check_setup.py` exists; checks distribution metadata, not package imports; mismatches print CHECK without causing failure |
 | Arduino IDE | Manual specifies 2.3.10; installation status unknown |
 | ESP32 and port | Actual board, board-core version, and working serial connection unconfirmed |
-| BME680 | Experimental sketch and Python reader exist; dependency approval, compilation, wiring, and physical readings unverified |
+| BME680 | Sketch compiled with the recorded Bosch libraries and ESP32 core. Wiring, upload, and physical readings remain unverified |
 | Webcam/occupancy | Not implemented; method and failure behavior undecided |
 | Rules and configuration form | Not implemented; patient limits and timing undefined |
 | SQLite and dashboard | Not implemented |
 | Notifications/local alarm | Not implemented; channel and optional wiring undefined |
-| Technical alert settings | Implemented as `config/alerts.yaml`, `config_loader.py`, and `config_validation.py`; startup-only loading connected by the new terminal monitor; runtime verification pending |
+| Technical alert settings | Implemented as `config/alerts.yaml`, `config_loader.py`, and `config_validation.py`; startup-only loading connected by the new terminal monitor; listed virtual-serial checks completed |
 | Communication-fault tracker | `communication_fault.py` implements initialization, recognized-message receipt, periodic evaluation and acknowledgment; takes supplied times and is connected by terminal runtime source; UI remains absent |
 | Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; connected by terminal runtime source; UI remains absent |
 | Serial parser / validator | `serial_parser.py` and `measurement_validation.py` classify decoded lines and check four finite numeric fields; no hardware, tracker mutation or committed-reading storage yet |
-| Bosch gas status | gas_readiness.py plus parser/router integration consumes status metadata. Legacy firmware reports no BSEC metadata, so gas remains unknown. No host warm-up timer. Firmware source now uses selected three-second LP. Exact dependencies/supply and hardware verification remain pending. |
-| Reading state and router | reading_state.py, monitoring_state.py and message_router.py retain complete values/time, expose initial waiting and latest input states, and connect parser classifications to both fault trackers. A new terminal runtime now supplies serial I/O, monotonic timing and periodic checks in source; runtime verification remains pending. |
-| Automated tests | All eleven Python test files (configuration, communication, sensor, measurement validation, serial parser, retained readings, routing, gas status) written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
+| Bosch gas status | gas_readiness.py plus parser/router integration consumes status metadata. Legacy firmware reports no BSEC metadata, so gas remains unknown. No host warm-up timer. Firmware source now uses selected three-second LP. Installed dependency versions compiled successfully. The user confirmed a 3.3 V supply. Hardware operation remains unverified. |
+| Reading state and router | reading_state.py, monitoring_state.py and message_router.py retain complete values/time, expose initial waiting and latest input states, and connect parser classifications to both fault trackers. A new terminal runtime now supplies serial I/O, monotonic timing and periodic checks in source; listed virtual-serial checks completed; physical checks remain pending. |
+| Automated tests | All eleven Python test files (configuration, communication, sensor, measurement validation, serial parser, retained readings, routing, gas status) written; Linux output supplied: 301 cases collected, all displayed cases completed, and no failures reported. Final summary and exit code were not supplied. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
 
 ## Terminal serial runtime prepared
 
@@ -69,9 +76,9 @@ The serial port must be explicit. Opening it may reset the ESP32. Bounded nonblo
 
 Terminal JSON reports original complete measurements, host receipt age and an explicitly estimated UTC receipt time. Both calibration and warm-up become unavailable when measurement/contact status fails. Reconnection alone never marks data fresh. This milestone has no runtime acknowledgment command, persistence, camera, safety rules, database, notifications or web UI. Communication alerts remain latched after recovery; do not treat restarting as a logged acknowledgment.
 
-Tests are written but unrun, including real-component routing with fake serial endpoints/time, retries, retained readings, silence, error/noise, delayed checks, byte framing and cleanup. There are now eleven Python test files plus separate firmware C++ tests. No application imports, test execution, device access, installations or firmware operation occurred during this step. Python grammar inspection is not runtime verification.
+The user ran the Python suite on Linux and supplied output with no reported failures. The suite includes routing, retries, retained readings, silence, error/noise, delayed checks, byte framing, and cleanup. There are now eleven Python test files plus separate firmware C++ tests. The original implementation step did not run these checks. Later Linux results are recorded at the top of this file. Python grammar inspection is not runtime verification.
 
-Linux continuation: select main without discarding local work. Verify the existing env and run the full pinned suite first. After firmware/dependency/supply issues are settled separately, identify the actual port and close competing readers. Use `python3 monitor.py --port /dev/ttyUSB0` only if that is the verified device; substitute the actual path otherwise. Check initial empty state, fresh readings, retained values/time through USB disconnect, two-minute alerts, recovered contact with a latched communication alert, error-to-valid recovery and Ctrl+C cleanup. Do not perform live sensor rewiring without an agreed hardware procedure.
+Linux continuation: select main without discarding local work. Use the recorded existing env. Repeat the suite only if code, dependencies, failures, or an unresolved concern justify it. After firmware/dependency/supply issues are settled separately, identify the actual port and close competing readers. Use `python3 monitor.py --port /dev/ttyUSB0` only if that is the verified device; substitute the actual path otherwise. Check initial empty state, fresh readings, retained values/time through USB disconnect, two-minute alerts, recovered contact with a latched communication alert, error-to-valid recovery and Ctrl+C cleanup. Do not perform live sensor rewiring without an agreed hardware procedure.
 
 See the [runtime design](../docs/superpowers/specs/2026-11-08-serial-runtime-design.md) and [verification plan](../docs/superpowers/plans/2026-11-08-serial-runtime.md). VIGIL also separates monitoring from its dashboard; USB framing/reconnect is project-specific. The original BSEC firmware and all prior pure modules remain unchanged.
 
@@ -79,11 +86,11 @@ See the [runtime design](../docs/superpowers/specs/2026-11-08-serial-runtime-des
 
 The user approved three-second LP sampling. PR #8 added the firmware source and is now merged into main. BSEC controls sampling, only new callback data produces readings, and errors remain recognized communication. No fixed gas warm-up countdown is added. Camera processing stays60 seconds, fault checks5 seconds, dashboard10 seconds, and both host fault durations120 seconds.
 
-Read [firmware/README.md](../firmware/README.md) before installation or compilation. Exact BSEC/BME68x/core versions remain to agree and verify. The inspected API references are candidates, not installed dependencies. Use the confirmed sensor supply setting, ROOM_BME680_SUPPLY_MV 3300. The user subsequently confirmed 3.3 V; the default is now 3300. Recheck the supply if the breakout changes. No firmware compilation, tests, flashing, service or hardware operation ran on Windows.
+Read [firmware/README.md](../firmware/README.md) before installation or compilation. The installed Bosch libraries compiled with the installed ESP32 board package. See the verification record for the observed build and remaining physical checks. Use the confirmed sensor supply setting, ROOM_BME680_SUPPLY_MV 3300. The user subsequently confirmed 3.3 V; the default is now 3300. Recheck the supply if the breakout changes. No firmware compilation, tests, flashing, service or hardware operation ran on Windows.
 
 The inspected wrapper converts pressure to hPa before callback. The sketch uses that value without a second division. Recheck this contract if using a different wrapper and verify physical units. Do not copy generic raw-pressure units blindly. State persistence, automatic sensor reinitialization and custom temperature compensation remain future work.
 
-Eleven Python test files now exist, with an added JSON fixture consumer case. A separate portable C++ formatter test is written in firmware/tests/test_bsec_serial_format.cpp. Execute it on Linux using an agreed available C++11 toolchain, then compile the sketch only after dependency/supply confirmation. These tests are not part of pytest's C++ execution and remain unrun.
+Eleven Python test files now exist, with an added JSON fixture consumer case. A separate portable C++ formatter test is written in firmware/tests/test_bsec_serial_format.cpp. Execute it on Linux using an agreed available C++11 toolchain, then compile the sketch only after dependency/supply confirmation. The C++ test is separate from pytest. The user subsequently reported it passed on Linux.
 
 ## Approved gas readiness design
 
@@ -91,9 +98,9 @@ The user approved Bosch BSEC status integration on 8 November 2026, superseding 
 
 Python status handling is implemented: gas_readiness.py validates an optional bsec object with integer stabilization_status, run_in_status and iaq_accuracy. The parser/router retains a coherent immutable snapshot from each recognized record. Missing/invalid metadata becomes unknown without changing measurement validity or inventing sensor faults. Warm-up and IAQ calibration are separate descriptions. Current gas warm-up status is unavailable during communication timeout or bad measurement input. None of these labels establishes room safety or certified calibration.
 
-New firmware source targets BSEC LP and emits recognized JSON measurements/errors plus gas metadata. Physical operation remains unverified. It is not compiled or flashed, and old firmware supplies no BSEC metadata. Bosch datasheet Revision 1.9 documents 1Hz CONT for short-term testing only and LP updates every three seconds. The user now approved three-second LP sampling. This supersedes continuous one-second sampling. New firmware source is prepared but uncompiled and not flashed. Keep actual fault checks five seconds, camera processing sixty seconds, dashboard ten seconds, and both fault timeouts 120 seconds.
+New firmware source targets BSEC LP and emits recognized JSON measurements/errors plus gas metadata. Physical operation remains unverified. It compiled on Linux but is not flashed. Legacy firmware supplies no BSEC metadata. Bosch datasheet Revision 1.9 documents 1Hz CONT for short-term testing only and LP updates every three seconds. The user now approved three-second LP sampling. This supersedes continuous one-second sampling. New firmware compiled on Linux but is not flashed. Keep actual fault checks five seconds, camera processing sixty seconds, dashboard ten seconds, and both fault timeouts 120 seconds.
 
-Candidate inspected wrapper: Bosch-BSEC2-Library release 1.10.2610, algorithm 2.6.1.0. This is not an installed or selected exact version. Exact BME68x dependency, ESP32 core and BME680 configuration need approval/verification. No dependency installation, flashing or runtime testing occurred. Preserve course-pinned Arduino IDE and Python requirements. State persistence is a potential later integration, not implemented.
+Candidate inspected wrapper: Bosch-BSEC2-Library release 1.10.2610, algorithm 2.6.1.0. The user subsequently installed both Bosch libraries. Firmware compiled with the installed ESP32 board package and the 3300 supply setting. No physical flashing or sensor operation occurred. Preserve course-pinned Arduino IDE and Python requirements. State persistence is a potential later integration, not implemented.
 
 See [BSEC status design](../docs/superpowers/specs/2026-11-08-bsec-status-design.md) for the contract and manufacturer sources. VIGIL has no direct gas readiness equivalent.
 
@@ -105,7 +112,7 @@ Fault scheduling is implemented in the terminal loop source. Camera and dashboar
 |---|---|---|
 | BME680 acquisition | 3 seconds | Selected BSEC LP mode in new source; hardware timing unverified |
 | Camera occupancy processing | 60 seconds | Latest learner choice; supersedes the earlier 5-second proposal; Python scheduling not implemented |
-| Fault evaluation | 5 seconds | Implemented in new terminal loop source; runtime checks pending |
+| Fault evaluation | 5 seconds | Implemented in new terminal loop source; listed virtual-serial checks completed; physical checks pending |
 | Dashboard refresh | 10 seconds | Selected for future dashboard |
 
 The future Python-side technical settings should load at startup. The camera processing interval does not select a capture frame rate or buffering policy; those remain open. Occupancy may reflect the previous observation until the next one-minute processing check. When five-second fault evaluation is integrated, timeout detection occurs on the next check, potentially almost five seconds after the duration expires plus scheduling/processing delay.
@@ -124,13 +131,13 @@ For the current prototype, the new BSEC firmware selects the approved three-seco
 - `tools/read_sensor.py` prints parsed records. It does not store data, validate measurement fields, reconnect after USB loss, or apply safety rules.
 - Firmware does not retry initialization after a sensor is missing at boot.
 - Bosch integration and JSON schema are user-approved project adaptations, not prescribed by the available manuals.
-- Earlier README proposals of ESP32 core 3.3.12 and Adafruit BME680 2.0.6 were external, unapproved suggestions. They are not selected dependencies.
+- The installed ESP32 board package compiled successfully. The sketch uses Bosch BSEC2/BME68x. Adafruit BME680 is not a firmware dependency.
 
 ## Implementation sequence
 
 ### A - Verify the existing environment
 
-The user is currently on Windows and authorized an isolated environment in `C:\Users\User\OneDrive\Desktop\ES-II_SP1`. That folder is outside this session's writable roots; do not install there until it is writable. Available Windows interpreters do not match the recorded Python 3.10.12 environment. Python.org provides no Windows installer for 3.10.12; do not substitute another version without user agreement. Keep the existing Ubuntu environment unchanged and defer its checks until available.
+Completed in the user's existing Linux environment. The setup diagnostic matched all required package versions. The user executed the Python suite and listed runtime checks. Preserve this environment.
 
 Inside the existing activated `env`, the manual documents:
 
@@ -140,7 +147,7 @@ python3 -c "import numpy as np; print('NumPy', np.__version__)"
 python3 -c "import cv2; print(cv2.__version__)"
 ```
 
-Expected: Python 3.10.12, NumPy 1.26.4, and cv2 4.11.0. Other package verification remains pending. Do not interpret metadata-only diagnostics as successful imports.
+The setup diagnostic matched all pinned package versions. Separate camera and web feature checks remain pending. Do not interpret metadata-only diagnostics as successful imports.
 
 ### B — Confirm toolchain and serial
 
@@ -174,7 +181,7 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 
 - Current name: **Room Environment Safety Control**, selected by the user on 8 November 2026. The repository name remains ES-II_SP1.
 - Use VibeWise learning mode, Impeccable for dashboard design, and the requested GitHub, Superpowers, Computer, Browser, and Plugin Management capabilities where relevant. VibeWise's local learning skill has been read and is active; Impeccable is available.
-- Develop from Windows for now; Ubuntu runtime checks are deferred. Requirements installation and specified versions are user-reported, not independently verified.
+- Continue from the existing Linux environment. Results are based on user-supplied terminal output reviewed in the conversation.
 - Keep distinct responsibilities in small Python modules with focused functions; related helpers may share a module. A small main program connects components.
 - Use VIGIL as a reference and reuse appropriate code snippets after inspecting them. The original local source was inspected on 8 November 2026; the comparison now records source-backed behavior and concrete reuse limitations. Do not transfer its posture logic, defaults, dependencies, or deployment unchanged. See [comparison](VIGIL_COMPARISON.md).
 
@@ -187,7 +194,7 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - A sensor-error episode begins on a sensor-error message. Further error messages do not restart its timer. Persistent errors trigger a separate alert after 120 seconds.
 - A valid measurement resets the sensor-error waiting period and automatically clears that alert. Sensor-error recovery does not remove the separate communication-alert acknowledgment requirement.
 - Track the start of the current sensor-error episode as well as last communication and last successful measurement.
-- Technical configuration, both pure fault trackers, serial classification and finite-field measurement validation are implemented; tests are written but execution is deferred to Linux. Recognized reading/error types, incomplete-field treatment and ignored input are selected. Committed-reading retention and routing now exist in separate modules. Runtime clock/scheduling, persistence/history and hardware integration remain future work.
+- Technical configuration, both pure fault trackers, serial classification and finite-field measurement validation are implemented; the user executed the Python tests on Linux. Recognized reading/error types, incomplete-field treatment and ignored input are selected. Committed-reading retention and routing now exist in separate modules. Runtime clock/scheduling, persistence/history and hardware integration remain future work.
 - Implementation details: immutable snapshots; timeout equality uses >=; late communication preserves its elapsed fault before recording recovery; no-op acknowledgments do not extend waits. Sensor pauses begin when timeout status is supplied, not retroactively. Existing sensor alerts remain until a valid reading; an error with no remaining wait alerts on resume. These details are explicit in the designs and deferred tests.
 
 ## Selected serial-input handling
@@ -200,9 +207,9 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 
 ## Next information needed
 
-1. Whether Arduino IDE 2.3.10 is installed; exact ESP32 and BME680 breakout models.
+1. Exact BME680 breakout model and hardware availability. DOIT ESP32 DevKit V1 is selected; firmware compilation completed.
 2. Whether Modules 4.2/4.3 can be supplied.
-3. Environment verification output from the existing `env`, when the user returns to Ubuntu; do not block current Windows design work on it.
+3. No repeat environment report is needed unless that environment changes. See the Linux verification record.
 4. Technical YAML loading is decided: startup-only initially. Patient-profile live updates are selected as a future feature; their validation and effect on environmental breach timers still need agreement.
 
 ## Source pointers
