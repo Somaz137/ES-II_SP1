@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only SAFE-ROOM runtime/package/port diagnostics."""
+"""Read-only Room Environment Safety Control runtime/package/port diagnostics."""
 import glob
 import os
 import platform

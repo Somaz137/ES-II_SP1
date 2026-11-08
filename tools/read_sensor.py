@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print parsed JSON readings streamed by firmware/safe_room_bme680.ino."""
+"""Print parsed JSON readings streamed by firmware/room_environment_safety_control_bme680.ino."""
 import argparse
 import json
 import time

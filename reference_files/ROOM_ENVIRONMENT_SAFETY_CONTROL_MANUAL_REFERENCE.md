@@ -1,4 +1,6 @@
-# SAFE-ROOM / Project 8 — Course-Manual Reference for a Terminal Coding AI
+# Room Environment Safety Control / Project 8 — Course-Manual Reference for a Terminal Coding AI
+
+**Current project name:** Room Environment Safety Control (user-selected on 8 November 2026). The original course title and codename below are preserved as source facts, not current branding.
 
 **Purpose:** A source-grounded engineering reference extracted from the user-provided course materials, for an AI assistant working on Project 8. This is **not** a complete reprint of every lecture and **not** permission to install additional software. It concentrates on all material useful to this project, including version constraints, platform decisions, hardware interfaces, commands, reusable code patterns, testing, and omissions.
 
@@ -17,7 +19,7 @@
 2. **Do not introduce installation commands, libraries, runtime services, sensors, algorithms, additional features, or implementation functions that are absent from the manuals without asking first.** A missing specification is a question for the user, not a license to make a default choice.
 3. **Never conflate Jetson-specific and Ubuntu laptop instructions.** Ubuntu 22.04 is shared, but `amd64` (laptop) and `arm64` (Jetson) packages, GPIO, OpenCV source, JetPack and GPU frameworks differ.
 4. **Separate source facts from project adaptations.** Use labels such as `[MANUAL]`, `[ZIP]`, `[USER CONFIRMED]`, `[PROPOSED — APPROVAL REQUIRED]`, `[UNSPECIFIED]`, or `[EXAMPLE OUTPUT]` when a distinction matters.
-5. **Do not run the old SAFE-ROOM starter setup script automatically.** A previous assistant-created starter archive contains externally selected Arduino ESP32-core/BME680-library versions and additional setup packages that are **not** pinned by the lectures. Those selections are not approved.
+5. **Do not run the old Room Environment Safety Control starter setup script automatically.** A previous assistant-created starter archive contains externally selected Arduino ESP32-core/BME680-library versions and additional setup packages that are **not** pinned by the lectures. Those selections are not approved.
 6. **If course modules disagree, show both versions and explain the context; do not silently reconcile them.** If a version must be chosen for the user's scope and there is an actual conflict, ask before installing.
 7. **Do not treat example values as requirements.** Sample kernel versions, IP addresses, credentials, sensor values, program paths, patient thresholds and figures in lecture outputs are not guaranteed to describe this particular laptop or patient.
 8. **No medical claims.** This is an educational demonstration, not a certified safety/clinical monitoring device. Patient-specific safe ranges are not given in the materials and must not be fabricated.
@@ -77,13 +79,13 @@
 | `Module_3_2a_Python_Libraries_for_Jetson_Development_v1.0.pdf` | 36 | **Exact laptop Python package pins** in Table 3.2-4 and Appendix A/B | **Yes** |
 | `Module_3_3a_Interfacing_with_Peripherals_ESP32_v1.0.pdf` | 21 | **ESP32 I/O bridge**, 3.3 V wiring, IDE 2.3.10, serial, camera examples, troubleshooting | **Yes** |
 | `Module_3.4_Healthcare_Case_Study_1_v0.8.pdf` | 20 | Separate monitor/dashboard, YAML config, alarm controls, Flask/SQLite/pytest, systemd | **Reuse architecture only**; VIGIL is a different project |
-| `vigil_v0.8.zip` | 58 entries | VIGIL code and requirements, examples of alarm, DB, config, web dashboard and tests | **Reference code**, not SAFE-ROOM |
+| `vigil_v0.8.zip` | 58 entries | VIGIL code and requirements, examples of alarm, DB, config, web dashboard and tests | **Reference code**, not Room Environment Safety Control |
 
 ## 3. Version inventory — strictly distinguish source from recommendation
 
 ### 3.1 Python / laptop dependencies — selected `requirements.txt` baseline
 
-These six pins were **assembled** for SAFE-ROOM from different manuals. No supplied lecture publishes this exact six-line SAFE-ROOM lockfile, but **every individual version is traceable**.
+These six pins were **assembled** for Room Environment Safety Control from different manuals. No supplied lecture publishes this exact six-line Room Environment Safety Control lockfile, but **every individual version is traceable**.
 
 ```text
 numpy==1.26.4
@@ -109,7 +111,7 @@ pytest==8.2.0
 
 ### 3.2 Other versioned Python/library material (do not automatically install)
 
-| Name | Exact version in course | Source | SAFE-ROOM status |
+| Name | Exact version in course | Source | Room Environment Safety Control status |
 |---|---|---|---|
 | Pandas | **1.3.5** | Module 3.2 pp. 3–4 and p. 35 | Optional; **not** in current requirements |
 | Matplotlib | **3.5.1** | Module 3.2 pp. 3–4 and p. 35 | Optional; chart approach not selected |
@@ -207,7 +209,7 @@ v4l2-ctl --list-devices
 
 **Conditional, potentially disruptive manual troubleshooting:** Module 3.3 pp. 6, 20 discusses `sudo apt remove --purge -y brltty` **only** where logs confirm that `brltty` is interfering with the USB serial device. Do not run without checking and user approval. Module 2.2 gives `sudo apt --fix-broken install` as a package-repair step; package changes must be inspected rather than applied blindly.
 
-**Module 2.3 general shell reference (pp. 1–23):** `pwd`, `cd`, `ls`, `mkdir`, `cat`, `cp`, `mv`, `rm`, `rmdir`, `find`, `grep`, `diff`, `chmod`, `sudo`; redirects `>`/`>>`, pipe `|`, wildcards `*` and `?`. Use `pwd`/`ls` to confirm location before editing/deleting files. `rm` is destructive. For an executable shell script, `chmod +x` is described. No special kernel tuning or root access is required just to develop SAFE-ROOM.
+**Module 2.3 general shell reference (pp. 1–23):** `pwd`, `cd`, `ls`, `mkdir`, `cat`, `cp`, `mv`, `rm`, `rmdir`, `find`, `grep`, `diff`, `chmod`, `sudo`; redirects `>`/`>>`, pipe `|`, wildcards `*` and `?`. Use `pwd`/`ls` to confirm location before editing/deleting files. `rm` is destructive. For an executable shell script, `chmod +x` is described. No special kernel tuning or root access is required just to develop Room Environment Safety Control.
 
 ### 4.3 Virtual environment and verification
 
@@ -220,7 +222,7 @@ python3 -c "import numpy as np; print('NumPy', np.__version__)"    # expected 1.
 python3 -c "import cv2; print(cv2.__version__)"                   # expected 4.11.0
 ```
 
-- Module 3.2 Appendix B (p. 36) demonstrates an import/version-check script using `__import__` and `getattr(module, "__version__", "built-in")`. It checks seven Module 3.2 libraries, many **not** installed for this specific project. Missing optional packages in that *seven-library course checker* do not mean SAFE-ROOM's six-package requirements failed.
+- Module 3.2 Appendix B (p. 36) demonstrates an import/version-check script using `__import__` and `getattr(module, "__version__", "built-in")`. It checks seven Module 3.2 libraries, many **not** installed for this specific project. Missing optional packages in that *seven-library course checker* do not mean Room Environment Safety Control's six-package requirements failed.
 - Module 3.4 uses `--system-site-packages` to reuse **JetPack-provided OpenCV**. That is **not the laptop path**, and the user's venv should not be recreated merely to imitate VIGIL.
 
 ---
@@ -272,7 +274,7 @@ python3 -c "import cv2; print(cv2.__version__)"                   # expected 4.1
 - The sketch's `SEG` pin array is `{23,22,21,19,18,5,17}` and `BAR` uses `{23,22,21,19,18}`. **This code occupies GPIO21 and GPIO22 as digital outputs. It must NOT be flashed unchanged while a BME680 I²C sensor is connected to those pins.** This is a serious hardware/resource conflict.
 - Module 3.3 explicitly says **Module 4.2 extends the firmware to stream sensor data**, but that module is missing. The available sketch has **no BME680 read command or transmitted sensor format**.
 - Module 3.3's `bridge.py` uses `serial.Serial(PORT, 115200, timeout=1)`, delays `time.sleep(2)` after the port opens because ESP32 resets, sends `cmd + "\n"`, and reads one line of response. This behavior is documented, but the **sensor messaging schema remains unspecified**.
-- Module 3.3 p. 8 LED serial test toggles an LED on GPIO23 via `send("LED,23,1")`, waits one second, then `send("LED,23,0")`; use **220 Ω series resistor** and correct polarity. This is a *bridge test*, not required final SAFE-ROOM circuitry.
+- Module 3.3 p. 8 LED serial test toggles an LED on GPIO23 via `send("LED,23,1")`, waits one second, then `send("LED,23,0")`; use **220 Ω series resistor** and correct polarity. This is a *bridge test*, not required final Room Environment Safety Control circuitry.
 
 ### 5.4 Documented serial troubleshooting (pp. 6, 8–9, 20)
 
@@ -309,15 +311,15 @@ The missing sensor module would need to establish: **exact sensor breakout power
 
 ### 7.1 What VIGIL actually is
 
-`Module_3.4_Healthcare_Case_Study_1_v0.8.pdf` and `vigil_v0.8.zip` implement **a dementia-patient bed-position monitor** (not SAFE-ROOM), using MediaPipe Pose/OpenCV and Jetson. Do not rename and deploy VIGIL as Project 8.
+`Module_3.4_Healthcare_Case_Study_1_v0.8.pdf` and `vigil_v0.8.zip` implement **a dementia-patient bed-position monitor** (not Room Environment Safety Control), using MediaPipe Pose/OpenCV and Jetson. Do not rename and deploy VIGIL as Project 8.
 
 ### 7.2 Reusable separation of responsibilities
 
 Sources: Module 3.4 pp. 3–6, 8–13, 15–18; ZIP `README.md` and named source files.
 
-| ZIP path | Existing VIGIL role | SAFE-ROOM relevance |
+| ZIP path | Existing VIGIL role | Room Environment Safety Control relevance |
 |---|---|---|
-| `vigil/config.yaml` | Central configuration, documented units, thresholds | Pattern for editable, validated SAFE-ROOM config; **do not copy VIGIL's posture limits** |
+| `vigil/config.yaml` | Central configuration, documented units, thresholds | Pattern for editable, validated Room Environment Safety Control config; **do not copy VIGIL's posture limits** |
 | `vigil/monitor.py` | Continuous capture → classify → alert → persist | Pattern for independent **sensor** safety loop; not directly reusable |
 | `vigil/alarm.py` | Debounce, cooldown, severity and alert lifecycle | Example of testable alarm state, but Project 8 needs **sustained time-based breaches** |
 | `vigil/db.py` | SQLite event log/history and retention | Structural example of local storage |
@@ -330,12 +332,12 @@ Sources: Module 3.4 pp. 3–6, 8–13, 15–18; ZIP `README.md` and named source
 ### 7.3 Specific techniques in the sources
 
 - **Independent monitoring and display:** VIGIL's monitor and Flask dashboard run as different programs; the dashboard does not own the camera. If dashboard/network fails, monitoring is intended to continue (Module 3.4 pp. 3, 12, 15–17).
-- **Central config:** VIGIL settings live in `config.yaml` rather than hard-coded constants. SAFE-ROOM brief separately requires editable **patient-specific** safe limits via a clinician form.
-- **Alarm stability:** VIGIL implements a debounce of **eight frames** and a **60-second** cooldown for its vision states (Module 3.4 p. 5). These are **VIGIL-only defaults** and do **not** specify SAFE-ROOM's sustained-temperature breach time or cooldown. The book uses a ten-minute breach **example**, not a universal threshold.
+- **Central config:** VIGIL settings live in `config.yaml` rather than hard-coded constants. Room Environment Safety Control brief separately requires editable **patient-specific** safe limits via a clinician form.
+- **Alarm stability:** VIGIL implements a debounce of **eight frames** and a **60-second** cooldown for its vision states (Module 3.4 p. 5). These are **VIGIL-only defaults** and do **not** specify Room Environment Safety Control's sustained-temperature breach time or cooldown. The book uses a ten-minute breach **example**, not a universal threshold.
 - **Local data:** SQLite keeps event state, timestamps, and history. `sqlite3` comes with Python; do not install a third-party `sqlite3` package.
-- **Notification separation:** Project 8 explicitly says a slow email/notification must not block monitoring; VIGIL's separation of services is a reference pattern. It does **not** define SAFE-ROOM's notification channel or delivery format.
-- **Tests:** VIGIL's `pytest -v test_safety.py` runs synthetic cases without a real camera/Jetson (Module 3.4 p. 17 and ZIP README). SAFE-ROOM should have tests for sustained breaches, but actual test cases are not supplied and must be agreed.
-- **Remote/dashboard deployment:** Cloudflare Tunnel, Gunicorn, `systemd` services and API keys are documented for **VIGIL** (Module 3.4 pp. 12–17). They are not mandatory for the SAFE-ROOM brief; public exposure and auto-start should be discussed before enabling.
+- **Notification separation:** Project 8 explicitly says a slow email/notification must not block monitoring; VIGIL's separation of services is a reference pattern. It does **not** define Room Environment Safety Control's notification channel or delivery format.
+- **Tests:** VIGIL's `pytest -v test_safety.py` runs synthetic cases without a real camera/Jetson (Module 3.4 p. 17 and ZIP README). Room Environment Safety Control should have tests for sustained breaches, but actual test cases are not supplied and must be agreed.
+- **Remote/dashboard deployment:** Cloudflare Tunnel, Gunicorn, `systemd` services and API keys are documented for **VIGIL** (Module 3.4 pp. 12–17). They are not mandatory for the Room Environment Safety Control brief; public exposure and auto-start should be discussed before enabling.
 - **Privacy/ethics:** Educational demo with volunteers and no clinical reliance, avoid raw-video storage or transmission (Module 3.4 p. 19; Case Study book pp. 2–3).
 
 **Caution:** `Module 3.4` p. 7 erroneously labels PyYAML “Python built-in”; `vigil/requirements.txt` explicitly pins **PyYAML==6.0.1**. Treat SQLite as built-in, PyYAML as a pip dependency.
@@ -344,7 +346,7 @@ Sources: Module 3.4 pp. 3–6, 8–13, 15–18; ZIP `README.md` and named source
 
 ## 8. Current implementation status
 
-Current progress and open decisions are maintained in [SAFE_ROOM_PROJECT8_IMPLEMENTATION_PLAN.md](SAFE_ROOM_PROJECT8_IMPLEMENTATION_PLAN.md). Status statements elsewhere in this extraction describe the source conversation at extraction time, not ongoing verification.
+Current progress and open decisions are maintained in [ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md](ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md). Status statements elsewhere in this extraction describe the source conversation at extraction time, not ongoing verification.
 
 The repository now includes experimental BME680 firmware and a serial reader. Their presence does not resolve missing course specifications or establish dependency approval, successful compilation, or working hardware. Sections 5.5 and 9 describe gaps in the supplied manuals, not the absence of starter code.
 
@@ -391,4 +393,4 @@ The repository now includes experimental BME680 firmware and a serial reader. Th
 | VIGIL exact PyYAML/Flask/pytest pins | ZIP `vigil/requirements.txt` |
 | Project 8 BME680 sensor/rule instructions | **Missing Module 4.2 / Module 4.3** |
 
-**Document boundary:** This reference extracts **project-relevant** directions from all uploaded lectures and distinguishes unavailable material. It is not proof of installed packages on the user's laptop, not full source code for SAFE-ROOM, and not an external version-compatibility certification.
+**Document boundary:** This reference extracts **project-relevant** directions from all uploaded lectures and distinguishes unavailable material. It is not proof of installed packages on the user's laptop, not full source code for Room Environment Safety Control, and not an external version-compatibility certification.

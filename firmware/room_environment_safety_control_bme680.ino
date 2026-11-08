@@ -1,4 +1,4 @@
-// SAFE-ROOM ESP32 sensor test (NOT a complete safety-monitoring application)
+// Room Environment Safety Control ESP32 sensor test (NOT a complete safety-monitoring application)
 // Target: ESP32 DevKit V1, Arduino-ESP32 core, Adafruit BME680 Library.
 // I2C: GPIO21 SDA, GPIO22 SCL. USB serial: 115200 baud.
 // Emits JSON lines (one per second). Gas resistance is raw Ohms, NOT an AQI/CO2 value.

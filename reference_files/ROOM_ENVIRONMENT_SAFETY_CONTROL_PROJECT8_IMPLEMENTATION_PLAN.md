@@ -1,10 +1,10 @@
-# SAFE-ROOM — Implementation Plan and Current Status
+# Room Environment Safety Control — Implementation Plan and Current Status
 
-**Updated:** 7 November 2026  
+**Updated:** 8 November 2026  
 **Project:** Idea 8, Room Environment Safety Monitor.  
 **Platform:** Ubuntu 22.04 laptop + ESP32 over USB serial.
 
-This file owns current progress and decisions. The [manual reference](SAFE_ROOM_MANUAL_REFERENCE.md) owns course facts and source citations. The [README](../README.md) is the short entry point; [requirements.txt](../requirements.txt) owns executable Python pins.
+This file owns current progress and decisions. The [manual reference](ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md) owns course facts and source citations. The [README](../README.md) is the short entry point; [requirements.txt](../requirements.txt) owns executable Python pins.
 
 ## Operating constraints
 
@@ -34,7 +34,7 @@ This file owns current progress and decisions. The [manual reference](SAFE_ROOM_
 
 ## Existing sensor test
 
-- `firmware/safe_room_bme680.ino` uses Adafruit BME680, GPIO21 SDA/GPIO22 SCL, addresses 0x76 then 0x77, and JSON at 115200 baud approximately once per second.
+- `firmware/room_environment_safety_control_bme680.ino` uses Adafruit BME680, GPIO21 SDA/GPIO22 SCL, addresses 0x76 then 0x77, and JSON at 115200 baud approximately once per second.
 - `tools/read_sensor.py` prints parsed records. It does not store data, validate measurement fields, reconnect after USB loss, or apply safety rules.
 - Firmware does not retry initialization after a sensor is missing at boot.
 - Adafruit library choice, sampling settings, and JSON schema are starter adaptations, not prescribed by the available manuals.
@@ -84,15 +84,29 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 
 ## Project workflow preferences
 
-- User requested VibeWise for this project and Impeccable when building the dashboard.
-- At the latest availability check, neither was exposed among available tools/skills; VibeWise plugin search returned no match.
-- Recheck availability before relevant work. Do not claim either was used unless it was actually loaded.
+- Current name: **Room Environment Safety Control**, selected by the user on 8 November 2026. The repository name remains ES-II_SP1.
+- Use VibeWise learning mode, Impeccable for dashboard design, and the requested GitHub, Superpowers, Computer, Browser, and Plugin Management capabilities where relevant. VibeWise's local learning skill has been read and is active; Impeccable is available.
+- Develop from Windows for now; Ubuntu runtime checks are deferred. Requirements installation and specified versions are user-reported, not independently verified.
+- Keep distinct responsibilities in small Python modules with focused functions; related helpers may share a module. A small main program connects components.
+- Use VIGIL as a reference and reuse appropriate code snippets after inspecting them. The original local source was inspected on 8 November 2026; the comparison now records source-backed behavior and concrete reuse limitations. Do not transfer its posture logic, defaults, dependencies, or deployment unchanged. See [comparison](VIGIL_COMPARISON.md).
+
+## Confirmed fault-monitoring design
+
+- Store communication and sensor-error timeouts in a separate YAML file; both are initially 120 seconds. Filename, exact keys, validation and loading/reloading policy await agreement.
+- Track last recognized ESP32 communication separately from last successful measurement. A recognized sensor-error message resets the communication timer but does not make measurements fresh.
+- After 120 seconds without recognized communication, raise a communication alert while the application continues running. Display last successful measurement time.
+- Communication alerts require acknowledgment even when messages resume. If acknowledged while communication is still missing, dismiss the alert and wait another 120 seconds; alert again if communication is still missing. Acknowledgment does not modify actual last-contact or last-measurement times.
+- A sensor-error episode begins on a sensor-error message. Further error messages do not restart its timer. Persistent errors trigger a separate alert after 120 seconds.
+- A valid measurement resets the sensor-error waiting period and automatically clears that alert. Sensor-error recovery does not remove the separate communication-alert acknowledgment requirement.
+- Track the start of the current sensor-error episode as well as last communication and last successful measurement.
+- Startup, recognized/valid message criteria, clock mechanism and mixed silence/error episodes remain unresolved. No fault-monitoring application code has been implemented or approved for implementation yet.
 
 ## Next information needed
 
 1. Whether Arduino IDE 2.3.10 is installed; exact ESP32 and BME680 breakout models.
 2. Whether Modules 4.2/4.3 can be supplied.
-3. Environment verification output from the existing `env`.
+3. Environment verification output from the existing `env`, when the user returns to Ubuntu; do not block current Windows design work on it.
+4. Whether YAML changes apply on restart or during monitoring (pending learner decision).
 
 ## Source pointers
 
@@ -101,4 +115,4 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 - ESP32/IDE/serial/camera: Module 3.3 pp. 3–8, 14–20.
 - Environment: Module 2.2 pp. 8–10.
 - Flask/SQLite/configuration/testing architecture: Module 3.4 and VIGIL ZIP.
-- Full extraction: [manual reference](SAFE_ROOM_MANUAL_REFERENCE.md). Original PDFs/ZIP are absent from this repository.
+- Full extraction: [manual reference](ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md). Original PDFs/ZIP are absent from this repository.
