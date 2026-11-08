@@ -15,9 +15,8 @@ Approved scope: connect the existing parser and fault trackers, preserve complet
 
 ## Files and interfaces
 
-- reading_state.py: frozen CommittedReading with four scalar fields and received_at. Frozen ReadingState with last_reading, input_status, diagnostic. commit_reading(state, measurements, now) validates and copies scalar values. record_reading_problem(state, kind, message) retains the snapshot.
-- monitoring_state.py: frozen MonitoringState combining reading, communication and sensor states. create_monitoring_state(started_at, communication_timeout_s, sensor_error_timeout_s), evaluate_monitoring_faults(state, now), acknowledge_monitoring_communication(state, now), monitoring_status(state).
-- message_router.py: process_serial_line(state, line, now), using the real parser and component functions. No serial I/O or clocks inside the router.
+- measurements.py: frozen CommittedReading with four scalar fields and received_at. Frozen ReadingState with last_reading, input_status, diagnostic. commit_reading(state, measurements, now) validates and copies scalar values. record_reading_problem(state, kind, message) retains the snapshot.
+- monitoring_state.py: frozen MonitoringState combining reading, communication and sensor states. create_monitoring_state(started_at, communication_timeout_s, sensor_error_timeout_s), evaluate_monitoring_faults(state, now), acknowledge_monitoring_communication(state, now), monitoring_status(state). The same file provides process_serial_line(state, line, now), using the real parser and component functions. No serial I/O or clocks inside the router.
 - tests/test_reading_state.py and tests/test_message_router.py exercise actual modules, without mocks or hardware.
 
 ## Non-goals

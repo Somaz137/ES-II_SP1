@@ -15,6 +15,21 @@ This record supersedes earlier pending-test statements in historical preparation
 
 This file owns current progress and decisions. The [manual reference](ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md) owns course facts and source citations. The [README](../README.md) is the short entry point; [requirements.txt](../requirements.txt) owns executable Python pins.
 
+
+## Moderate Python merge
+
+The user approved the moderate file merge and a complete reference update.
+The main folder now has eleven application Python files.
+settings.py owns settings loading and validation.
+measurements.py owns measurement validation and retained readings.
+monitoring_state.py owns combined state and message routing.
+The existing functions, classes, settings keys, and serial behavior remain unchanged.
+Both YAML files and all eleven test files remain separate.
+Imports in application code and tests use the current modules.
+The original test filenames describe the tested behavior, not separate application modules.
+See [PYTHON_FILE_GUIDE.md](PYTHON_FILE_GUIDE.md) for the current file list.
+
+
 ## DOIT board selection - 8 November 2026
 
 The user selected DOIT ESP32 DevKit V1 with the classic ESP32 chip.
@@ -60,17 +75,17 @@ PRs #1 through #10 are merged into main as of 8 November 2026. The user executed
 | Rules and configuration form | Not implemented; patient limits and timing undefined |
 | SQLite and dashboard | Not implemented |
 | Notifications/local alarm | Not implemented; channel and optional wiring undefined |
-| Technical alert settings | Implemented as `config/alerts.yaml`, `config_loader.py`, and `config_validation.py`; startup-only loading connected by the new terminal monitor; listed virtual-serial checks completed |
+| Technical alert settings | Implemented as `config/alerts.yaml`, `settings.py`; startup-only loading connected by the new terminal monitor; listed virtual-serial checks completed |
 | Communication-fault tracker | `communication_fault.py` implements initialization, recognized-message receipt, periodic evaluation and acknowledgment; takes supplied times and is connected by terminal runtime source; UI remains absent |
 | Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; connected by terminal runtime source; UI remains absent |
-| Serial parser / validator | `serial_parser.py` and `measurement_validation.py` classify decoded lines and check four finite numeric fields; no hardware, tracker mutation or committed-reading storage yet |
+| Serial parser / validator | `serial_parser.py` and `measurements.py` classify decoded lines and check four finite numeric fields; no hardware, tracker mutation or committed-reading storage yet |
 | Bosch gas status | gas_readiness.py plus parser/router integration consumes status metadata. Legacy firmware reports no BSEC metadata, so gas remains unknown. No host warm-up timer. Firmware source now uses selected three-second LP. Installed dependency versions compiled successfully. The user confirmed a 3.3 V supply. Hardware operation remains unverified. |
-| Reading state and router | reading_state.py, monitoring_state.py and message_router.py retain complete values/time, expose initial waiting and latest input states, and connect parser classifications to both fault trackers. A new terminal runtime now supplies serial I/O, monotonic timing and periodic checks in source; listed virtual-serial checks completed; physical checks remain pending. |
+| Reading state and router | measurements.py, monitoring_state.py retain complete values/time, expose initial waiting and latest input states, and connect parser classifications to both fault trackers. A new terminal runtime now supplies serial I/O, monotonic timing and periodic checks in source; listed virtual-serial checks completed; physical checks remain pending. |
 | Automated tests | All eleven Python test files (configuration, communication, sensor, measurement validation, serial parser, retained readings, routing, gas status) written; Linux output supplied: 301 cases collected, all displayed cases completed, and no failures reported. Final summary and exit code were not supplied. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
 
 ## Terminal serial runtime prepared
 
-The current feature adds monitor.py, monitoring_loop.py, serial_transport.py, status_output.py, runtime_settings.py and config/runtime.yaml from PR #9, now merged into main. It uses the existing dependency pins. It loads both YAML files once and keeps one monitoring state across connection failures/retries. Fault checks run every five seconds even with no open port. Retry interval (five seconds) and polling interval (0.05 seconds) are implementation settings, not extra fault delays or BME680 sampling controls.
+The current feature adds monitor.py, monitoring_loop.py, serial_transport.py, status_output.py, settings.py and config/runtime.yaml from PR #9, now merged into main. It uses the existing dependency pins. It loads both YAML files once and keeps one monitoring state across connection failures/retries. Fault checks run every five seconds even with no open port. Retry interval (five seconds) and polling interval (0.05 seconds) are implementation settings, not extra fault delays or BME680 sampling controls.
 
 The serial port must be explicit. Opening it may reset the ESP32. Bounded nonblocking reads preserve partial lines; overlong/invalid-UTF-8 input does not reset communication. Failed reads/open attempts close and retry the same selected device. No device auto-selection, permission edits or firmware commands occur. Missed periodic ticks use current monotonic time, without replaying timestamps. OS/port/output delays can postpone checks; this is not a real-time guarantee.
 

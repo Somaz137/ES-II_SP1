@@ -7,7 +7,7 @@ The user authorized continuation from BSEC firmware to laptop serial monitoring.
 | File | Responsibility |
 |---|---|
 | monitor.py | Thin CLI; explicitly selected port, startup settings, JSON publisher |
-| runtime_settings.py | Runtime YAML loading and validation |
+| settings.py | Runtime YAML loading and validation |
 | serial_transport.py | Nonblocking bounded reads, newline framing, reconnect attempts |
 | monitoring_loop.py | Host monotonic timing, real parser/router, periodic faults |
 | status_output.py | Retained measurement, age, estimated UTC, current gas/alert facts |

@@ -15,7 +15,7 @@ Approved scope: learner selected "implement this" on 8 November 2026 after the p
 
 ## Interfaces and implementation details
 
-- measurement_validation.validate_measurements(data: object) -> None: raise ValueError naming missing/invalid fields; expose MEASUREMENT_FIELDS as the shared schema.
+- measurements.validate_measurements(data: object) -> None: raise ValueError naming missing/invalid fields; expose MEASUREMENT_FIELDS as the shared schema.
 - serial_parser.parse_serial_line(line: str) -> ParsedSerialMessage: accepts decoded text and returns kind, optional measurements and optional diagnostic message.
 - Kinds: valid_reading, sensor_error, incomplete_reading, ignored.
 - A fresh valid result contains just the four expected measurement fields; extra metadata is not committed.

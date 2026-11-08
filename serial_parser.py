@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 import json
 from typing import Literal
 
-from measurement_validation import MEASUREMENT_FIELDS, validate_measurements
+from measurements import MEASUREMENT_FIELDS, validate_measurements
 from gas_readiness import GasReadiness, parse_gas_readiness
 
 MessageKind = Literal[

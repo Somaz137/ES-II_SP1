@@ -16,8 +16,8 @@ Approved scope: the learner selected "implement this step" on 8 November 2026 af
 
 Reuse VIGIL's startup yaml.safe_load pattern, with validation separated for readability and testing. The approved startup approach avoids changing active technical timers during file edits; live technical reloading is out of scope.
 
-- config_loader.load_alert_settings(path): read UTF-8 YAML, validate it, return its settings mapping.
-- config_validation.validate_alert_settings(data): raise ValueError for a non-mapping, missing required timeout, or invalid timeout. Both durations must be finite positive int/float values; booleans and numeric strings are invalid.
+- settings.load_alert_settings(path): read UTF-8 YAML, validate it, return its settings mapping.
+- settings.validate_alert_settings(data): raise ValueError for a non-mapping, missing required timeout, or invalid timeout. Both durations must be finite positive int/float values; booleans and numeric strings are invalid.
 - Missing/unreadable files retain native filesystem errors. Malformed YAML raises ValueError with the path.
 - Extra settings are preserved without assigning meaning; only the two selected timeout fields are consumed by this feature.
 

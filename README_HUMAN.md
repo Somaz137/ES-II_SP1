@@ -212,6 +212,11 @@ Dashboard refreshes and camera observations have their own intervals.
 
 ## Main files
 
+The application now uses eleven Python files in the main folder.
+Related settings, measurements, and state updates share files.
+See the [Python file guide](reference_files/PYTHON_FILE_GUIDE.md) for every application, tool, and test file.
+The test filenames remain unchanged so their original test cases are easy to track.
+
 | File or folder | Purpose |
 |---|---|
 | `monitor.py` | Starts the local terminal monitor. |
@@ -219,18 +224,14 @@ Dashboard refreshes and camera observations have their own intervals.
 | `monitoring_loop.py` | Routes messages and checks faults during silence. |
 | `status_output.py` | Formats readings, ages, and fault facts as JSON. |
 | `config/runtime.yaml` | Sets host polling, retry, and fault-check intervals. |
-| `runtime_settings.py` | Loads and checks host timing settings. |
+| `settings.py` | Loads both YAML settings files and checks their values. |
 | `config/alerts.yaml` | Stores the two technical fault durations. |
-| `config_loader.py` | Reads the YAML settings. |
-| `config_validation.py` | Checks the required settings and values. |
 | `communication_fault.py` | Tracks communication timeout and acknowledgment. |
 | `sensor_fault.py` | Tracks persistent measurement errors and recovery. |
-| `reading_state.py` | Retains complete values, receipt time, and the latest input status. |
-| `monitoring_state.py` | Combines reading state and both fault trackers. |
-| `message_router.py` | Connects decoded serial input to those states. |
+| `measurements.py` | Checks measurements and retains the last complete reading and its receipt time. |
+| `monitoring_state.py` | Stores the combined state and applies incoming messages to readings and fault trackers. |
 | `gas_readiness.py` | Checks reported Bosch warm-up and calibration status. |
 | `serial_parser.py` | Classifies a decoded serial line. |
-| `measurement_validation.py` | Checks the four required measurement fields. |
 | `firmware/room_environment_safety_control_bme680.ino` | Prepares BSEC low-power readings and gas status reports. |
 | `firmware/README.md` | Explains firmware configuration and remaining hardware checks. |
 | `tools/read_sensor.py` | Prints JSON records from a selected serial port. It does not connect the monitoring components. |

@@ -4,8 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from config_loader import load_alert_settings
-from config_validation import validate_alert_settings
+from settings import load_alert_settings, validate_alert_settings
 
 
 @pytest.mark.parametrize(

@@ -6,9 +6,8 @@ import json
 from pathlib import Path
 import time
 
-from config_loader import load_alert_settings
+from settings import load_alert_settings, load_runtime_settings
 from monitoring_loop import run_monitor
-from runtime_settings import load_runtime_settings
 from serial_transport import SerialTransport
 from status_output import status_record
 

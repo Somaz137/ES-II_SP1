@@ -47,6 +47,26 @@ A separate check of the installed IDE version was not supplied in this session.
 Firmware compilation succeeded with the recorded ESP32 board package and Bosch library versions.
 This establishes compilation, not physical hardware operation.
 
+## Verification after the moderate Python merge
+
+The assistant ran the original suite before and after the file merge in an isolated Linux environment.
+The checks used Python 3.10.12, pytest 8.2.0, PyYAML 6.0.1, and pyserial 3.5.
+Both runs reported **301 passed**. The collected case identities matched exactly.
+Test assertions and test bodies remained unchanged. Only test imports changed.
+
+Additional checks confirmed:
+
+- The main folder contains eleven application Python files.
+- Existing function and class definitions remain unchanged apart from their module locations.
+- Each application module imports successfully in a separate process.
+- All Python files use valid Python 3.10 syntax.
+- monitor.py --help still starts correctly.
+- Application imports and document references use the current modules.
+- Firmware, YAML settings, required dependencies, and diagnostic tools are unchanged.
+
+This is additional software evidence. It does not replace the pending physical checks.
+The [Python file guide](PYTHON_FILE_GUIDE.md) explains the current files.
+
 ## Remaining checks
 
 - Upload firmware to the physical DOIT ESP32 DevKit V1.

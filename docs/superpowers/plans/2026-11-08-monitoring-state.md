@@ -30,7 +30,7 @@
 Interfaces are defined in the spec. Reading snapshots feed MonitoringState. The router consumes the real parser and both trackers.
 
 - [ ] Write test_reading_state.py and test_message_router.py first. Cover waiting/empty startup, replacement, retention, ignored lines, distinct contact/measurement times, both timeout boundaries, pause/resume, acknowledgment/re-alert, valid recovery, custom durations, invalid/backwards time, and dictionary isolation.
-- [ ] Implement reading_state.py, monitoring_state.py, and message_router.py.
+- [ ] Implement measurements.py, monitoring_state.py.
 - [ ] Check Python 3.10 grammar without importing application modules. Expected: all Python sources parse. This does not prove runtime correctness.
 - [ ] Obtain one fresh read-only source review and address substantive findings.
 - [ ] Update human guide, README, implementation plan and Linux handoff. Check links and preserve unrelated blobs.
