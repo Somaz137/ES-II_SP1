@@ -1,5 +1,12 @@
 # Room Environment Safety Control
 
+**Linux checks recorded:** See the [8 November verification record](reference_files/LINUX_VERIFICATION_2026-11-08.md).
+The user completed Python test execution, firmware formatting, compilation, and the listed virtual-serial scenarios.
+Physical ESP32 and BME680 operation remains unverified.
+The successful Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408.
+This record supersedes earlier pending-test statements in historical preparation notes and design checklists.
+
+
 ## Guide for people
 
 This guide explains the project for students, reviewers, and future team members.
@@ -7,7 +14,7 @@ It describes the project purpose, current code, and planned behavior.
 It contains no instructions for an AI assistant.
 
 **Current status:** The repository contains a terminal serial monitor and separate monitoring components. The complete room-safety application is not implemented.
-Hardware operation and the full test suite still need checks in the approved Linux environment.
+The user ran the Python suite, firmware formatting test, compilation, and listed simulated runtime checks on Linux. Physical hardware operation remains untested.
 
 ## What the project does
 
@@ -33,7 +40,7 @@ The project does not yet define those control functions.
 |---|---|---|
 | BME680 | Measures temperature, humidity, pressure, and gas resistance | Experimental firmware exists. Physical operation remains unverified. |
 | ESP32 | Reads the BME680 and sends measurements through USB serial | Experimental firmware exists. |
-| Laptop | Runs the Python monitoring logic | A terminal serial loop connects readings and fault tracking. Runtime checks remain pending. |
+| Laptop | Runs the Python monitoring logic | A terminal serial loop connects readings and fault tracking. Listed virtual-serial checks completed on Linux. |
 | Camera | Supplies images for occupancy detection | Connection and detection method remain undecided. |
 | Dashboard | Shows room status and accepts alert acknowledgments | Not implemented. |
 
@@ -76,7 +83,7 @@ Output can also change when a new record arrives.
 This terminal output has a separate schedule from the planned dashboard.
 
 The monitor has no camera processing, patient rules, database, notifications, or acknowledgment control yet.
-Tests and real operation remain pending on the project Linux setup.
+The listed automated and virtual-serial checks completed on Linux. Real ESP32 and sensor operation remains pending.
 
 ## Measurements and their meaning
 
@@ -147,7 +154,7 @@ The selected design uses status reports from Bosch BSEC software.
 Python does not declare readiness after a fixed waiting period.
 The new Python module can read these reports.
 The new firmware source prepares these reports.
-Compilation and hardware checks remain pending.
+Compilation succeeded on Linux. Hardware checks remain pending.
 The earlier firmware reports no BSEC status, so Python shows unknown until the new firmware supplies valid reports.
 
 BSEC reports initial stabilization and stabilization after power-on.
@@ -177,7 +184,7 @@ BSEC controls when the sensor acquires data.
 The firmware sends each new measurement once.
 Failures produce error messages instead of repeated old measurements.
 The sensor supply is confirmed as 3.3 V.
-Exact library versions and hardware operation still need checks before use.
+The firmware compiled with the installed Bosch libraries and ESP32 board package. Hardware operation still needs checks.
 
 Initial sensor conditioning remains separate from this software status handling.
 See the [BSEC integration design](docs/superpowers/specs/2026-11-08-bsec-status-design.md) for the protocol and manufacturer references.
@@ -188,9 +195,9 @@ See the [BSEC integration design](docs/superpowers/specs/2026-11-08-bsec-status-
 |---|---|---|
 | Communication timeout | 120 seconds | Exists in `config/alerts.yaml`. |
 | Sensor error timeout | 120 seconds | Exists in `config/alerts.yaml`. |
-| BME680 sampling | Every three seconds | BSEC low-power mode selected. New firmware source remains unverified. |
+| BME680 sampling | Every three seconds | BSEC low-power mode compiled. Physical acquisition remains unverified. |
 | Camera processing | Every 60 seconds | Planned. |
-| Fault checks | Every 5 seconds | Implemented in source. Runtime checks remain pending. |
+| Fault checks | Every 5 seconds | Implemented in source. Listed virtual-serial checks completed on Linux. |
 | Dashboard refresh | Every 10 seconds | Planned. |
 | Patient profiles | Apply valid changes during monitoring | Planned. Format and validation remain undecided. |
 | Technical settings | Apply changes at program startup | The terminal monitor loads both technical YAML files once. |
@@ -228,17 +235,17 @@ Dashboard refreshes and camera observations have their own intervals.
 | `firmware/README.md` | Explains firmware configuration and remaining hardware checks. |
 | `tools/read_sensor.py` | Prints JSON records from a selected serial port. It does not connect the monitoring components. |
 | `tools/check_setup.py` | Reports environment metadata. It does not prove that the application works. |
-| `tests/` | Contains eleven Python test files. Test execution remains deferred to Linux. |
+| `tests/` | Contains eleven Python test files. The user executed the suite on Linux. See the verification record. |
 | `reference_files/` | Contains the course reference, implementation plan, Linux handoff, and VIGIL comparison. |
 | `docs/superpowers/` | Contains detailed component designs and implementation checklists. |
 
 ## What remains
 
-1. Execute the existing tests in the approved Linux environment.
-2. Check the terminal monitor, retained values, serial recovery, and periodic fault checks.
-3. Check firmware dependencies and the configured 3.3 V sensor supply.
-4. Check the new firmware with the laptop monitor.
-5. Check real sensor operation and select the camera method.
+1. Obtain the ESP32 and BME680 hardware.
+2. Check the breakout wiring and confirmed 3.3 V supply.
+3. Upload the compiled firmware and check real readings with the laptop monitor.
+4. Check physical USB reconnection, sensor failures, units, and actual BSEC status transitions.
+5. Select and check the camera method.
 6. Define patient profiles and environmental alert rules.
 7. Add storage, event history, and the dashboard.
 8. Add the agreed notification method.
