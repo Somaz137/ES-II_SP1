@@ -6,6 +6,10 @@ Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
 ## Start here
 
+**For people:** Read [README_HUMAN.md](README_HUMAN.md) for the project purpose, data flow, alert behavior, gas warm-up decision and remaining work.
+
+PRs #1 through #5 are merged into main. Gas warm-up handling is approved as a design and remains unimplemented. See the [approved design](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md#approved-gas-readiness-design).
+
 **Returning to Linux?** Read the [Linux AI handoff](reference_files/LINUX_AI_HANDOFF.md) first. Testing is explicitly deferred to the existing Linux environment; it has not been completed on Windows.
 
 | File | Role |

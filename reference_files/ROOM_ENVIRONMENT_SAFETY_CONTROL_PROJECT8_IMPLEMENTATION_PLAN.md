@@ -19,6 +19,8 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 
 ## Current status
 
+PRs #1 through #5 merged into main on 8 November 2026. The code remains unverified by the full Linux test suite. See [README_HUMAN.md](../README_HUMAN.md) for the human overview.
+
 **Linux continuation:** Follow [LINUX_AI_HANDOFF.md](LINUX_AI_HANDOFF.md) for the current branch, environment checks, configuration test command, remaining milestones and cleanup assessment. The user explicitly deferred all remaining testing to their Linux setup. No Windows environment or alternate Windows interpreter is selected.
 
 | Area | Evidence and state |
@@ -39,6 +41,19 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 | Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; not connected to serial/UI yet |
 | Serial parser / validator | `serial_parser.py` and `measurement_validation.py` classify decoded lines and check four finite numeric fields; no hardware, tracker mutation or committed-reading storage yet |
 | Automated tests | All five test files (configuration, communication, sensor, measurement validation, serial parser) written; all remaining test execution deferred to Linux; pinned-environment pytest run and real PyYAML integration remain pending. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
+
+## Approved gas readiness design
+
+The user approved gas-only warm-up handling on 8 November 2026. This is a design decision, not implemented behavior.
+
+- Continue monitoring and receiving ESP32 messages during gas warm-up. Show gas monitoring as unavailable rather than asserting a fully safe room.
+- Keep temperature, humidity and pressure subject to their own validity and settling checks. Gate gas evaluation separately.
+- Expected gas warm-up alone is not a sensor fault. Actual measurement errors and communication loss retain the existing fault rules.
+- Keep the planned warm-up duration in startup-loaded technical YAML and readiness logic in a separate Python module. Exact settings, duration and readiness criteria still need definition. No such YAML key exists yet.
+- A completed wait does not prove calibration. Current firmware reports raw gas resistance, not calibrated AQI or gas concentration.
+- Distinguish physical sensor restart from Python restart. Restart reporting and integration with the current all-four-fields parser remain unresolved. Do not accept missing or invalid measurements as warm-up without an agreed protocol.
+- Adafruit's BME680 guide recommends 48-hour initial conditioning and 30 minutes in the intended mode for subsequent use. This is external guidance, not a newly selected course procedure or a configured default: https://learn.adafruit.com/adafruit-bme680-humidity-temperature-barometic-pressure-voc-gas/overview
+- VIGIL has no gas warm-up equivalent. Its separate monitoring/dashboard pattern remains a useful architectural reference.
 
 ## Selected execution intervals
 

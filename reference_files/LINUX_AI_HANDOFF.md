@@ -16,15 +16,11 @@ The user explicitly deferred testing **until returning to Linux**. Do not set up
 - Runtime target: Ubuntu 22.04 laptop, recorded Python 3.10.12, existing virtual environment named env.
 - ESP32 supplies environmental measurements to the laptop over USB serial. Camera connection and occupancy method are not yet selected.
 - Multi-room monitoring, extra sensor buses/hubs and Jetson migration were discussed but **deferred**. Do not implement them.
-- Rename/reference work: draft PR #1, https://github.com/Somaz137/ES-II_SP1/pull/1
-- Configuration step: draft PR #2, https://github.com/Somaz137/ES-II_SP1/pull/2
-- Rename PR #1 and configuration PR #2 were unmerged at the last check. PR #2 targets the rename branch, not main.
-- Communication-fault tracker: draft PR #3, https://github.com/Somaz137/ES-II_SP1/pull/3
-- Sensor-fault tracker: draft PR #4, https://github.com/Somaz137/ES-II_SP1/pull/4
-- Serial parser: draft PR #5, https://github.com/Somaz137/ES-II_SP1/pull/5
-- Current working branch: codex/serial-parser, based on codex/sensor-faults. Its draft PR targets the sensor branch; inspect the active PR listing for current merge status.
-- Prior configuration implementation commit: c8ad133bc37ae2bf29698e5675857eaa4ffb3af8; prior handoff commit: c533280a24437e534edb87b3807de6184279ec24.
-- Check current GitHub/checkout state before acting: the user may merge or change branches after this snapshot. Do not assume main already contains these files. Do not merge PRs automatically.
+- PRs #1 through #5 merged into main on 8 November 2026. They contain the rename, technical settings, both fault trackers and serial parser/validator.
+- Merge result before this documentation update: a15b1bdfc6a1db87b9c8a89dcec4b109a3ca9e0a.
+- The setup shell script is absent. Full pytest execution remains deferred to Linux.
+- Use main for continuation. Inspect the current remote and local state before changing branches. Preserve local work.
+- Human overview: [README_HUMAN.md](../README_HUMAN.md). Keep AI continuation instructions in this handoff rather than the human guide.
 
 ## Read these files
 
@@ -78,13 +74,14 @@ git branch --show-current
 git fetch origin
 ```
 
-If the checkout does not contain serial_parser.py, measurement_validation.py and both new test files as well as earlier configuration/fault files, use codex/serial-parser (or a merged successor containing them). Earlier feature merges alone do not establish that this parser is present. If it exists only on origin and the working tree is clean, create a tracking checkout with:
+All five component PRs are now merged. With a clean working tree and an existing local main branch, continue with:
 
 ```bash
-git switch --track origin/codex/serial-parser
+git switch main
+git pull --ff-only origin main
 ```
 
-If the local branch already exists, use git switch codex/serial-parser instead. Do not run both switch commands indiscriminately. Preserve user changes; do not force checkout, reset, clean, delete or silently stash them. If the PR has since merged, use the branch containing that merged code instead.
+If no local main branch exists, create its tracking checkout with git switch --track origin/main instead of the switch command above. If local changes or divergent commits prevent continuation, report the state and ask before resolving it. Do not force checkout, reset, clean, delete or silently stash work.
 
 ## Step 2 — Verify the existing Linux environment
 
@@ -232,5 +229,16 @@ The book's ten-minute environmental breach example is not a selected default. Do
 
 Do not delete files merely because they are not runtime dependencies. The user originally requested identification, then explicitly authorized removing only setup_ubuntu.sh in the next draft PR. There is no evidence that the original VIGIL manual generators/exercise files are in this GitHub repository; do not confuse the local VIGIL folder with project contents.
 
+## Approved gas readiness design
 
+The user approved gas-only warm-up handling on 8 November 2026. This is a design decision, not implemented behavior.
+
+- Continue monitoring and receiving ESP32 messages during gas warm-up. Show gas monitoring as unavailable rather than asserting a fully safe room.
+- Keep temperature, humidity and pressure subject to their own validity and settling checks. Gate gas evaluation separately.
+- Expected gas warm-up alone is not a sensor fault. Actual measurement errors and communication loss retain the existing fault rules.
+- Keep the planned warm-up duration in startup-loaded technical YAML and readiness logic in a separate Python module. Exact settings, duration and readiness criteria still need definition. No such YAML key exists yet.
+- A completed wait does not prove calibration. Current firmware reports raw gas resistance, not calibrated AQI or gas concentration.
+- Distinguish physical sensor restart from Python restart. Restart reporting and integration with the current all-four-fields parser remain unresolved. Do not accept missing or invalid measurements as warm-up without an agreed protocol.
+- Adafruit's BME680 guide recommends 48-hour initial conditioning and 30 minutes in the intended mode for subsequent use. This is external guidance, not a newly selected course procedure or a configured default: https://learn.adafruit.com/adafruit-bme680-humidity-temperature-barometic-pressure-voc-gas/overview
+- VIGIL has no gas warm-up equivalent. Its separate monitoring/dashboard pattern remains a useful architectural reference.
 
