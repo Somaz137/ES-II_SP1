@@ -19,6 +19,8 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 
 ## Current status
 
+**Linux continuation:** Follow [LINUX_AI_HANDOFF.md](LINUX_AI_HANDOFF.md) for the current branch, environment checks, configuration test command, remaining milestones and cleanup assessment. The user explicitly deferred all remaining testing to their Linux setup. No Windows environment or alternate Windows interpreter is selected.
+
 | Area | Evidence and state |
 |---|---|
 | Ubuntu/Python | User previously confirmed Ubuntu 22.04 and Python 3.10.12 |

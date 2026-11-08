@@ -6,6 +6,8 @@ Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
 ## Start here
 
+**Returning to Linux?** Read the [Linux AI handoff](reference_files/LINUX_AI_HANDOFF.md) first. Testing is explicitly deferred to the existing Linux environment; it has not been completed on Windows.
+
 | File | Role |
 |---|---|
 | [Implementation plan](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md) | Current progress, decisions, blockers, and next steps |

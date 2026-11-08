@@ -42,5 +42,7 @@
 
 ## Environment constraint
 
+The learner subsequently deferred testing to their Linux setup. Resume in the existing Ubuntu env using reference_files/LINUX_AI_HANDOFF.md. Do not create the previously discussed Windows environment or select Python 3.10.11. The notes below explain the earlier Windows limitation, not an outstanding request for Windows installation.
+
 Available Windows Python is 3.14.7 with pytest 9.1.1 and no PyYAML; another Python is 3.12.12 with neither dependency. Do not use those dependency versions as a replacement for the pinned environment. The learner subsequently authorized required downloads in C:/Users/User/OneDrive/Desktop/ES-II_SP1, which is outside this session's writable roots. Python.org supplies no Windows installer for 3.10.12; interpreter selection needs agreement before a substitution.
 
