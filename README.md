@@ -2,7 +2,7 @@
 
 Room Environment Safety Monitor for an Ubuntu 22.04 laptop and ESP32.
 
-**Current scope:** one room, one BME680 and one camera. Code includes dependency definitions, environment diagnostics, an experimental ESP32/BME680 serial test, and technical-alert configuration loading/validation. The full monitoring application is not implemented. Hardware operation has not been verified.
+**Current scope:** one room, one BME680 and one camera. Code includes dependency definitions, environment diagnostics, an experimental ESP32/BME680 serial test, technical-alert configuration loading/validation, and pure communication-fault tracking. The full monitoring application is not implemented. Hardware operation has not been verified.
 
 ## Start here
 
@@ -27,10 +27,11 @@ The original lecture PDFs and VIGIL ZIP are not included. The reference is an ex
 | `config_loader.py` | `load_alert_settings(path)` reads a validated YAML settings snapshot |
 | `config_validation.py` | `validate_alert_settings(data)` checks both required positive, finite numeric durations |
 | `tests/test_config.py` | Hardware-free configuration loading and validation tests |
-| `setup_ubuntu.sh` | Legacy starter installer; see warning below |
+| `communication_fault.py` | Startup/message timeout tracking and acknowledgment/re-alert logic, with caller-supplied time |
+| `tests/test_communication_fault.py` | Deferred Linux scenarios for startup, recovery, acknowledgment and timeout boundaries |
 | `.gitignore` | Excludes environments, caches, editor metadata, and logs |
 
-No rule engine, occupancy detector, database, patient settings form, dashboard, or notification worker exists yet. Configuration tests are written; the full pytest run is pending the pinned environment.
+No rule engine, occupancy detector, database, patient settings form, dashboard, or notification worker exists yet. Configuration and communication-fault tests are written; all remaining test execution is deferred to the pinned Linux environment.
 
 ## Technical alert settings
 
@@ -50,11 +51,21 @@ From the repository root, using the pinned project environment, run the full tes
 
 Verification so far: Python 3.10 grammar checks passed for the new modules/tests; a host-interpreter, standard-library-only validator smoke check passed one valid and 27 invalid inputs. PyYAML integration and the pytest suite have not run: the available Windows environments do not contain the approved dependency versions. No dependencies were installed or replaced.
 
+## Communication-fault state
+
+`communication_fault.py` provides `create_communication_state`, `record_communication_message`, `evaluate_communication_fault`, and `acknowledge_communication_fault`. Each returns an immutable state snapshot; callers must retain the returned state.
+
+Use `communication_timeout_s` from the loaded settings. The normal initial wait begins at startup. Recognized reading/error messages reset contact timing; restored communication leaves an outstanding alert awaiting acknowledgment. Acknowledging during an outage starts another full wait without changing the real last-contact time.
+
+`timed_out` and `alert_active` are separate: the first describes missing communication, the second can remain latched after recovery. Supplied times must be finite and nondecreasing within one clock domain. Equality triggers the timeout; a late message is evaluated against preceding silence before being recorded. Acknowledgment with no outstanding alert does not extend a wait.
+
+The future monitor must evaluate periodically even when no serial data arrives. Parsing, sensor-error tracking, runtime clock choice, history and serial integration remain outside this step. Tests are written but not executed, per the user's Linux deferral.
+
 ## Environment and setup policy
 
 The recorded working environment is **`env`**, with Python **3.10.12** on Ubuntu **22.04**. Requirements installation was reported successful; individual import/version checks remain pending. See the implementation plan for the current verification steps.
 
-**Do not run `setup_ubuntu.sh` as the default setup path.** It is retained as a legacy starter: it installs system packages, upgrades pip, and creates a separate `.venv`. Its procedure has not been reconciled with the manual-only policy or the existing environment.
+The legacy `setup_ubuntu.sh` was removed at the user's request. Continue using the existing approved environment; do not recreate that installer.
 
 Use the exact course-prescribed versions. Obtain approval before selecting unspecified libraries, versions, algorithms, or procedures. Do not repeat completed environment setup.
 
@@ -69,4 +80,5 @@ Gas resistance is raw ohms, not calibrated AQI, CO2, or CO. This is a teaching p
 ## VIGIL reference and project-specific decisions
 
 See [VIGIL comparison](reference_files/VIGIL_COMPARISON.md) for the verified manual-backed differences and authorized code-reuse scope. The current project name is **Room Environment Safety Control**; the repository remains `ES-II_SP1`.
+
 
