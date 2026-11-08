@@ -44,7 +44,7 @@
 - [x] Implement classification without state/hardware side effects.
 - [x] Update reference workflow and deferred Linux verification instructions.
 - [x] Source review: no implementation findings; no tests or application modules executed.
-- [ ] Publish a draft change; retain pending-runtime status.
+- [x] Publish draft PR #5 (https://github.com/Somaz137/ES-II_SP1/pull/5); runtime verification remains pending.
 - [ ] On Linux, run the full pinned suite and record results before claiming verification.
 
 ## Execution policy
