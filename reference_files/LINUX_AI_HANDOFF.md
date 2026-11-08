@@ -20,7 +20,8 @@ The user explicitly deferred testing **until returning to Linux**. Do not set up
 - Configuration step: draft PR #2, https://github.com/Somaz137/ES-II_SP1/pull/2
 - Rename PR #1 and configuration PR #2 were unmerged at the last check. PR #2 targets the rename branch, not main.
 - Communication-fault tracker: draft PR #3, https://github.com/Somaz137/ES-II_SP1/pull/3
-- Current working branch: codex/sensor-faults, based on codex/communication-faults. Its new draft PR targets the communication branch; inspect the active PR listing for current merge status.
+- Sensor-fault tracker: draft PR #4, https://github.com/Somaz137/ES-II_SP1/pull/4
+- Current working branch: codex/sensor-faults, based on codex/communication-faults. Its draft PR targets the communication branch; inspect the active PR listing for current merge status.
 - Prior configuration implementation commit: c8ad133bc37ae2bf29698e5675857eaa4ffb3af8; prior handoff commit: c533280a24437e534edb87b3807de6184279ec24.
 - Check current GitHub/checkout state before acting: the user may merge or change branches after this snapshot. Do not assume main already contains these files. Do not merge PRs automatically.
 

@@ -37,7 +37,7 @@
 - [x] Implement pure sensor-state functions and explicit pause semantics.
 - [x] Update the Linux handoff for all configuration/communication/sensor tests and unresolved integration choices.
 - [x] Review the source; no implementation findings. No tests or application modules executed.
-- [ ] Publish a draft change; keep runtime verification pending.
+- [x] Publish draft PR #4 (https://github.com/Somaz137/ES-II_SP1/pull/4); runtime verification remains pending.
 - [ ] On Linux, verify the pinned environment and run the full suite; record actual results before claiming merge readiness.
 
 ## Execution evidence
