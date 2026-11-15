@@ -2,7 +2,7 @@
 
 **Linux checks recorded:** See the [8 November verification record](reference_files/LINUX_VERIFICATION_2026-11-08.md) and the [15 November verification record](reference_files/LINUX_VERIFICATION_2026-11-15.md).
 On 8 November the user completed Python test execution, firmware formatting, compilation, and the listed virtual-serial scenarios.
-On 15 November the full suite on this branch reported 317 passed, and the software demo ran without errors. After the dashboard data contract it reported 401 passed. After the local alarm host side it reported 461 passed, also with `-W error`.
+On 15 November the full suite on this branch reported 317 passed, and the software demo ran without errors. After the dashboard data contract it reported 401 passed. After the local alarm host side it reported 461 passed, also with `-W error`. After the ESP32-S3 port it reported 462 passed, also with `-W error`, and the sketch compiled for the ESP32-S3.
 Physical ESP32, BME680, dust sensor, and camera operation remains unverified.
 The 8 November Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408 for the DOIT board. It did not include the dust code.
 These records supersede earlier pending-test statements in historical preparation notes and design checklists.
@@ -16,7 +16,7 @@ It contains no instructions for an AI assistant.
 
 **Current status:** The repository contains the monitor, SQLite storage, patient-limit rules, camera occupancy, a local dashboard, and a Sharp dust path.
 These parts exist in software. Automated tests and a simulator verify them. No part has run with physical hardware or a real camera.
-The host side of the local alarm and its firmware command core are implemented and checked only with the simulator and a host C++ test. The sketch does not drive the LED or buzzer yet. The dashboard redesign is decided but not implemented. 7-day reading retention is implemented.
+The local alarm is implemented on the host and in the sketch. It is checked only with the simulator, host C++ tests and a compilation for the ESP32-S3. No LED or buzzer has been driven. The dashboard redesign is decided but not implemented. 7-day reading retention is implemented.
 
 ## What the project does
 
@@ -25,22 +25,13 @@ Python compares temperature, humidity, and pressure with limits in the patient p
 The dashboard shows measurements, occupancy, faults, and alerts.
 The project supplies no patient limits. The demo example limit applies only to the simulator.
 
-**Board change, 15 November 2026:** The user selected an ESP32-S3 with an N8R2 module (8 MB flash, 2 MB PSRAM).
-This supersedes the DOIT ESP32 DevKit V1. The decision is not implemented.
-The firmware still requires the classic ESP32 chip and refuses to compile for an ESP32-S3.
-GPIO22 and GPIO25 do not exist on the ESP32-S3. GPIO34 is not an analog input on it. The DOIT pins therefore do not carry over.
-The user decided these ESP32-S3 pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7.
-The pins are not implemented in the firmware and not checked against the physical board. The exact development board model is not identified.
-This machine is being set up to match the recorded versions: ESP32 core 3.3.12, BSEC2 1.10.2610, and BME68x 1.3.40408. That setup is in progress.
-Nothing has been compiled for or flashed to an ESP32-S3.
-The rest of this section records the earlier DOIT selection.
-
-The prototype uses one room, one ESP32 board, one BME680, one Sharp dust sensor, and one camera.
-The earlier DOIT board uses the classic ESP32 chip.
-The BME680 uses GPIO21 for SDA and GPIO22 for SCL.
+The prototype uses one room, one ESP32-S3 board, one BME680, one Sharp dust sensor, and one camera.
+The board is an ESP32-S3 with an N8R2 module (8 MB flash, 2 MB PSRAM). The user selected it on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
+The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7.
+The firmware uses these pins. They are not checked against the physical board. The exact development board model is not identified.
 The user confirmed a 3.3 V sensor supply.
 The firmware configuration uses that value.
-Select DOIT ESP32 DEVKIT V1 in Arduino IDE before compilation.
+The firmware compiles for the ESP32-S3. Nothing has been flashed.
 See the [firmware guide](firmware/README.md) for the remaining setup checks.
 Expansion to several rooms remains a future option.
 The name does not imply automatic control of fans, heaters, or other equipment.
@@ -51,12 +42,12 @@ The project does not yet define those control functions.
 | Part | Role | Current state |
 |---|---|---|
 | BME680 | Measures temperature, humidity, pressure, and gas resistance | Experimental firmware exists. Physical operation remains unverified. |
-| Sharp GP2Y1010AU0F | Supplies a raw dust voltage | Experimental firmware exists. Not compiled. Not hardware-checked. |
-| ESP32 | Reads the sensors and sends records through USB serial | Firmware exists for the classic ESP32. The selected ESP32-S3 needs firmware and pin changes. |
+| Sharp GP2Y1010AU0F | Supplies a raw dust voltage | Experimental firmware exists. Compiled for the ESP32-S3. Not hardware-checked. |
+| ESP32-S3 | Reads the sensors, drives the local alarm and sends records through USB serial | Firmware compiled for the ESP32-S3 N8R2. Not flashed. |
 | Laptop | Runs the monitor, rules, storage, and dashboard | Implemented in software. Verified by tests and the simulator. |
 | Camera | Supplies frames for occupancy detection | OpenCV people detector implemented. Not checked with a camera. |
 | Dashboard | Shows room status, trends, events, limits and the local alarm state, and accepts communication acknowledgments and alarm silence requests | Local first draft implemented. Checked only with simulated data. A redesign is decided. |
-| Local alarm | Buzzer and LED on the ESP32 | Host side and firmware command core implemented, checked with the simulator and a host C++ test. The sketch does not drive the LED or buzzer yet. Planned pins: alarm LED GPIO6, buzzer GPIO7, not checked on the board. |
+| Local alarm | Buzzer and LED on the ESP32 | Host side and sketch implemented. Checked with the simulator, host C++ tests and a compilation. Alarm LED GPIO6, buzzer GPIO7, buzzer polarity and pins not checked on the board. |
 
 The laptop performs the main project logic.
 The ESP32 provides the connection to the environmental sensor.
@@ -241,7 +232,7 @@ BSEC controls when the sensor acquires data.
 The firmware sends each new measurement once.
 Failures produce error messages instead of repeated old measurements.
 The sensor supply is confirmed as 3.3 V.
-The firmware compiled with the installed Bosch libraries and ESP32 board package. Hardware operation still needs checks.
+The firmware compiled for the ESP32-S3 with the installed Bosch libraries and ESP32 board package. Hardware operation still needs checks.
 
 Initial sensor conditioning remains separate from this software status handling.
 See the [BSEC integration design](docs/superpowers/specs/2026-11-08-bsec-status-design.md) for the protocol and manufacturer references.
@@ -255,7 +246,7 @@ Missing dust reports for the sensor-error timeout raise a dust alert.
 The dashboard shows the raw voltage and its 24-hour trend.
 A dust estimate appears only when the user supplies a measured baseline and sensitivity.
 See [wiring, plan, calibration, and verification](docs/SHARP_DUST_INTEGRATION.md).
-Its wiring table uses the superseded DOIT pins. The decided ESP32-S3 dust pins are GPIO4 (analog input) and GPIO5 (LED drive). Compilation and hardware timing remain pending.
+Its wiring table uses the ESP32-S3 dust pins: GPIO4 (analog input) and GPIO5 (LED drive). The code compiles. Hardware timing remains pending.
 
 ## Settings and timing
 
@@ -313,13 +304,14 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | `simulated_input.py` | Supplies simulated records for the demo. |
 | `dust.py` | Reads Sharp dust records and reports dust status. |
 | `dashboard.py`, `templates/`, `static/` | Serve the local dashboard. |
-| `firmware/sharp_dust.h` | Experimental dust acquisition. Not compiled. |
-| `firmware/alarm_command.h` | Alarm command parsing, LED and buzzer mapping, and reply formatting. Tested on Linux with g++. Not used by the sketch yet. |
+| `firmware/sharp_dust.h` | Experimental dust acquisition. Compiled for the ESP32-S3. |
+| `firmware/sharp_dust_limits.h` | Dust sample rule shared with a host test. |
+| `firmware/alarm_command.h` | Alarm command parsing, bounded serial reading, LED and buzzer mapping, and reply formatting. Tested on Linux with g++. Used by the sketch. |
 | `firmware/room_environment_safety_control_bme680.ino` | Prepares BSEC low-power readings and gas status reports. |
 | `firmware/README.md` | Explains firmware configuration and remaining hardware checks. |
 | `tools/read_sensor.py` | Prints JSON records from a selected serial port. It does not connect the monitoring components. |
 | `tools/check_setup.py` | Reports environment metadata. It does not prove that the application works. |
-| `tests/` | Contains sixteen Python test files. The suite reported 461 passed on 15 November, after the local alarm host side. See the verification records. |
+| `tests/` | Contains sixteen Python test files. The suite reported 462 passed on 15 November, after the ESP32-S3 port. See the verification records. |
 | `reference_files/` | Contains the course reference, implementation plan, Linux handoff, and VIGIL comparison. |
 | `docs/superpowers/` | Contains detailed component designs and implementation checklists. |
 | `docs/SHARP_DUST_INTEGRATION.md` | Describes dust wiring, calibration, and checks. |
@@ -330,7 +322,7 @@ The test filenames remain unchanged so their original test cases are easy to tra
 - The occupancy detector can miss seated, lying, or occluded people. Unknown occupancy suppresses patient-limit alerts.
 - Raw readings older than 7 days are deleted. Events are never deleted. The dashboard shows the latest 50 events and pages to older ones.
 - Timing settings apply at monitor startup. The dashboard uses the values in the latest monitor status.
-- The local alarm exists only on the host and in a tested firmware header. The sketch does not drive GPIO6 or GPIO7 yet. Pins and buzzer polarity are not checked on hardware.
+- The sketch drives the alarm LED on GPIO6 and the buzzer module on GPIO7 with a steady level. Pins and buzzer polarity are not checked on hardware. The polarity default is active high.
 - When the USB link is down the host cannot command the LED or buzzer. The dashboard then shows the alarm as unreachable. A firmware fallback is an open decision.
 - Dust output is a raw voltage, not PM2.5, an air-quality index, or a calibrated concentration.
 
@@ -338,10 +330,10 @@ The test filenames remain unchanged so their original test cases are easy to tra
 
 These decisions are not implemented, except where an entry says so.
 
-- The board is an ESP32-S3 with an N8R2 module. The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. The firmware still targets the classic ESP32 and must change.
+- The board is an ESP32-S3 with an N8R2 module. The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. The firmware uses them and compiles (15 November). They are not checked on hardware.
 - Completion work builds on the current branch. The dust sensor stays.
 - The primary dashboard viewer is a caregiver at a desk screen.
-- The notification channel is a local alarm on the ESP32: a buzzer and an LED. The host side and the "Silence alarm" control were implemented on 15 November. The sketch wiring is open.
+- The notification channel is a local alarm on the ESP32: a buzzer and an LED. The host side, the "Silence alarm" control and the sketch wiring were implemented on 15 November.
 - The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
 - The buzzer is a 3-pin buzzer module driven from one GPIO.
@@ -350,18 +342,18 @@ These decisions are not implemented, except where an entry says so.
 
 ## What remains
 
-1. Identify the ESP32-S3 board model and finish the toolchain setup.
-2. Adapt the chip check and pins for the ESP32-S3 and compile the firmware, including the dust code.
+1. Identify the ESP32-S3 board model. Run the hardware checklist in the [firmware guide](firmware/README.md).
+2. Choose the USB port and the matching CDC On Boot setting.
 3. Obtain the hardware. Check the wiring and the 3.3 V sensor supply.
 4. Upload the firmware and check real readings with the laptop monitor.
 5. Check physical USB reconnection, sensor failures, units, and actual BSEC status transitions.
 6. Check dust timing with an oscilloscope and measure a clean-air baseline.
 7. Check the camera and the occupancy detector with seated, lying, and occluded people.
-8. Wire the local alarm into the ESP32-S3 sketch with `firmware/alarm_command.h`, then check the LED, the buzzer polarity, and GPIO6 and GPIO7 on the real board.
+8. Check the local alarm on the real board: the LED, the buzzer polarity, and that GPIO6 and GPIO7 are free.
 9. Redesign the dashboard.
 10. Demonstrate normal operation, faults, and recovery with actual hardware.
 
-The project contains a rule engine, occupancy detector, database, and dashboard in software. Its local alarm exists on the host side only. The firmware sketch does not drive the LED or buzzer yet.
+The project contains a rule engine, occupancy detector, database, and dashboard in software. Its local alarm exists on the host and in the sketch. No LED or buzzer has been driven yet.
 It remains an educational prototype.
 
 ## How this project differs from VIGIL

@@ -7,11 +7,12 @@
 3. Route separate dust/dust_error records without overwriting BME680 readings or readiness. Implemented in dust.py and monitoring_state.py.
 4. Expose retained voltage, age, status and separate timeout in status_output.py. Dust uses the existing configured sensor timeout (120 seconds by default). BME680 silence while dust messages arrive is also exposed. Implemented.
 5. Add optional explicit calibration in monitor.py. Default concentration is null. Implemented.
-6. Verify host behavior and document hardware checks. The full pinned Ubuntu suite passed on 15 November 2026. ESP32 compilation, oscilloscope timing and physical calibration are pending.
+6. Verify host behavior and document hardware checks. The full pinned Ubuntu suite passed on 15 November 2026. The sketch with `firmware/sharp_dust.h` compiled for the ESP32-S3 on 15 November 2026. Oscilloscope timing and physical calibration are pending.
+7. Port to the ESP32-S3: GPIO5 LED drive, GPIO4 analog input, ADC limit aligned with `dust.py`. Implemented and compiled. Not checked on hardware.
 
-## Wiring design: DOIT ESP32 DevKit V1 (superseded board)
+## Wiring design: ESP32-S3
 
-**Board change, 15 November 2026:** The user selected an ESP32-S3 with an N8R2 module. This supersedes the DOIT ESP32 DevKit V1. The decision is not implemented. GPIO22 and GPIO25 do not exist on the ESP32-S3. GPIO34 is not an analog input on it. The pins in this section therefore do not apply to the new board. The user decided GPIO5 for the dust LED drive (in place of GPIO25) and GPIO4 for the dust analog input (in place of GPIO34). The BME680 I2C pins become SDA GPIO8 and SCL GPIO9. These pins are decided, not implemented in `firmware/sharp_dust.h`, and not checked against the physical board. The table below remains the earlier DOIT design; the circuit is not redesigned. Do not wire the dust sensor to an ESP32-S3 until the firmware uses the new pins.
+The user selected an ESP32-S3 with an N8R2 module on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1. The dust LED drive is GPIO5 (in place of GPIO25). The dust analog input is GPIO4, ADC1 channel 3 (in place of GPIO34). The BME680 I2C pins are SDA GPIO8 and SCL GPIO9. The firmware uses these pins through `firmware/bsec_board_config.h`. They are not checked against the physical board. The circuit itself is unchanged.
 
 Verify connector numbering against Sharp's drawing. Cable colours are not a pinout.
 Do not connect the sensor's analog output or LED pin directly to ESP32 GPIO.
@@ -20,14 +21,14 @@ Do not connect the sensor's analog output or LED pin directly to ESP32 GPIO.
 |---|---|
 | 1 V-LED | 5 V through 150 ohm resistor; 220 uF capacitor positive to pin 1, negative to pin 2 |
 | 2 LED-GND | Common ground |
-| 3 LED | NPN collector; emitter to common ground; GPIO25 through 1 kohm to base; 10 kohm base-to-emitter pull-down |
+| 3 LED | NPN collector; emitter to common ground; GPIO5 through 1 kohm to base; 10 kohm base-to-emitter pull-down |
 | 4 S-GND | Common ground |
-| 5 Vo | 10 kohm to GPIO34 node; another 10 kohm from node to ground (2:1 divider) |
+| 5 Vo | 10 kohm to GPIO4 node; another 10 kohm from node to ground (2:1 divider) |
 | 6 Vcc | Regulated 5 V |
 
-Use an NPN rated to sink at least 20 mA, e.g. a suitable 2N3904; check the actual transistor pinout. This is an external low-side LED driver: GPIO HIGH enables the LED. Keep the existing BME680 supply at 3.3 V and I2C GPIO21/22 (DOIT board only).
+Use an NPN rated to sink at least 20 mA, e.g. a suitable 2N3904; check the actual transistor pinout. This is an external low-side LED driver: GPIO HIGH enables the LED. Keep the existing BME680 supply at 3.3 V on I2C GPIO8/GPIO9.
 
-Check that the supplied resistor is 150 ohm and capacitor is 220 uF, rated at least 10 V. Additional parts: three 10 kohm resistors, one 1 kohm resistor and one NPN transistor. Keep wiring short. Confirm ADC voltage with a meter before attaching GPIO34; the divider produces half the sensor voltage. All grounds must be common. Do not join independent 5 V sources together.
+Check that the supplied resistor is 150 ohm and capacitor is 220 uF, rated at least 10 V. Additional parts: three 10 kohm resistors, one 1 kohm resistor and one NPN transistor. Keep wiring short. Confirm ADC voltage with a meter before attaching GPIO4; the divider produces half the sensor voltage. All grounds must be common. Do not join independent 5 V sources together.
 
 ## Acquisition and limitations
 
@@ -36,6 +37,22 @@ Sharp specifies a 10 ms cycle, a 0.32 ms LED pulse and sampling 0.28 ms after LE
 This firmware is experimental. Arduino ADC call latency and task preemption can violate the pulse window. Detected overruns are discarded; fewer than 100 accepted samples per report or more rejected than accepted samples produces dust_error. The software timestamps do not prove the actual ADC aperture. Verify waveform and ADC sampling on the installed ESP32 core before accepting readings. If the ADC cannot meet the timing, acquisition needs a hardware-timed redesign, not relaxed limits.
 
 The sensor has no digital identity or self-test. A plausible analog voltage cannot prove it is connected or healthy. A disconnected or failed sensor can look plausible. The host detects missing/invalid reports, not every physical fault.
+
+## ADC on the ESP32-S3
+
+Reviewed against ESP32 core 3.3.12 (`cores/esp32/esp32-hal-adc.c`) on 15 November 2026. This is a source reading, not a measurement.
+
+- `ADC_11db` is passed to ESP-IDF as `ADC_ATTEN_DB_12`. It is also the core's default attenuation, which the millivolt calibration uses.
+- The core applies `analogSetPinAttenuation` only to a pin that is already an ADC channel. The firmware now reads the pin once before setting it. Before this change the call had no effect; the default gave the same attenuation.
+- The firmware accepts ADC samples from 1 mV to 2750 mV (`firmware/sharp_dust_limits.h`). With the 2:1 divider that is at most 5500 mV at the sensor, the largest value `dust.py` accepts. Before this change the firmware accepted ADC samples below 3000 mV, so it could report up to 5999.x mV, which `dust.py` rejected as invalid. A C++ host test and `tests/test_dust.py` check the match.
+- 2750 mV is below the end of the 12 dB range on the ESP32-S3 (about 3.1 V). That range end was not re-read from Espressif documentation in this step.
+- A zero reading means a failed read in the core. It is rejected.
+
+Open points:
+
+- The divider is a wiring assumption. Resistor tolerance changes the reported voltage directly. Measure it.
+- The divider's source impedance (about 5 kohm) against the ADC sampling time is not checked.
+- The real sampling instant within the LED pulse needs an oscilloscope.
 
 ## Calibration
 
@@ -47,7 +64,7 @@ Do not automatically zero the sensor at startup in an unknown room. Verify again
 
 ## Verification on Ubuntu and hardware
 
-Use the existing approved Python 3.10.12 environment and pinned requirements. Run the existing full python -m pytest check from the project root. Compile with the already installed DOIT board core, BSEC2 1.10.2610 and BME68x 1.3.40408; do not upgrade them for this change.
+Use the existing approved Python 3.10.12 environment and pinned requirements. Run the existing full python -m pytest check from the project root. Compile for the ESP32-S3 with the installed ESP32 core 3.3.12, BSEC2 1.10.2610 and BME68x 1.3.40408; do not upgrade them for this change. The commands are in [firmware/README.md](../firmware/README.md).
 
 Before flashing, inspect wiring and measure the divider. After flashing, check LED timing with an oscilloscope, accepted/rejected sample counts, and raw voltage stability. Check BME680 continues to report every three seconds. Test BME680 failure while dust continues, missing dust reports while BME680 continues, USB loss, and recovery. A failed dust sensor must not overwrite the last good BME680 reading and vice versa. Missing-data alerts clear on valid fresh input; the existing communication acknowledgment behavior is retained.
 
@@ -67,4 +84,4 @@ The dust fields appear in terminal JSON and in the local dashboard (`dashboard.p
 
 ### Linux, 15 November 2026
 
-The full suite ran in the pinned Ubuntu environment: Python 3.10.12, pytest 8.2.0, PyYAML 6.0.1. It reported 317 passed with exit code 0, including the 11 dust tests. The two YAML-dependent modules were included. `monitor.py --demo` and `dashboard.py --demo` ran together with simulated dust records. No firmware compilation, flashing, oscilloscope check or physical dust measurement took place. The sketch that includes `firmware/sharp_dust.h` has not been compiled. See the [15 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-15.md).
+The full suite ran in the pinned Ubuntu environment: Python 3.10.12, pytest 8.2.0, PyYAML 6.0.1. It reported 317 passed with exit code 0, including the 11 dust tests. The two YAML-dependent modules were included. `monitor.py --demo` and `dashboard.py --demo` ran together with simulated dust records. No firmware compilation, flashing, oscilloscope check or physical dust measurement took place in that run. Later on 15 November the sketch that includes `firmware/sharp_dust.h` compiled for the ESP32-S3. That is compilation only. See the [15 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-15.md).
