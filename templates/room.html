@@ -16,7 +16,6 @@
     {% for key, (name, unit) in charts.items() %}
       <div><dt>{{ name }}</dt><dd id="{{ key }}">—</dd><span>{{ unit }}</span></div>
     {% endfor %}
-      <div><dt>Gas resistance</dt><dd id="gas_ohms">—</dd><span>Ω</span></div>
     </dl>
     <p id="last-reading"></p>
     <p id="readiness"></p>
@@ -37,6 +36,7 @@
       <form id="ack" action="{{ url_for('acknowledge') }}" method="post" hidden>
         <input type="hidden" name="alert_id"><button>Acknowledge communication recovery</button>
       </form>
+      <p id="limit-monitoring"></p>
       <h3>Recent events</h3><ul id="events" class="events"></ul>
     </section>
   </div>
@@ -46,13 +46,12 @@
     {% if error %}<p role="alert">{{ error }}</p>{% endif %}
     <form method="post" action="{{ url_for('profile') }}">
       {% for key, (name, unit) in metrics.items() %}
-      {% set pair = profile.limits.get(key, ['', '']) %}
       <fieldset><legend>{{ name }} ({{ unit }})</legend>
-        <label>Lower limit <input type="number" step="any" name="{{ key }}_low" value="{{ pair[0] }}"></label>
-        <label>Upper limit <input type="number" step="any" name="{{ key }}_high" value="{{ pair[1] }}"></label>
+        <label>Lower limit <input type="number" step="any" name="{{ key }}_low" value="{{ fields[key ~ '_low'] }}"></label>
+        <label>Upper limit <input type="number" step="any" name="{{ key }}_high" value="{{ fields[key ~ '_high'] }}"></label>
       </fieldset>
       {% endfor %}
-      <label>Sustained duration (seconds) <input type="number" step="any" name="hold_s" required value="{{ profile.hold_s }}"></label>
+      <label>Sustained duration (seconds) <input type="number" step="any" name="hold_s" required value="{{ fields.hold_s }}"></label>
       <button>Save limits</button>
     </form>
   </section>

@@ -10,7 +10,20 @@ function list(id, entries) {
   }));
 }
 
-function drawTrend(points, now) {
+const duration = seconds => {
+  const total = Math.max(0, Math.round(seconds));
+  const h = Math.floor(total / 3600), m = Math.floor(total % 3600 / 60), s = total % 60;
+  const parts = [];
+  if (h) parts.push(h + " h");
+  if (m) parts.push(m + " min");
+  if (s || !parts.length) parts.push(s + " s");
+  return parts.join(" ");
+};
+const condition = entry => entry.name + (entry.direction === "low" ? " below " : " above ") +
+  format(entry.limit) + " " + entry.unit;
+
+function drawTrend(buckets, now) {
+  const points = buckets.map(bucket => [bucket.at, bucket.avg, bucket.min, bucket.max]);
   const svg = byId("trend");
   svg.replaceChildren();
   if (!points.length) {
@@ -20,6 +33,8 @@ function drawTrend(points, now) {
   const values = points.map(point => point[1]);
   const min = Math.min(...values);
   const max = Math.max(...values);
+  const lowest = Math.min(...points.map(point => point[2]));
+  const highest = Math.max(...points.map(point => point[3]));
   const ns = "http://www.w3.org/2000/svg";
   let pathData = "";
   let previousTime = null;
@@ -42,20 +57,27 @@ function drawTrend(points, now) {
   line.setAttribute("stroke-width", "2");
   svg.prepend(line);
   byId("trend-summary").textContent = format(min) + " to " + format(max) + " " +
-    metric.selectedOptions[0].dataset.unit + " · Minute averages";
+    metric.selectedOptions[0].dataset.unit + " · Minute averages · Lowest " + format(lowest) +
+    ", highest " + format(highest);
 }
 
 let refreshId = 0;
+let latest = null;
+let refreshSeconds = 10;
 async function refresh() {
   const id = ++refreshId;
   try {
-    const response = await fetch("/api/room?metric=" + encodeURIComponent(metric.value), {cache:"no-store"});
+    const response = await fetch("/api/room", {cache:"no-store"});
     if (!response.ok) throw new Error("Dashboard data unavailable");
-    const {status, trend, events, now} = await response.json();
+    const data = await response.json();
+    const {status, trends, events, now, timing} = data;
     if (id !== refreshId) return;
-    drawTrend(trend, now);
-    list("events", events.map(([at, , message]) => new Date(at * 1000).toLocaleString() + " · " + message));
-    const current = status && now - status.updated_at <= 15;
+    latest = data;
+    refreshSeconds = timing.dashboard_refresh_s;
+    drawTrend(trends[metric.value].buckets, now);
+    list("events", events.map(event => new Date(event.at * 1000).toLocaleString() + " · " + event.message));
+    const current = status && now - status.updated_at <= timing.status_stale_after_s;
+    const since = current ? now - status.updated_at : 0;
     byId("connection").textContent = !status ? "Waiting for first monitor update" :
       !current ? "Monitor update overdue · showing retained readings" :
       "Last monitor update " + new Date(status.updated_at * 1000).toLocaleTimeString();
@@ -71,7 +93,13 @@ async function refresh() {
       label(current && status.measurement_current ? status.input_status : "reading unavailable or retained") +
       " | Gas · " + label(current && status.measurement_current ? status.gas_calibration : "unavailable") +
       " | Dust · " + label(current ? status.dust.status : "retained");
-    const alerts = current ? [...status.limit_alerts] : [];
+    const alerts = current ? status.limit_alerts.map(entry => condition(entry) + " for " +
+      duration(entry.elapsed_s + since) + " · now " + format(entry.value) + " " + entry.unit) : [];
+    if (current) (status.limit_pending || []).forEach(entry => alerts.push("Pending: " + condition(entry) +
+      " for " + duration(entry.elapsed_s + since) + " · alert after " + duration(entry.hold_s) +
+      " if it continues · now " + format(entry.value) + " " + entry.unit));
+    byId("limit-monitoring").textContent = current && status.limit_monitoring ? status.limit_monitoring.message :
+      "Limit monitoring state unavailable";
     if (current && status.communication_alert_active) alerts.push("Communication alert");
     if (current && status.sensor_alert_active) alerts.push("BME680 reading alert");
     if (current && status.profile_error) alerts.push("Patient profile could not be loaded");
@@ -86,6 +114,11 @@ async function refresh() {
     list("alerts", ["Current alerts unavailable"]);
   }
 }
-metric.addEventListener("change", refresh);
-refresh();
-setInterval(refresh, 10000);
+metric.addEventListener("change", () => {
+  if (latest) drawTrend(latest.trends[metric.value].buckets, latest.now);
+});
+async function loop() {
+  await refresh();
+  setTimeout(loop, refreshSeconds * 1000);
+}
+loop();
