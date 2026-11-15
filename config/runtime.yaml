@@ -14,3 +14,5 @@ dashboard_refresh_s: 10
 camera_interval_s: 60
 # Raw reading retention in days (at least 1). Events are never pruned.
 readings_retention_days: 7
+# Wait for the board to confirm an alarm command before the alarm shows as unreachable.
+alarm_confirm_timeout_s: 2

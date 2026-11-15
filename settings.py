@@ -57,6 +57,7 @@ RUNTIME_DEFAULTS = {
     "dashboard_refresh_s": 10,
     "camera_interval_s": 60,
     "readings_retention_days": 7,
+    "alarm_confirm_timeout_s": 2,
 }
 
 
@@ -109,5 +110,8 @@ def validate_runtime_settings(data: object) -> None:
                          "serial_poll_interval_s; an idle monitor publishes once per fault check.")
     if merged["dashboard_refresh_s"] > merged["status_stale_after_s"]:
         raise ValueError("dashboard_refresh_s must not exceed status_stale_after_s.")
+    if merged["alarm_confirm_timeout_s"] <= data["serial_poll_interval_s"]:
+        raise ValueError("alarm_confirm_timeout_s must exceed serial_poll_interval_s; "
+                         "the board's reply is read at a later poll.")
     if merged["readings_retention_days"] < 1:
         raise ValueError("readings_retention_days must be at least 1 for the 24-hour trend.")

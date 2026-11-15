@@ -41,7 +41,7 @@ def test_three_key_file_loads_with_defaults(tmp_path):
     loaded = load_runtime_settings(path)
     assert RUNTIME_DEFAULTS == dict(reading_gap_limit_s=6, status_stale_after_s=15,
                                     dashboard_refresh_s=10, camera_interval_s=60,
-                                    readings_retention_days=7)
+                                    readings_retention_days=7, alarm_confirm_timeout_s=2)
     assert loaded == {**BASE, **RUNTIME_DEFAULTS}
 
 
@@ -50,7 +50,7 @@ def test_project_runtime_file_matches_defaults():
     from settings import RUNTIME_DEFAULTS
 
     loaded = load_runtime_settings(Path(__file__).resolve().parents[1] / "config/runtime.yaml")
-    assert {key: loaded[key] for key in NEW_KEYS} == RUNTIME_DEFAULTS
+    assert {key: loaded[key] for key in RUNTIME_DEFAULTS} == RUNTIME_DEFAULTS
 
 
 def test_new_keys_override_defaults(tmp_path):
@@ -95,3 +95,19 @@ def test_defaults_import_without_pyyaml():
                             cwd=Path(__file__).resolve().parents[1])
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "6"
+
+
+@pytest.mark.parametrize("bad", [None, True, "2", 0, -1, float("inf"), float("nan"), 10 ** 1000])
+def test_bad_alarm_confirm_timeout_rejected(bad):
+    with pytest.raises(ValueError, match="alarm_confirm_timeout_s"):
+        validate_runtime_settings({**BASE, "alarm_confirm_timeout_s": bad})
+
+
+def test_alarm_confirm_timeout_must_exceed_the_poll_interval(tmp_path):
+    with pytest.raises(ValueError, match="alarm_confirm_timeout_s"):
+        validate_runtime_settings({**BASE, "alarm_confirm_timeout_s": 0.05})
+    validate_runtime_settings({**BASE, "alarm_confirm_timeout_s": 0.06})
+    path = tmp_path / "runtime.yaml"
+    path.write_text("fault_check_interval_s: 5\nserial_retry_interval_s: 5\nserial_poll_interval_s: 0.05\n"
+                    "alarm_confirm_timeout_s: 4\n")
+    assert load_runtime_settings(path)["alarm_confirm_timeout_s"] == 4

@@ -94,7 +94,7 @@ The limit alerts are computed in `RoomSession.update`, inside the publisher. The
 3. Send the command when the tracker says so, and record the result.
 4. Add `status["alarm"]` and the alarm events.
 
-`monitor.py` passes the reply and the transport to the session. Its `apply_controls` (run at each fault check) also applies a stored silence request and marks the resend. `monitoring_loop.py` is unchanged: reading input, fault checks and publication keep their schedule. An exception from the alarm path is caught and reported as `unreachable` (`send_failed`), so it cannot stop the publication.
+`monitor.py` passes the reply and the transport to the session. Its `apply_controls` (run at each fault check) also applies a stored silence request and marks the resend. `monitoring_loop.py` is unchanged: reading input, fault checks and publication keep their schedule. An exception raised by a transport's `send()` is caught and reported as `unreachable` (`send_failed`), so it cannot stop the publication.
 
 ## Published state
 

@@ -1,4 +1,5 @@
 """Persist operator status and evaluate patient limits with a monotonic clock."""
+from alarm import command_line
 from room_store import METRICS
 from settings import RUNTIME_DEFAULTS
 
@@ -29,8 +30,9 @@ def condition(metric, direction, limit):
 class RoomSession:
     prune_batch = 5000
 
-    def __init__(self, store, *, demo=False, timing=None):
+    def __init__(self, store, *, demo=False, timing=None, alarm=None):
         self.store = store
+        self.alarm = alarm  # an alarm.AlarmTracker, or None for no local alarm
         self.demo = demo
         self.timing = dict(RUNTIME_DEFAULTS if timing is None else timing)
         self.gap_s = self.timing["reading_gap_limit_s"]
@@ -47,6 +49,43 @@ class RoomSession:
         """Record that a person acknowledged the communication alert; logged on the next update."""
         self.pending_events.append(
             ("communication_acknowledged", "Communication alert acknowledged on the dashboard."))
+
+    def alarm_fault_check(self):
+        if self.alarm is not None:
+            self.alarm.fault_check()
+
+    def silence_alarm(self, token, wall):
+        """Apply a dashboard silence request; True and an event only when applied."""
+        if self.alarm is None:
+            return False
+        keys = self.alarm.silence(token, wall)
+        if not keys:
+            return False
+        conditions = "; ".join(condition(metric, direction, self.limit(metric, direction))
+                               for metric, direction, _ in keys)
+        self.pending_events.append(("alarm_silenced", (
+            f"Local alarm silenced on the dashboard. Buzzer off for: {conditions}. "
+            "The LED stays on while the alert is active.")))
+        return True
+
+    def update_alarm(self, status, now, reply, transport):
+        """Decide the level after the limit state is built; send it when due."""
+        keys = [(metric, breach["direction"], breach["alert_at"])
+                for metric, breach in sorted(self.breaches.items()) if breach["alert_at"] is not None]
+        fault = bool(status["communication_alert_active"] or status["sensor_alert_active"]
+                     or status["dust"]["alert_active"])
+        connected = transport is not None and bool(transport.connected)
+        level = self.alarm.update(alert_keys=keys, fault_active=fault, connected=connected,
+                                  reply=reply, now=now)
+        if level is not None:
+            try:
+                ok = transport.send(command_line(level)) is True
+                error = None if ok else getattr(transport, "last_send_error", None)
+            except Exception as failure:  # noqa: BLE001 - the alarm must not stop publication
+                ok, error = False, str(failure) or type(failure).__name__
+            self.alarm.sent(level, ok, now, error)
+        status["alarm"] = self.alarm.block(now)
+        return self.alarm.take_events()
 
     def limit(self, metric, direction):
         low, high = self.profile["limits"][metric]
@@ -128,7 +167,7 @@ class RoomSession:
                     "The patient profile file is invalid. Monitoring continues on the last valid profile.")
         return "running", None, "Limit monitoring is running."
 
-    def update(self, status, now, wall, occupancy="unknown"):
+    def update(self, status, now, wall, occupancy="unknown", *, alarm_reply=None, transport=None):
         events, self.pending_events = self.pending_events, []
         profile_error = None
         try:
@@ -180,6 +219,8 @@ class RoomSession:
                       limit_alerts=alerts, limit_pending=pending,
                       limit_monitoring={"state": state, "reason": reason, "message": message},
                       timing=self.timing)
+        if self.alarm is not None:
+            events += self.update_alarm(status, now, alarm_reply, transport)
         self.store.publish(status, samples, events, wall)
         self.prune(now, wall)
 

@@ -8,6 +8,7 @@ from pathlib import Path
 import time
 from uuid import uuid4
 
+from alarm import AlarmTracker
 from room_store import DEFAULT_DB, DEMO_DB, RoomStore
 from room_session import RoomSession
 from simulated_input import SimulatedTransport
@@ -64,17 +65,25 @@ def main():
     store = RoomStore(args.db or (DEMO_DB if args.demo else DEFAULT_DB))
     timing = {key: runtime[key] for key in RUNTIME_DEFAULTS}
     timing["fault_check_interval_s"] = runtime["fault_check_interval_s"]
-    session = RoomSession(store, demo=args.demo, timing=timing)
+    session = RoomSession(store, demo=args.demo, timing=timing,
+                          alarm=AlarmTracker(runtime["alarm_confirm_timeout_s"]))
     if args.demo and not store.profile_path.exists() and store.load_profile() is None:
         store.save_profile({"limits": {"temp_c": [20, 27]}, "hold_s": 9})
     mono_origin, utc_origin = time.monotonic(), time.time()
 
     camera = CameraOccupancy(args.camera, runtime["camera_interval_s"]) if args.camera is not None else None
     last_ack = store.read("communication_ack")
+    last_silence = store.read("alarm_silence")
     displayed_alert = None
 
     def apply_controls(state, now):
-        nonlocal last_ack
+        """Runs at each fault check: dashboard requests, then the alarm resend."""
+        nonlocal last_ack, last_silence
+        silence = store.read("alarm_silence")
+        if silence != last_silence:
+            last_silence = silence
+            session.silence_alarm(silence, time.time())
+        session.alarm_fault_check()
         request = store.read("communication_ack")
         if request != last_ack:
             last_ack = request
@@ -101,7 +110,8 @@ def main():
         occupancy = "occupied" if args.demo else camera.current(now) if camera else "unknown"
         record["occupancy_source"] = "simulated" if args.demo else "camera" if camera else "none"
         record["occupancy_observation_age_s"] = camera.observation_age(now) if camera else None
-        session.update(record, now, time.time(), occupancy)
+        session.update(record, now, time.time(), occupancy,
+                       alarm_reply=state.alarm_reply, transport=connection)
         print(json.dumps(record, allow_nan=False), flush=True)
 
     try:
