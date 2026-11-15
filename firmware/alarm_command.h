@@ -1,8 +1,8 @@
 #pragma once
 
 // Local alarm command core. Pure C++11: no Arduino dependency and no dynamic
-// allocation. The sketch does not use this header yet; the firmware port step
-// wires it to Serial, GPIO6 (alarm LED) and GPIO7 (buzzer module).
+// allocation. The sketch feeds it from Serial and drives the alarm LED and the
+// buzzer module (pins in bsec_board_config.h) from alarmOutputs.
 //
 // Host to board: "ALARM,<0|1|2>\n". Board to host: {"type":"alarm","state":<n>}.
 // Level 0: LED off, buzzer off. 1: LED on, buzzer off. 2: LED on, buzzer on.
@@ -74,6 +74,28 @@ struct AlarmLineReader {
     return ROOM_ALARM_NO_LINE;
   }
 };
+
+// Pin level for an output that should be on or off. activeHigh is false for a
+// module that triggers on LOW.
+inline bool alarmDriveLevel(bool on, bool activeHigh) { return on == activeHigh; }
+
+// Feed at most maxBytes bytes from source into reader and call apply(level)
+// for each valid command line. Source needs Arduino-style available() and
+// read(); neither may wait. Bytes beyond maxBytes stay in the source for the
+// next call. Returns the number of bytes read.
+template <typename Source, typename Apply>
+std::size_t pumpAlarmInput(Source& source, AlarmLineReader& reader,
+                           std::size_t maxBytes, Apply apply) {
+  std::size_t used = 0;
+  while (used < maxBytes && source.available() > 0) {
+    const int c = source.read();
+    if (c < 0) break;
+    ++used;
+    const int level = reader.feed(static_cast<char>(c));
+    if (level >= 0) apply(level);
+  }
+  return used;
+}
 
 inline bool formatAlarmReply(char* output, std::size_t capacity, int level) {
   if (output == nullptr || capacity == 0) return false;

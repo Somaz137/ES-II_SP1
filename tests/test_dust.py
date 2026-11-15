@@ -41,3 +41,17 @@ def test_calibration_units_and_floor():
     assert estimate_dust(800, 900, 5000) == 0
     with pytest.raises(ValueError):
         estimate_dust(900, 900, 0)
+
+
+def test_firmware_dust_limit_matches_host_limit():
+    from pathlib import Path
+    import re
+    header = (Path(__file__).resolve().parents[1] / "firmware" / "sharp_dust_limits.h").read_text()
+
+    def constant(name):
+        return int(re.search(rf"constexpr uint32_t {name} = (\d+);", header).group(1))
+
+    largest = constant("ROOM_DUST_MAX_ADC_MV") * constant("ROOM_DUST_DIVIDER_RATIO")
+    assert largest == 5500
+    assert parse_dust(json.dumps({"type": "dust", "sensor_mv": float(largest)})) == (largest, None)
+    assert parse_dust(json.dumps({"type": "dust", "sensor_mv": largest + 0.1}))[0] is None

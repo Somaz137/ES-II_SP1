@@ -3,6 +3,30 @@
 #include "../alarm_command.h"
 #include <cassert>
 #include <cstring>
+#include <string>
+
+// Minimal stand-in for Arduino Serial: available() and read().
+struct FakeSerial {
+  std::string data;
+  std::size_t position;
+  explicit FakeSerial(const char* text) : data(text), position(0) {}
+  void load(const char* text) { data = text; position = 0; }
+  std::size_t remaining() const { return data.size() - position; }
+  int available() { return static_cast<int>(remaining()); }
+  int read() { return position < data.size() ? static_cast<unsigned char>(data[position++]) : -1; }
+};
+
+struct BrokenSerial {
+  int available() { return 1; }
+  int read() { return -1; }
+};
+
+static int applied[8];
+static int appliedCount = 0;
+static void recordLevel(int level) {
+  if (appliedCount < 8) applied[appliedCount] = level;
+  ++appliedCount;
+}
 
 static int feedLine(AlarmLineReader& reader, const char* text) {
   int result = ROOM_ALARM_NO_LINE;
@@ -65,5 +89,32 @@ int main() {
   assert(!formatAlarmReply(shortBuffer, sizeof(shortBuffer), 1));
   assert(shortBuffer[0] == '\0');
   assert(!formatAlarmReply(nullptr, 0, 1));
+
+  // Polarity: an active-low module is driven LOW to sound.
+  assert(alarmDriveLevel(true, true) && !alarmDriveLevel(false, true));
+  assert(!alarmDriveLevel(true, false) && alarmDriveLevel(false, false));
+
+  // The pump reads at most maxBytes per pass and applies every valid line.
+  FakeSerial serial("ALARM,1\nALARM,9\nALARM,2\r\nALA");
+  AlarmLineReader pumpReader;
+  appliedCount = 0;
+  assert(pumpAlarmInput(serial, pumpReader, 5, recordLevel) == 5);
+  assert(appliedCount == 0 && serial.remaining() > 0);
+  assert(pumpAlarmInput(serial, pumpReader, 64, recordLevel) == 23);
+  assert(appliedCount == 2 && applied[0] == 1 && applied[1] == 2);
+  assert(serial.remaining() == 0);
+  // An empty source returns at once; the partial "ALA" is kept for later.
+  assert(pumpAlarmInput(serial, pumpReader, 64, recordLevel) == 0);
+  serial.load("RM,0\n");
+  assert(pumpAlarmInput(serial, pumpReader, 64, recordLevel) == 5);
+  assert(appliedCount == 3 && applied[2] == 0);
+  // A flood is bounded per pass.
+  std::string flood(1000, 'X');
+  serial.load(flood.c_str());
+  assert(pumpAlarmInput(serial, pumpReader, 64, recordLevel) == 64);
+  assert(serial.remaining() == 1000 - 64);
+  // A source that reports data but returns -1 ends the pass.
+  BrokenSerial broken;
+  assert(pumpAlarmInput(broken, pumpReader, 64, recordLevel) == 0);
   return 0;
 }

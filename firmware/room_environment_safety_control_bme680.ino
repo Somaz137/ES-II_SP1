@@ -1,13 +1,18 @@
 // Room Environment Safety Control: experimental BSEC LP acquisition.
-// Target: DOIT ESP32 DEVKIT V1 with the classic ESP32 chip.
-// Reference APIs: BSEC2 1.10.2610 and BME68x wrapper v1.3.40408.
-// Installed toolchain compatibility and hardware remain unverified.
+// Target: ESP32-S3 with an N8R2 module. Local LED and buzzer alarm.
+// Compiled with ESP32 core 3.3.12, BSEC2 1.10.2610 and BME68x 1.3.40408.
+// Hardware operation remains unverified.
 // Board pins, serial speed and confirmed supply: bsec_board_config.h.
+//
+// Only the loop task writes Serial (loop(), reportDust(), reportRoomError()
+// and the BSEC callback, which runs inside roomSensor.run()). The dust task
+// never writes it. Output lines therefore never interleave. Keep it so.
 #include <Wire.h>
 #include "bsec_board_config.h"
 #include <bsec2.h>
 #include "bsec_serial_format.h"
 #include "sharp_dust.h"
+#include "alarm_command.h"
 
 const uint8_t roomBsecConfig[] = {
 #if ROOM_BME680_SUPPLY_MV == 3300
@@ -104,8 +109,33 @@ void receiveRoomSample(const bme68xData data, const bsecOutputs outputs,
   roomErrorSent = false;
 }
 
+AlarmLineReader roomAlarmReader;
+
+void writeAlarmOutputs(int level) {
+  const AlarmOutputs outputs = alarmOutputs(level);
+  digitalWrite(ROOM_ALARM_LED_PIN, outputs.led ? HIGH : LOW);
+  digitalWrite(ROOM_BUZZER_PIN,
+               alarmDriveLevel(outputs.buzzer, ROOM_BUZZER_ACTIVE_HIGH) ? HIGH : LOW);
+}
+
+void sendAlarmReply(int level) {
+  char reply[32];
+  if (formatAlarmReply(reply, sizeof(reply), level)) Serial.println(reply);
+}
+
+void applyAlarmLevel(int level) {
+  writeAlarmOutputs(level);
+  sendAlarmReply(level);
+}
+
 void setup() {
+  // Alarm outputs off before anything slow runs.
+  pinMode(ROOM_ALARM_LED_PIN, OUTPUT);
+  pinMode(ROOM_BUZZER_PIN, OUTPUT);
+  writeAlarmOutputs(0);
   Serial.begin(ROOM_SERIAL_BAUD);
+  // Tell the host the board restarted at level 0.
+  sendAlarmReply(0);
   beginDust();
   Wire.begin(ROOM_I2C_SDA_PIN, ROOM_I2C_SCL_PIN);
   if (!roomSensor.begin(BME68X_I2C_ADDR_LOW, Wire) &&
@@ -136,6 +166,8 @@ void setup() {
 }
 
 void loop() {
+  // Bounded and non-blocking. Runs even when the BME680 failed to start.
+  pumpAlarmInput(Serial, roomAlarmReader, ROOM_ALARM_MAX_BYTES_PER_PASS, applyAlarmLevel);
   reportDust();
   delay(1);
   if (!roomConfigured) {
