@@ -4,8 +4,6 @@ import math
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 
 TIMEOUT_KEYS = ("communication_timeout_s", "sensor_error_timeout_s")
 
@@ -39,6 +37,8 @@ def load_alert_settings(path: str | Path) -> dict[str, Any]:
     result. This function does not watch the file or reload settings.
     Missing or unreadable files retain their native filesystem exceptions.
     """
+    import yaml
+
     config_path = Path(path)
     with config_path.open(encoding="utf-8") as config_file:
         try:
@@ -50,15 +50,41 @@ def load_alert_settings(path: str | Path) -> dict[str, Any]:
     return settings
 
 
+# Optional host timing keys. Defined once; the demo and the dashboard use these values too.
+RUNTIME_DEFAULTS = {
+    "reading_gap_limit_s": 6,
+    "status_stale_after_s": 15,
+    "dashboard_refresh_s": 10,
+    "camera_interval_s": 60,
+    "readings_retention_days": 7,
+}
+
+
 def load_runtime_settings(path: str | Path) -> dict:
-    """These host settings do not configure the ESP32 sampling interval."""
+    """These host settings do not configure the ESP32 sampling interval.
+
+    Optional keys absent from the file take their RUNTIME_DEFAULTS value.
+    """
+    import yaml
+
     with Path(path).open(encoding="utf-8") as source:
         try:
             data = yaml.safe_load(source)
         except yaml.YAMLError as error:
             raise ValueError(f"Invalid runtime YAML: {path}") from error
     validate_runtime_settings(data)
-    return data
+    return {**RUNTIME_DEFAULTS, **data}
+
+
+def _positive(key, value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{key} must be finite and positive.")
+    try:
+        valid = math.isfinite(value) and value > 0
+    except OverflowError:
+        valid = False
+    if not valid:
+        raise ValueError(f"{key} must be finite and positive.")
 
 
 def validate_runtime_settings(data: object) -> None:
@@ -67,16 +93,21 @@ def validate_runtime_settings(data: object) -> None:
     if not isinstance(data, dict):
         raise ValueError("Runtime settings must be a mapping.")
     for key in keys:
-        value = data.get(key)
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError(f"{key} must be finite and positive.")
-        try:
-            valid = math.isfinite(value) and value > 0
-        except OverflowError:
-            valid = False
-        if not valid:
-            raise ValueError(f"{key} must be finite and positive.")
+        _positive(key, data.get(key))
+    for key in RUNTIME_DEFAULTS:
+        if key in data:
+            _positive(key, data[key])
     if data["serial_poll_interval_s"] > min(
         data["fault_check_interval_s"], data["serial_retry_interval_s"]
     ):
         raise ValueError("Serial polling must not exceed fault/retry intervals.")
+    merged = {**RUNTIME_DEFAULTS, **data}
+    # An idle monitor publishes once per fault check, up to one poll interval late.
+    if merged["status_stale_after_s"] <= (merged["fault_check_interval_s"]
+                                          + merged["serial_poll_interval_s"]):
+        raise ValueError("status_stale_after_s must exceed fault_check_interval_s plus "
+                         "serial_poll_interval_s; an idle monitor publishes once per fault check.")
+    if merged["dashboard_refresh_s"] > merged["status_stale_after_s"]:
+        raise ValueError("dashboard_refresh_s must not exceed status_stale_after_s.")
+    if merged["readings_retention_days"] < 1:
+        raise ValueError("readings_retention_days must be at least 1 for the 24-hour trend.")
