@@ -13,7 +13,12 @@ class RoomSession:
         self.previous_faults = set()
 
     def update(self, status, now, wall, occupancy="unknown"):
-        profile = self.store.read("profile")
+        profile_error = None
+        try:
+            profile = self.store.load_profile()
+        except (OSError, ValueError) as error:
+            profile = self.profile
+            profile_error = str(error)
         previous = self.breaches.copy()
         if self.profile != profile:
             self.breaches.clear()
@@ -53,11 +58,12 @@ class RoomSession:
             "Communication": status["communication_alert_active"],
             "BME680": status["sensor_alert_active"],
             "Dust": dust["alert_active"],
+            "Patient profile": profile_error is not None,
         }.items() if active_flag}
         events += [("fault", f"{name} alert active.") for name in sorted(faults - self.previous_faults)]
         events += [("fault_ended", f"{name} alert cleared.") for name in sorted(self.previous_faults - faults)]
         self.previous_faults = faults
         status.update(updated_at=wall, occupancy=occupancy, demo=self.demo,
-                      measurement_current=good,
+                      measurement_current=good, profile_error=profile_error,
                       limit_alerts=[f"{METRICS[m][0]} · {d}" for m, d in sorted(active)])
         self.store.publish(status, samples, events, wall)

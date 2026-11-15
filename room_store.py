@@ -2,8 +2,10 @@
 from contextlib import contextmanager
 import json
 import math
+import os
 import sqlite3
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 METRICS = {"temp_c": ("Temperature", "°C"), "humidity_pct": ("Humidity", "%"),
            "pressure_hpa": ("Pressure", "hPa")}
@@ -40,7 +42,8 @@ def validate_number(value):
 
 class RoomStore:
     def __init__(self, path):
-        self.path = path
+        self.path = Path(path)
+        self.profile_path = self.path.with_suffix('.profile.yaml')
         with self.connection() as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript("""
@@ -74,9 +77,45 @@ class RoomStore:
         db.execute("INSERT OR REPLACE INTO settings VALUES (?, ?)",
                    (key, json.dumps(value, allow_nan=False)))
 
+    def load_profile(self):
+        try:
+            raw = self.profile_path.read_text(encoding="utf-8-sig")
+        except FileNotFoundError:
+            # Preserve profiles saved by the first draft of the software.
+            return self.read("profile")
+        try:
+            profile = json.loads(raw)
+        except ValueError:
+            try:
+                import yaml
+            except ImportError as error:
+                raise ValueError("Reading this YAML profile requires the pinned PyYAML package.") from error
+            try:
+                profile = yaml.safe_load(raw)
+            except yaml.YAMLError as error:
+                raise ValueError("The patient profile contains invalid YAML.") from error
+        validate_profile(profile)
+        return profile
+
     def save_profile(self, profile):
         validate_profile(profile)
-        self.write("profile", profile)
+        try:
+            import yaml
+        except ImportError:
+            # JSON is valid YAML and keeps the simulator runnable with the standard library.
+            content = json.dumps(profile, indent=2, allow_nan=False) + "\n"
+        else:
+            content = yaml.safe_dump(profile, sort_keys=False)
+        temp_path = None
+        try:
+            with NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.profile_path.parent,
+                                    delete=False) as temp:
+                temp_path = Path(temp.name)
+                temp.write(content)
+            os.replace(temp_path, self.profile_path)
+        finally:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
 
     def publish(self, status, samples, events, now):
         with self.connection() as db:

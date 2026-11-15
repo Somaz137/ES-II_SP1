@@ -24,10 +24,18 @@ def create_app(path=DEFAULT_DB, *, demo=False):
             if origin and origin.rstrip("/") != request.host_url.rstrip("/"):
                 abort(403)
 
+    def render_profile(error=None):
+        try:
+            profile = store.load_profile()
+        except (OSError, ValueError) as profile_error:
+            profile = None
+            error = error or str(profile_error)
+        return render_template("room.html", charts=charts, metrics=METRICS, demo=demo,
+                               profile=profile or {"limits": {}, "hold_s": ""}, error=error)
+
     @app.get("/")
     def index():
-        return render_template("room.html", charts=charts, metrics=METRICS, demo=demo,
-                               profile=store.read("profile") or {"limits": {}, "hold_s": ""})
+        return render_profile()
 
     @app.get("/api/room")
     def room_data():
@@ -49,9 +57,9 @@ def create_app(path=DEFAULT_DB, *, demo=False):
                     limits[metric] = [float(low), float(high)]
             store.save_profile({"limits": limits, "hold_s": float(request.form.get("hold_s", ""))})
         except ValueError as error:
-            return render_template("room.html", charts=charts, metrics=METRICS, demo=demo,
-                                   profile=store.read("profile") or {"limits": {}, "hold_s": ""},
-                                   error=str(error)), 400
+            return render_profile(str(error)), 400
+        except OSError:
+            return render_profile("Could not save the patient profile."), 503
         return redirect(url_for("index"), code=303)
 
     @app.post("/acknowledge")

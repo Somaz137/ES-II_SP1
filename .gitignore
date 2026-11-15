@@ -27,3 +27,6 @@ Thumbs.db
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
+
+/room.profile.yaml
+/room-demo.profile.yaml

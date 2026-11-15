@@ -74,6 +74,7 @@ async function refresh() {
     const alerts = current ? [...status.limit_alerts] : [];
     if (current && status.communication_alert_active) alerts.push("Communication alert");
     if (current && status.sensor_alert_active) alerts.push("BME680 reading alert");
+    if (current && status.profile_error) alerts.push("Patient profile could not be loaded");
     if (current && status.dust.alert_active) alerts.push("Dust reading alert");
     list("alerts", alerts.length ? alerts : [current ? "No active alerts" : "Current alerts unavailable"]);
     byId("ack").hidden = !(current && status.communication_alert_id && !status.communication_timed_out);

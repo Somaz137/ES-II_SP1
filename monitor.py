@@ -62,7 +62,7 @@ def main():
         transport = SerialTransport(args.port, args.baud, runtime["serial_retry_interval_s"])
     store = RoomStore(args.db or (DEMO_DB if args.demo else DEFAULT_DB))
     session = RoomSession(store, demo=args.demo)
-    if args.demo and store.read("profile") is None:
+    if args.demo and not store.profile_path.exists() and store.load_profile() is None:
         store.save_profile({"limits": {"temp_c": [20, 27]}, "hold_s": 9})
     mono_origin, utc_origin = time.monotonic(), time.time()
 

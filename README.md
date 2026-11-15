@@ -141,7 +141,7 @@ python monitor.py --demo
 python dashboard.py --demo
 ```
 
-Open http://127.0.0.1:5000. The demo uses its own SQLite database. It simulates an occupied room, BME680 readings and Sharp dust voltage at three-second intervals. On a fresh demo database the temperature crosses the example limit at 18 seconds, raises a caregiver alert at about 27 seconds and returns to range at about 60 seconds. Saved limits take effect on the next monitor update. The example values apply only to the simulator.
+Open http://127.0.0.1:5000. The demo uses its own SQLite database. It simulates an occupied room, BME680 readings and Sharp dust voltage at three-second intervals. On a fresh demo database the temperature crosses the example limit at 18 seconds, raises a caregiver alert at about 27 seconds and returns to range at about 60 seconds. Patient limits are saved alongside the database in a .profile.yaml file. Valid changes take effect on the next monitor update. If the file is invalid, the monitor keeps its last valid profile and shows a profile error. The example values apply only to the simulator.
 
 The dashboard refreshes every ten seconds and shows the last monitor update, sensor readings, 24-hour trends, caregiver alerts, recent events and a patient limits form. Trend points are one-minute averages. The dashboard can be closed while monitoring continues. Readings and event history stay in local SQLite files. The 24-hour chart is a display window. There is no automatic database pruning yet.
 
