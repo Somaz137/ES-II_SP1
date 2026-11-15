@@ -1,7 +1,7 @@
 """Combine monitoring facts and route decoded messages through the parser and trackers."""
 
 from dataclasses import dataclass, field, replace
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from communication_fault import (
     CommunicationFaultState,
@@ -28,6 +28,13 @@ from serial_parser import parse_serial_line
 from dust import DustState, parse_dust, record_dust
 
 
+class AlarmReply(NamedTuple):
+    """The level the board last reported applying, and its host receipt time."""
+
+    level: int
+    received_at: float
+
+
 @dataclass(frozen=True)
 class MonitoringState:
     """Retain returned snapshots. Construct through create_monitoring_state()."""
@@ -37,6 +44,7 @@ class MonitoringState:
     reading: ReadingState = field(default_factory=ReadingState)
     gas: GasReadiness = field(default_factory=GasReadiness)
     dust: DustState = field(default_factory=DustState)
+    alarm_reply: AlarmReply | None = None
 
 
 def create_monitoring_state(
@@ -123,6 +131,11 @@ def process_serial_line(
     parsed = parse_serial_line(line)
     if parsed.kind == "ignored":
         return evaluate_monitoring_faults(state, now)
+    if parsed.kind == "alarm_state":
+        # Not communication contact: the host solicits these replies, so they
+        # must not hide a stopped measurement stream. No reading or sensor effect.
+        state = evaluate_monitoring_faults(state, now)
+        return replace(state, alarm_reply=AlarmReply(parsed.alarm_level, now))
 
     # Detect preceding silence before the message restores communication.
     communication = evaluate_communication_fault(state.communication, now)

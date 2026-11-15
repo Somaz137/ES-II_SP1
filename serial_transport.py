@@ -1,4 +1,8 @@
-"""Nonblocking serial reads, reconnect attempts and bounded newline framing."""
+"""Nonblocking serial reads, bounded writes, reconnect attempts and newline framing."""
+
+# pyserial 3.5 on Linux: write_timeout=0 spins forever when the output buffer is
+# full (EAGAIN is retried), and None blocks. A short positive timeout bounds a send.
+SERIAL_WRITE_TIMEOUT_S = 0.02
 
 
 class LineFramer:
@@ -34,7 +38,7 @@ def open_serial_port(port: str, baud: int):
     """Use the existing pinned pyserial. Opening may reset some ESP32 boards."""
     import serial
 
-    return serial.Serial(port, baudrate=baud, timeout=0)
+    return serial.Serial(port, baudrate=baud, timeout=0, write_timeout=SERIAL_WRITE_TIMEOUT_S)
 
 
 class SerialTransport:
@@ -49,6 +53,8 @@ class SerialTransport:
         self.next_retry_at = 0.0
         self.framer = LineFramer()
         self.last_error = None
+        self.last_send_error = None
+        self.resync = False
 
     @property
     def connected(self):
@@ -74,10 +80,37 @@ class SerialTransport:
             return []
         return self.framer.feed(chunk)
 
+    def send(self, line: str) -> bool:
+        """Write one command line; return False on any failure. Never raises.
+
+        The connection's write timeout bounds the time spent here. A short
+        write or a timeout may leave a fragment on the line, so the next
+        command starts with a newline that ends the fragment. A failure does
+        not close the port; the next read detects a lost device.
+        """
+        if self.connection is None:
+            self.last_send_error = "Serial port not connected."
+            return False
+        data = (b"\n" if self.resync else b"") + line.encode("ascii")
+        try:
+            written = self.connection.write(data)
+        except Exception as error:  # noqa: BLE001 - the alarm path must not stop monitoring
+            self.last_send_error = str(error) or type(error).__name__
+            self.resync = True
+            return False
+        if written is not None and written != len(data):
+            self.last_send_error = f"Short write: {written} of {len(data)} bytes."
+            self.resync = True
+            return False
+        self.last_send_error = None
+        self.resync = False
+        return True
+
     def close(self):
         """Clear partial transport data, preserving monitoring state elsewhere."""
         connection, self.connection = self.connection, None
         self.framer = LineFramer()
+        self.resync = False
         if connection is not None:
             try:
                 connection.close()

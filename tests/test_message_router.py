@@ -261,3 +261,29 @@ def test_documented_firmware_wire_record_reaches_real_consumer():
     assert current_gas_warmup_status(state) == "warming_up"
     assert gas_calibration_status(state.gas) == "calibrating"
     assert not state.sensor.alert_active
+
+
+def test_alarm_reply_is_kept_without_reading_sensor_or_contact_effects():
+    state = process_serial_line(start(), VALID, 10)
+    before = state
+    state = process_serial_line(state, '{"type":"alarm","state":2}', 20)
+    assert state.alarm_reply == (2, 20)
+    assert state.alarm_reply.level == 2 and state.alarm_reply.received_at == 20
+    assert state.reading == before.reading and state.gas == before.gas and state.dust == before.dust
+    assert state.communication.last_message_at == 10
+    assert state.sensor.last_valid_measurement_at == 10 and not state.sensor.alert_active
+
+
+def test_alarm_replies_do_not_keep_communication_alive():
+    state = process_serial_line(start(), VALID, 0)
+    for now in range(5, 125, 5):
+        state = process_serial_line(state, '{"type":"alarm","state":1}', now)
+    assert state.communication.timed_out and state.communication.alert_active
+    assert monitoring_status(state) == "communication_lost"
+    assert state.alarm_reply == (1, 120)
+
+
+def test_malformed_alarm_reply_keeps_the_previous_reply():
+    state = process_serial_line(start(), '{"type":"alarm","state":0}', 1)
+    state = process_serial_line(state, '{"type":"alarm","state":9}', 2)
+    assert state.alarm_reply == (0, 1)
