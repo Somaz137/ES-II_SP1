@@ -12,7 +12,7 @@ They are verified only with automated tests and the simulator.
 | File | Purpose |
 |---|---|
 | `monitor.py` | Starts the program with a serial port or `--demo`. Reads command options, loads settings, and starts monitoring. Connects storage, patient rules, the camera, and dashboard acknowledgment requests. |
-| `settings.py` | Reads both YAML settings files. Rejects missing or invalid settings. |
+| `settings.py` | Reads both YAML settings files. Rejects missing or invalid settings and unworkable timing combinations. Holds the timing defaults. Imports PyYAML only when it reads a file. |
 | `serial_transport.py` | Opens the selected serial port. Collects complete lines and retries the connection after errors. |
 | `serial_parser.py` | Reads each text message. Identifies a valid reading, sensor error, incomplete reading, or ignored message. |
 | `measurements.py` | Checks the four measurement values. Retains the last complete reading, its receipt time, and the latest input condition. |
@@ -67,14 +67,15 @@ Closing the dashboard does not stop monitoring.
 | `tests/test_serial_transport.py` | Checks line assembly, invalid input, connection retry, and connection cleanup. |
 | `tests/test_monitoring_loop.py` | Checks the running loop with controlled time and simulated serial input. |
 | `tests/test_dust.py` | Checks dust record classification, retention, missing dust and BME680 reports, recovery, and calibration. |
-| `tests/test_room_software.py` | Checks the simulated alert and recovery, occupancy and profile-change timer restarts, invalid-profile handling, and event history for contact loss and acknowledgment. |
-| `tests/test_dashboard.py` | Checks the dashboard page, profile saving and rejection, the cross-origin check, and acknowledgment requests. |
+| `tests/test_room_software.py` | Checks the simulated alert and recovery, occupancy and profile-change timer restarts, invalid-profile handling, and event history for contact loss and acknowledgment. Checks active and pending alert details, limit-monitoring reasons, alert-end reasons, the acknowledgment event, trends, event paging, retention, the camera interval, and the legacy profile check. |
+| `tests/test_dashboard.py` | Checks the dashboard page, profile saving and rejection, the cross-origin check, and acknowledgment requests. Checks the `/api/room` response, system health, event paging, form error messages, and incomplete acknowledgment status. |
 
 The test filenames describe the behavior under test.
 They do not require an application file with the same name.
 The original test filenames and all 301 test cases remain unchanged.
 Only their module imports changed.
-The three newer test files add 16 cases. The full suite contains 317 cases.
+On 15 November `tests/test_runtime_settings.py` gained 48 cases for the timing settings.
+The three newer test files contain 41 cases. The full suite contains 401 cases.
 
 ## Other important files
 
@@ -114,6 +115,6 @@ Run the existing suite from the project folder with the approved environment act
 python3 -m pytest
 ```
 
-The original eleven test files still contain 301 cases.
-On 15 November 2026 the full suite on this branch reported 317 passed. See the [15 November verification record](LINUX_VERIFICATION_2026-11-15.md).
+The original eleven test files contain the original 301 cases and 48 new timing-settings cases.
+On 15 November 2026 the full suite reported 401 passed after the dashboard data contract. See the [15 November verification record](LINUX_VERIFICATION_2026-11-15.md).
 Hardware operation requires separate physical checks.

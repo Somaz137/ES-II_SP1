@@ -2,6 +2,8 @@
 
 **Written after implementation on 15 November 2026.** This record describes the code on branch `feature/sharp-dust-integration` at commit 5e2de1b. It was not an approved design before the code was written. The code is the authority. Where this record and the code differ, the code is correct and this record needs a correction.
 
+**Note, 15 November 2026:** The [dashboard data contract design](2026-11-15-dashboard-data-contract-design.md) supersedes parts of this record: limit-alert status and event text, event kinds and ids, `GET /api/room`, gas resistance storage, the timing constants (now settings), retention, the legacy profile check, profile form messages and the acknowledgment status check. This record still describes commit 5e2de1b.
+
 Everything described here is verified only in software: automated tests and the simulator. No physical ESP32, BME680, dust sensor or camera was used. Nothing here establishes clinical safety or calibrated air quality.
 
 ## Responsibilities

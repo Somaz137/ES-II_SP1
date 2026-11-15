@@ -2,7 +2,7 @@
 
 **Linux checks recorded:** See the [8 November verification record](reference_files/LINUX_VERIFICATION_2026-11-08.md) and the [15 November verification record](reference_files/LINUX_VERIFICATION_2026-11-15.md).
 On 8 November the user completed Python test execution, firmware formatting, compilation, and the listed virtual-serial scenarios.
-On 15 November the full suite on this branch reported 317 passed, and the software demo ran without errors.
+On 15 November the full suite on this branch reported 317 passed, and the software demo ran without errors. After the dashboard data contract it reported 401 passed.
 Physical ESP32, BME680, dust sensor, and camera operation remains unverified.
 The 8 November Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408 for the DOIT board. It did not include the dust code.
 These records supersede earlier pending-test statements in historical preparation notes and design checklists.
@@ -16,7 +16,7 @@ It contains no instructions for an AI assistant.
 
 **Current status:** The repository contains the monitor, SQLite storage, patient-limit rules, camera occupancy, a local dashboard, and a Sharp dust path.
 These parts exist in software. Automated tests and a simulator verify them. No part has run with physical hardware or a real camera.
-The local alarm, 7-day data retention, and the dashboard redesign are decided but not implemented.
+The local alarm and the dashboard redesign are decided but not implemented. 7-day reading retention is implemented.
 
 ## What the project does
 
@@ -126,18 +126,19 @@ An invalid file keeps the last valid profile and raises a profile fault.
 |---|---|
 | A reading is outside a limit | Start the sustained timer at that reading. |
 | The breach lasts the sustained duration | Start a patient-limit alert and log it. |
-| One reading returns inside the limits | End the alert and log it. |
-| Occupancy is unknown | Clear the timers. No patient-limit alert can start. |
-| The last reading is older than six seconds, or two readings are more than six seconds apart | Restart the timer. |
+| One reading returns inside the limits | End the alert and log it with the limit, value, and duration. |
+| Occupancy is unknown | Clear the timers. No patient-limit alert can start. An active alert ends with a logged reason. |
+| The last reading is older than the reading-gap limit (six seconds), or two readings are further apart | Restart the timer. |
 | The profile changes | Restart all timers. |
 
-The camera check runs every 60 seconds. It uses OpenCV's default people detector.
-A detected person gives occupied status. No detection, failed capture, and an observation older than 65 seconds give unknown status.
+The camera check runs every 60 seconds by default. It uses OpenCV's default people detector.
+A detected person gives occupied status. No detection, failed capture, and an observation older than the interval plus 5 seconds give unknown status.
 There is no absent status. Frames stay in memory and are never saved.
 The detector is trained on upright pedestrians. It can miss seated, lying, or occluded people. It has not been checked with a camera.
 
 Fault alerts for communication, the BME680, dust, and the profile do not depend on occupancy.
-Alert text names the measurement and direction only. It does not state the limit, value, or duration.
+Alert text states the measurement, direction, configured limit, value, and duration. A breach that has not yet lasted the sustained duration shows as pending.
+An alert that stops for another reason logs that reason: changed limits, unknown occupancy, or readings that are no longer current.
 
 ## Measurements and their meaning
 
@@ -181,7 +182,7 @@ The new terminal loop calls this router and checks faults during silence.
 Communication recovery does not dismiss an outstanding communication alert.
 A person must acknowledge that alert on the dashboard.
 The dashboard shows the acknowledgment button only after contact recovers and while the monitor status is current.
-The monitor applies the acknowledgment at its next fault check. The event history records the cleared alert. It has no separate acknowledgment entry.
+The monitor applies the acknowledgment at its next fault check. The event history records the acknowledgment and the cleared alert as separate entries.
 The underlying tracker also supports acknowledgment during an outage: it dismisses the alert and starts another two-minute wait.
 The dashboard does not offer that action.
 Acknowledgment does not change the actual last-contact time.
@@ -196,7 +197,7 @@ The normal communication timeout still starts immediately.
 An incomplete reading must not replace the last complete reading.
 The dashboard shows the previous values and the time of the last BME680 reading.
 It labels the latest input status.
-When the monitor status is older than 15 seconds, the dashboard labels the values as retained.
+When the monitor status is older than the staleness limit (15 seconds), the dashboard labels the values as retained.
 The dashboard must not present retained values as fresh measurements.
 
 A recognized incomplete reading counts as communication and as a sensor error.
@@ -263,15 +264,15 @@ Its wiring table uses the superseded DOIT pins. The decided ESP32-S3 dust pins a
 | Communication timeout | 120 seconds | Exists in `config/alerts.yaml`. |
 | Sensor error timeout | 120 seconds | Exists in `config/alerts.yaml`. |
 | BME680 sampling | Every three seconds | BSEC low-power mode compiled. Physical acquisition remains unverified. |
-| Camera processing | Every 60 seconds | Implemented. Constant in code. Not checked with a camera. |
+| Camera processing | Every 60 seconds | `camera_interval_s` in `config/runtime.yaml`. Not checked with a camera. |
 | Fault checks | Every 5 seconds | Implemented in source. Listed virtual-serial checks completed on Linux. |
-| Dashboard refresh | Every 10 seconds | Implemented. Constant in code. |
-| Dashboard staleness | 15 seconds | Implemented. Constant in code. |
-| BME680 reading gap | 6 seconds | Implemented. Constant in code. Restarts sustained timers. |
+| Dashboard refresh | Every 10 seconds | `dashboard_refresh_s` in `config/runtime.yaml`. Must not exceed the staleness limit. |
+| Dashboard staleness | 15 seconds | `status_stale_after_s` in `config/runtime.yaml`. Must exceed the fault check plus the poll interval. |
+| BME680 reading gap | 6 seconds | `reading_gap_limit_s` in `config/runtime.yaml`. Restarts sustained timers. |
 | Patient profiles | Apply valid changes during monitoring | Implemented as a YAML file beside the database. Checked in tests and the simulator. |
 | Sustained duration | Set in the patient profile | Implemented. No value is selected for real use. |
-| Reading retention | 7 days | Decided, not implemented. No pruning exists. |
-| Technical settings | Apply changes at program startup | The monitor loads both technical YAML files once. Demo mode uses fixed values instead. |
+| Reading retention | 7 days | `readings_retention_days` in `config/runtime.yaml`, at least 1. The monitor prunes hourly. Events are kept. |
+| Technical settings | Apply changes at program startup | The monitor loads both technical YAML files once. The five newer runtime keys are optional and default to the values above. Demo mode uses fixed values and the same defaults. The dashboard reads the effective values from the monitor status. |
 
 Laptop YAML does not currently control the ESP32 sampling interval.
 That configuration mechanism remains deferred.
@@ -306,7 +307,7 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | `serial_parser.py` | Classifies a decoded serial line. |
 | `room_store.py` | Stores status, readings, events, and the patient profile file. |
 | `room_session.py` | Applies patient limits, sustained timing, and occupancy gating. |
-| `occupancy.py` | Checks the camera for a person every 60 seconds. |
+| `occupancy.py` | Checks the camera for a person at the configured interval. |
 | `simulated_input.py` | Supplies simulated records for the demo. |
 | `dust.py` | Reads Sharp dust records and reports dust status. |
 | `dashboard.py`, `templates/`, `static/` | Serve the local dashboard. |
@@ -315,7 +316,7 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | `firmware/README.md` | Explains firmware configuration and remaining hardware checks. |
 | `tools/read_sensor.py` | Prints JSON records from a selected serial port. It does not connect the monitoring components. |
 | `tools/check_setup.py` | Reports environment metadata. It does not prove that the application works. |
-| `tests/` | Contains fourteen Python test files. The suite reported 317 passed on 15 November. See the verification records. |
+| `tests/` | Contains fourteen Python test files. The suite reported 401 passed on 15 November, after the dashboard data contract. See the verification records. |
 | `reference_files/` | Contains the course reference, implementation plan, Linux handoff, and VIGIL comparison. |
 | `docs/superpowers/` | Contains detailed component designs and implementation checklists. |
 | `docs/SHARP_DUST_INTEGRATION.md` | Describes dust wiring, calibration, and checks. |
@@ -324,9 +325,8 @@ The test filenames remain unchanged so their original test cases are easy to tra
 
 - Every new part is verified only with tests and the simulator.
 - The occupancy detector can miss seated, lying, or occluded people. Unknown occupancy suppresses patient-limit alerts.
-- No database pruning exists. The event list shows the latest 50 events.
-- The six-second reading gap, 15-second staleness limit, 60-second camera interval, and 10-second refresh are constants in code, not YAML settings.
-- Alert text does not state the limit, value, or duration.
+- Raw readings older than 7 days are deleted. Events are never deleted. The dashboard shows the latest 50 events and pages to older ones.
+- Timing settings apply at monitor startup. The dashboard uses the values in the latest monitor status.
 - No independent notification path exists. Caregiver alerts stay inside the dashboard.
 - Dust output is a raw voltage, not PM2.5, an air-quality index, or a calibrated concentration.
 
@@ -341,7 +341,7 @@ These decisions are not implemented.
 - The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
 - The buzzer is a 3-pin buzzer module driven from one GPIO.
-- Raw readings will be kept for 7 days. Event history is kept regardless.
+- Raw readings will be kept for 7 days. Event history is kept regardless. Implemented on 15 November.
 - The dashboard will be redesigned. The current page is a first draft.
 
 ## What remains
@@ -354,7 +354,7 @@ These decisions are not implemented.
 6. Check dust timing with an oscilloscope and measure a clean-air baseline.
 7. Check the camera and the occupancy detector with seated, lying, and occluded people.
 8. Implement the local buzzer and LED alarm and the "Silence alarm" control.
-9. Implement 7-day reading retention and redesign the dashboard.
+9. Redesign the dashboard.
 10. Demonstrate normal operation, faults, and recovery with actual hardware.
 
 The project contains a rule engine, occupancy detector, database, and dashboard in software. It does not contain a notification worker or local alarm.

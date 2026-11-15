@@ -8,14 +8,15 @@ The selected board changed to an ESP32-S3 on 15 November 2026. See [Selected har
 This branch adds the room software: SQLite storage, patient limits, sustained-breach alerts, camera occupancy, a local dashboard, and a Sharp dust sensor path.
 These parts exist in software. They are verified only by automated tests and the simulator.
 No physical ESP32, BME680, dust sensor, or camera check has taken place.
-The local alarm, data retention, and dashboard redesign are decided but not implemented.
+The local alarm and dashboard redesign are decided but not implemented. 7-day reading retention is implemented.
+The [dashboard data contract](docs/superpowers/specs/2026-11-15-dashboard-data-contract-design.md) defines the dashboard response, alert text, events, timing settings, and retention.
 
 Read the [15 November verification record](reference_files/LINUX_VERIFICATION_2026-11-15.md) for the current software results.
 Read the [8 November verification record](reference_files/LINUX_VERIFICATION_2026-11-08.md) for the earlier virtual-serial and compilation results.
 
 | Check | Recorded result |
 |---|---|
-| Python test suite, this branch | 317 passed, exit code 0, no skips (15 November). |
+| Python test suite, this branch | 401 passed, exit code 0, no skips (15 November, after the dashboard data contract). |
 | Python test suite, `main` | 301 passed, exit code 0 (15 November). |
 | Firmware message formatting | Built with no warnings and passed (15 November). |
 | Software demo | Monitor and dashboard ran together. The simulated limit alert started and ended as expected (15 November). |
@@ -82,13 +83,13 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | status_output.py | Reports retained readings, reading age, estimated receipt time, faults, gas status, and dust status. |
 | room_store.py | Stores status, readings, and events in SQLite. Loads, validates, and saves the patient profile file. |
 | room_session.py | Applies patient limits, sustained-breach timing, and occupancy gating. Logs alert and fault events. |
-| occupancy.py | Checks the camera every 60 seconds with OpenCV's default people detector. Saves no frames. |
+| occupancy.py | Checks the camera at the configured interval (60 seconds) with OpenCV's default people detector. Saves no frames. |
 | simulated_input.py | Supplies simulated BME680 and dust records for `--demo`. |
 | dust.py | Classifies Sharp dust records and reports dust status. Calculates a dust estimate only with user calibration. |
 | dashboard.py | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits and acknowledgment requests. |
 | templates/, static/ | Dashboard page, script, and style. |
 | `settings.py` | Loads both YAML settings files and checks their values. |
-| config/runtime.yaml | Stores host polling, retry, and fault-check intervals. |
+| config/runtime.yaml | Stores host polling, retry, and fault-check intervals, the reading gap, dashboard staleness and refresh, camera interval, and reading retention. |
 | config/alerts.yaml | Stores the communication and sensor-error timeouts. |
 | communication_fault.py | Tracks missing communication and alert acknowledgment. |
 | sensor_fault.py | Tracks repeated sensor errors and valid-reading recovery. |
@@ -116,7 +117,7 @@ python dashboard.py --demo
 
 Open http://127.0.0.1:5000. The demo uses its own SQLite database. It simulates an occupied room, BME680 readings, and Sharp dust voltage at three-second intervals. On a fresh demo database the temperature crosses the example limit at 18 seconds, raises a caregiver alert at about 27 seconds, and returns to range at about 60 seconds. Patient limits are saved beside the database in a `.profile.yaml` file. Valid changes take effect on the next monitor update. If the file is invalid, the monitor keeps its last valid profile and shows a profile error. The example values apply only to the simulator.
 
-The dashboard refreshes every ten seconds. It shows the last monitor update, sensor readings, occupancy, 24-hour trends, caregiver alerts, the latest 50 events, a patient limits form, and the communication acknowledgment control. Trend points are one-minute averages. The dashboard accepts requests only for `localhost` and `127.0.0.1` and rejects cross-site form posts. The dashboard can be closed while monitoring continues. Readings and event history stay in local SQLite files. The 24-hour chart is a display window. There is no automatic database pruning yet.
+The dashboard refreshes every ten seconds. It shows the last monitor update, sensor readings, occupancy, 24-hour trends, caregiver alerts with limit, value, and duration, pending breaches, the latest 50 events, a patient limits form, and the communication acknowledgment control. Trend points are one-minute averages with minimum and maximum. Gas resistance is charted but has no limit. `GET /api/room` returns all of this in one response. The dashboard accepts requests only for `localhost` and `127.0.0.1` and rejects cross-site form posts. The dashboard can be closed while monitoring continues. Readings and event history stay in local SQLite files. The 24-hour chart is a display window. The monitor deletes readings older than 7 days. Events are kept.
 
 On the real serial path, supply the existing serial port argument and the `--camera` index option when physical testing resumes. Both programs accept `--db` and must use the same file. OpenCV checks at one-minute intervals. A detected person gives occupied status. Failed capture, no detection, and expired observations give unknown status. Frames are processed locally and never saved. Physical validation is still pending.
 
@@ -136,7 +137,7 @@ Missing communication raises a communication alert.
 Communication recovery clears the timeout but does not dismiss that alert.
 A person must acknowledge the alert on the dashboard after contact recovers.
 The dashboard cannot acknowledge during an outage.
-The monitor applies the acknowledgment at its next fault check. The event history records the cleared alert.
+The monitor applies the acknowledgment at its next fault check. The event history records the acknowledgment and the cleared alert.
 Restarting the program is not a recorded acknowledgment.
 
 Repeated sensor errors do not restart the sensor-error waiting period.
@@ -154,7 +155,7 @@ Raw gas resistance is not a calibrated pollution concentration or air-quality in
 Patient limits apply to temperature, humidity, and pressure. Each enabled measurement has a lower and upper limit. One sustained duration applies to all.
 The project supplies no patient limits. The demo example limit applies only to the simulator.
 A patient-limit alert starts when a breach lasts the sustained duration. One in-range reading ends it.
-Patient-limit alerts require occupied status and a fresh BME680 reading at most six seconds old.
+Patient-limit alerts require occupied status and a fresh BME680 reading at most six seconds old (`reading_gap_limit_s`).
 Unknown occupancy, a stale reading, or a gap of more than six seconds between readings restarts the timer.
 A changed profile restarts all timers. An invalid profile file keeps the last valid profile and shows a profile fault.
 Communication, BME680, dust, and profile fault alerts do not depend on occupancy.
@@ -162,7 +163,7 @@ Communication, BME680, dust, and profile fault alerts do not depend on occupancy
 Fault checks use the selected five-second interval.
 Camera processing uses sixty seconds. An observation older than sixty-five seconds becomes unknown.
 The dashboard refreshes every ten seconds and treats a status older than fifteen seconds as overdue.
-The six-second gap, camera interval, refresh, and staleness limits are constants in code, not YAML settings.
+These values are optional keys in `config/runtime.yaml`. An older three-key file still loads with these defaults. Demo mode uses the same defaults. The dashboard reads the effective values from the monitor status.
 Laptop YAML does not control ESP32 acquisition timing.
 Firmware configuration commands and calibration-state storage remain future work.
 
@@ -170,8 +171,7 @@ Firmware configuration commands and calibration-state storage remain future work
 
 - The occupancy detector is OpenCV's default people detector, trained on upright pedestrians. It can miss seated, lying, or occluded people. Unknown occupancy suppresses patient-limit alerts. It has not been checked with a camera.
 - In serial mode without `--camera`, occupancy is always unknown, so patient-limit alerts never start.
-- No database pruning exists. The event list shows the latest 50 events.
-- Alert text names the measurement and direction only. It does not state the limit, value, or duration.
+- Readings older than 7 days are deleted hourly. Events are never deleted. The event list shows the latest 50 events and pages to older ones.
 - No independent notification path exists. Caregiver alerts stay inside the dashboard.
 - Dust output is a raw sensor voltage. It is not PM2.5, AQI, or a calibrated concentration.
 
@@ -183,7 +183,7 @@ Firmware configuration commands and calibration-state storage remain future work
 - Notification: a local ESP32 buzzer and LED. The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
 - Buzzer part: a 3-pin buzzer module driven from one GPIO (GPIO7 on the ESP32-S3). The alarm LED uses GPIO6.
-- Raw readings will be kept for 7 days. Event history is kept regardless.
+- Raw readings will be kept for 7 days. Event history is kept regardless. Implemented on 15 November.
 - The dashboard will be redesigned. The current page is a first draft.
 
 ## Remaining work
@@ -193,9 +193,8 @@ Firmware configuration commands and calibration-state storage remain future work
 3. Check camera capture and the occupancy detector with seated, lying, and occluded people.
 4. Agree on real patient limits for any demonstration.
 5. Implement the local buzzer and LED alarm and the "Silence alarm" control.
-6. Implement 7-day reading retention.
-7. Redesign the dashboard and state the limit, value, and duration in alert text.
-8. Demonstrate the complete system with actual hardware.
+6. Redesign the dashboard.
+7. Demonstrate the complete system with actual hardware.
 
 Follow the course requirements and approved project decisions.
 Preserve the existing environment and required dependencies.
