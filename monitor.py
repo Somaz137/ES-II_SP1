@@ -17,6 +17,7 @@ from monitoring_loop import run_monitor
 from serial_transport import SerialTransport
 from status_output import status_record
 from dust import estimate_dust
+from settings import RUNTIME_DEFAULTS
 
 
 def main():
@@ -53,7 +54,7 @@ def main():
         parser.error("--baud must be positive")
     if args.demo:
         alerts = {"communication_timeout_s": 120, "sensor_error_timeout_s": 120}
-        runtime = {"fault_check_interval_s": 5, "serial_poll_interval_s": 0.05}
+        runtime = {"fault_check_interval_s": 5, "serial_poll_interval_s": 0.05, **RUNTIME_DEFAULTS}
         transport = SimulatedTransport()
     else:
         from settings import load_alert_settings, load_runtime_settings
@@ -61,12 +62,14 @@ def main():
         runtime = load_runtime_settings(args.runtime)
         transport = SerialTransport(args.port, args.baud, runtime["serial_retry_interval_s"])
     store = RoomStore(args.db or (DEMO_DB if args.demo else DEFAULT_DB))
-    session = RoomSession(store, demo=args.demo)
+    timing = {key: runtime[key] for key in RUNTIME_DEFAULTS}
+    timing["fault_check_interval_s"] = runtime["fault_check_interval_s"]
+    session = RoomSession(store, demo=args.demo, timing=timing)
     if args.demo and not store.profile_path.exists() and store.load_profile() is None:
         store.save_profile({"limits": {"temp_c": [20, 27]}, "hold_s": 9})
     mono_origin, utc_origin = time.monotonic(), time.time()
 
-    camera = CameraOccupancy(args.camera) if args.camera is not None else None
+    camera = CameraOccupancy(args.camera, runtime["camera_interval_s"]) if args.camera is not None else None
     last_ack = store.read("communication_ack")
     displayed_alert = None
 
@@ -76,6 +79,7 @@ def main():
         if request != last_ack:
             last_ack = request
             if request == displayed_alert and state.communication.alert_active and not state.communication.timed_out:
+                session.note_acknowledgment()
                 return acknowledge_monitoring_communication(state, now)
         return state
 
@@ -95,6 +99,8 @@ def main():
             displayed_alert = None
         record["communication_alert_id"] = displayed_alert
         occupancy = "occupied" if args.demo else camera.current(now) if camera else "unknown"
+        record["occupancy_source"] = "simulated" if args.demo else "camera" if camera else "none"
+        record["occupancy_observation_age_s"] = camera.observation_age(now) if camera else None
         session.update(record, now, time.time(), occupancy)
         print(json.dumps(record, allow_nan=False), flush=True)
 

@@ -4,10 +4,12 @@ import time
 
 
 class CameraOccupancy:
-    interval_s = 60
-
-    def __init__(self, index):
+    def __init__(self, index, interval_s=None):
+        if interval_s is None:
+            from settings import RUNTIME_DEFAULTS
+            interval_s = RUNTIME_DEFAULTS["camera_interval_s"]
         self.index = index
+        self.interval_s = interval_s
         self.observation = ("unknown", None)
         self.stop = Event()
         self.worker = Thread(target=self.run, daemon=True)
@@ -25,6 +27,10 @@ class CameraOccupancy:
         if observed_at is None or now - observed_at > self.interval_s + 5:
             return "unknown"
         return state
+
+    def observation_age(self, now):
+        observed_at = self.observation[1]
+        return None if observed_at is None else now - observed_at
 
     def run(self):
         import cv2

@@ -9,6 +9,9 @@ from tempfile import NamedTemporaryFile
 
 METRICS = {"temp_c": ("Temperature", "°C"), "humidity_pct": ("Humidity", "%"),
            "pressure_hpa": ("Pressure", "hPa")}
+# Stored and charted series. Only METRICS accept patient limits; gas resistance is a raw signal.
+SERIES = {**METRICS, "gas_ohms": ("Gas resistance", "Ω"), "dust_mv": ("Dust signal", "mV")}
+EVENT_LIMIT_MAX = 200
 DEFAULT_DB = Path(__file__).resolve().parent / "room.sqlite3"
 DEMO_DB = DEFAULT_DB.with_name("room-demo.sqlite3")
 
@@ -52,6 +55,7 @@ class RoomStore:
                     metric TEXT, at REAL, value REAL, PRIMARY KEY (metric, at));
                 CREATE TABLE IF NOT EXISTS events (
                     id INTEGER PRIMARY KEY, at REAL, kind TEXT, message TEXT);
+                CREATE INDEX IF NOT EXISTS readings_at ON readings(at);
             """)
 
     @contextmanager
@@ -82,7 +86,13 @@ class RoomStore:
             raw = self.profile_path.read_text(encoding="utf-8-sig")
         except FileNotFoundError:
             # Preserve profiles saved by the first draft of the software.
-            return self.read("profile")
+            legacy = self.read("profile")
+            if legacy is not None:
+                try:
+                    validate_profile(legacy)
+                except ValueError as error:
+                    raise ValueError(f"The legacy stored profile is invalid: {error}") from error
+            return legacy
         try:
             profile = json.loads(raw)
         except ValueError:
@@ -124,15 +134,35 @@ class RoomStore:
             db.executemany("INSERT INTO events(at, kind, message) VALUES (?, ?, ?)",
                            ((now, kind, message) for kind, message in events))
 
-    def history(self, metric, now):
+    def trends(self, now):
+        """Return one-minute average, minimum and maximum buckets for the past 24 hours."""
+        result = {metric: [] for metric in SERIES}
         with self.connection() as db:
-            # Minute averages keep the 24-hour response bounded.
-            return db.execute("""
-                SELECT MIN(at), AVG(value) FROM readings
-                WHERE metric = ? AND at BETWEEN ? AND ? GROUP BY CAST(at / 60 AS INTEGER)
-                ORDER BY MIN(at)
-            """, (metric, now - 86400, now)).fetchall()
+            rows = db.execute("""
+                SELECT metric, CAST(at / 60 AS INTEGER) AS minute, AVG(value), MIN(value), MAX(value)
+                FROM readings WHERE at BETWEEN ? AND ? GROUP BY metric, minute ORDER BY minute
+            """, (now - 86400, now)).fetchall()
+        for metric, minute, average, low, high in rows:
+            if metric in result:
+                result[metric].append({"at": minute * 60, "avg": average, "min": low, "max": high})
+        return result
 
-    def events(self):
+    def history(self, metric, now):
+        return self.trends(now)[metric]
+
+    def events(self, before=None, limit=50):
+        """Newest first; `before` is an event id for paging to older events."""
+        limit = max(1, min(int(limit), EVENT_LIMIT_MAX))
         with self.connection() as db:
-            return db.execute("SELECT at, kind, message FROM events ORDER BY id DESC LIMIT 50").fetchall()
+            rows = db.execute(
+                "SELECT id, at, kind, message FROM events WHERE id < ? ORDER BY id DESC LIMIT ?",
+                (before if before is not None else 2 ** 63 - 1, limit)).fetchall()
+        return [dict(zip(("id", "at", "kind", "message"), row)) for row in rows]
+
+    def prune_readings(self, before, limit=5000):
+        """Delete at most `limit` readings older than `before`; return the number deleted."""
+        with self.connection() as db:
+            return db.execute("""
+                DELETE FROM readings WHERE rowid IN (
+                    SELECT rowid FROM readings WHERE at < ? ORDER BY at LIMIT ?)
+            """, (before, limit)).rowcount
