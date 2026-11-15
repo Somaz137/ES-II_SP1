@@ -6,6 +6,13 @@ Physical ESP32 and BME680 operation remains unverified.
 The successful Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408.
 This record supersedes earlier pending-test statements in historical preparation notes and design checklists.
 
+**Board change, 15 November 2026 (decided, not implemented):** The user selected an ESP32-S3 with an N8R2 module (8 MB flash, 2 MB PSRAM). This supersedes the DOIT ESP32 DevKit V1 described below.
+The firmware source is unchanged. bsec_board_config.h still requires the classic ESP32 chip and refuses to compile for an ESP32-S3.
+Decided ESP32-S3 pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, buzzer module GPIO7. They are not in the source and not checked against the physical board.
+The toolchain on the project machine is being set up to match ESP32 core 3.3.12, BSEC2 1.10.2610, and BME68x 1.3.40408. That setup is in progress.
+The sketch now includes sharp_dust.h. No compilation of that version is recorded. The 8 November compilation predates it.
+Nothing has been compiled for or flashed to an ESP32-S3. The procedures below apply to the earlier DOIT board.
+
 
 This source prepares BSEC low-power acquisition every three seconds.
 It does not establish a working hardware integration.
@@ -81,6 +88,7 @@ Use the upstream distribution rather than copying those files into this reposito
 - room_environment_safety_control_bme680.ino handles BSEC setup, callbacks, and errors.
 - bsec_board_config.h contains the chip check, pins, serial speed, supply selection, and reporting intervals.
 - bsec_serial_format.h converts scalar values and status fields to JSON.
+- sharp_dust.h runs experimental Sharp dust acquisition on GPIO25 and GPIO34 and reports raw voltage records.
 - tests/test_bsec_serial_format.cpp checks the formatter without a sensor or Arduino library.
 
 ## Serial behavior
@@ -141,4 +149,4 @@ No dashboard, occupancy logic, environmental thresholds, or state persistence ex
 
 ## Sharp dust sensor extension
 
-The experimental GP2Y1010AU0F path adds independent dust voltage and status. See [wiring, plan, calibration and verification](../docs/SHARP_DUST_INTEGRATION.md). Hardware timing and the full pinned-environment run remain pending.
+The experimental GP2Y1010AU0F path adds independent dust voltage and status. See [wiring, plan, calibration and verification](../docs/SHARP_DUST_INTEGRATION.md). The full pinned Python suite passed on 15 November 2026. Firmware compilation with sharp_dust.h and hardware timing remain pending.

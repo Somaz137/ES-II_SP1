@@ -1,10 +1,11 @@
 # Room Environment Safety Control
 
-**Linux checks recorded:** See the [8 November verification record](reference_files/LINUX_VERIFICATION_2026-11-08.md).
-The user completed Python test execution, firmware formatting, compilation, and the listed virtual-serial scenarios.
-Physical ESP32 and BME680 operation remains unverified.
-The successful Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408.
-This record supersedes earlier pending-test statements in historical preparation notes and design checklists.
+**Linux checks recorded:** See the [8 November verification record](reference_files/LINUX_VERIFICATION_2026-11-08.md) and the [15 November verification record](reference_files/LINUX_VERIFICATION_2026-11-15.md).
+On 8 November the user completed Python test execution, firmware formatting, compilation, and the listed virtual-serial scenarios.
+On 15 November the full suite on this branch reported 317 passed, and the software demo ran without errors.
+Physical ESP32, BME680, dust sensor, and camera operation remains unverified.
+The 8 November Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408 for the DOIT board. It did not include the dust code.
+These records supersede earlier pending-test statements in historical preparation notes and design checklists.
 
 
 ## Guide for people
@@ -13,18 +14,29 @@ This guide explains the project for students, reviewers, and future team members
 It describes the project purpose, current code, and planned behavior.
 It contains no instructions for an AI assistant.
 
-**Current status:** The repository contains a terminal serial monitor and separate monitoring components. The complete room-safety application is not implemented.
-The user ran the Python suite, firmware formatting test, compilation, and listed simulated runtime checks on Linux. Physical hardware operation remains untested.
+**Current status:** The repository contains the monitor, SQLite storage, patient-limit rules, camera occupancy, a local dashboard, and a Sharp dust path.
+These parts exist in software. Automated tests and a simulator verify them. No part has run with physical hardware or a real camera.
+The local alarm, 7-day data retention, and the dashboard redesign are decided but not implemented.
 
 ## What the project does
 
 The project aims to monitor the environment of an occupied room.
-Python will compare environmental measurements with limits in the selected patient profile.
-The dashboard will show measurements, occupancy, faults, and alerts.
-Patient limits and environmental alert rules still need agreement.
+Python compares temperature, humidity, and pressure with limits in the patient profile.
+The dashboard shows measurements, occupancy, faults, and alerts.
+The project supplies no patient limits. The demo example limit applies only to the simulator.
 
-The current prototype uses one room, one DOIT ESP32 DevKit V1, one BME680, and one camera.
-The board uses the classic ESP32 chip.
+**Board change, 15 November 2026:** The user selected an ESP32-S3 with an N8R2 module (8 MB flash, 2 MB PSRAM).
+This supersedes the DOIT ESP32 DevKit V1. The decision is not implemented.
+The firmware still requires the classic ESP32 chip and refuses to compile for an ESP32-S3.
+GPIO22 and GPIO25 do not exist on the ESP32-S3. GPIO34 is not an analog input on it. The DOIT pins therefore do not carry over.
+The user decided these ESP32-S3 pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7.
+The pins are not implemented in the firmware and not checked against the physical board. The exact development board model is not identified.
+This machine is being set up to match the recorded versions: ESP32 core 3.3.12, BSEC2 1.10.2610, and BME68x 1.3.40408. That setup is in progress.
+Nothing has been compiled for or flashed to an ESP32-S3.
+The rest of this section records the earlier DOIT selection.
+
+The prototype uses one room, one ESP32 board, one BME680, one Sharp dust sensor, and one camera.
+The earlier DOIT board uses the classic ESP32 chip.
 The BME680 uses GPIO21 for SDA and GPIO22 for SCL.
 The user confirmed a 3.3 V sensor supply.
 The firmware configuration uses that value.
@@ -39,33 +51,35 @@ The project does not yet define those control functions.
 | Part | Role | Current state |
 |---|---|---|
 | BME680 | Measures temperature, humidity, pressure, and gas resistance | Experimental firmware exists. Physical operation remains unverified. |
-| ESP32 | Reads the BME680 and sends measurements through USB serial | Experimental firmware exists. |
-| Laptop | Runs the Python monitoring logic | A terminal serial loop connects readings and fault tracking. Listed virtual-serial checks completed on Linux. |
-| Camera | Supplies images for occupancy detection | Connection and detection method remain undecided. |
-| Dashboard | Shows room status and accepts alert acknowledgments | Not implemented. |
+| Sharp GP2Y1010AU0F | Supplies a raw dust voltage | Experimental firmware exists. Not compiled. Not hardware-checked. |
+| ESP32 | Reads the sensors and sends records through USB serial | Firmware exists for the classic ESP32. The selected ESP32-S3 needs firmware and pin changes. |
+| Laptop | Runs the monitor, rules, storage, and dashboard | Implemented in software. Verified by tests and the simulator. |
+| Camera | Supplies frames for occupancy detection | OpenCV people detector implemented. Not checked with a camera. |
+| Dashboard | Shows room status, trends, events, and limits, and accepts communication acknowledgments | Local first draft implemented. Checked only with simulated data. A redesign is decided. |
+| Local alarm | Buzzer and LED on the ESP32 | Decided, not implemented. Decided pins: alarm LED GPIO6, buzzer GPIO7. |
 
 The laptop performs the main project logic.
 The ESP32 provides the connection to the environmental sensor.
 This prototype does not use an NVIDIA Jetson Nano.
 
-## How measurements will move through the system
+## How measurements move through the system
 
 1. The ESP32 reads the BME680.
 2. The ESP32 sends a JSON record through USB serial.
 3. Python classifies the record and checks its measurement fields.
 4. Python updates communication status and sensor status.
 5. Python retains the last complete reading and its measurement time.
-6. Python applies the agreed patient rules when measurements are suitable.
-7. The dashboard shows the resulting status.
+6. Python applies the patient limits when the reading is fresh and the room is occupied.
+7. Python stores the status, readings, and events in SQLite.
+8. The dashboard reads SQLite and shows the resulting status.
 
-The firmware experiment, input classification, retained readings, and fault routing exist today.
-The terminal monitor connects steps 1 through 5 in source. Real operation still needs checks. Patient rules and the dashboard remain future work.
-The future design keeps monitoring independent from dashboard refreshes.
+All eight steps exist in source. Steps 3 through 8 ran with simulated input. Real operation still needs checks.
+Monitoring stays independent from dashboard refreshes. Closing the dashboard does not stop monitoring.
 
-## Terminal monitor
+## Monitor
 
-The new source connects serial input to the parser and fault trackers.
-It requires an explicitly selected ESP32 port.
+The monitor connects serial input to the parser, fault trackers, patient rules, and storage.
+It requires an explicitly selected ESP32 port, or `--demo` for simulated input.
 It retries that port after connection errors.
 A retry does not reset the two-minute communication timer.
 Opening the port can reset some ESP32 boards.
@@ -80,10 +94,50 @@ Gas warm-up and calibration show unavailable when communication or current measu
 Fault checks continue during silence, even if the port cannot open.
 The default check interval is five seconds.
 Output can also change when a new record arrives.
-This terminal output has a separate schedule from the planned dashboard.
+Each published record also goes to SQLite for the dashboard.
 
-The monitor has no camera processing, patient rules, database, notifications, or acknowledgment control yet.
-The listed automated and virtual-serial checks completed on Linux. Real ESP32 and sensor operation remains pending.
+The monitor checks the camera when `--camera` is given. Without it, occupancy is unknown in serial mode, so patient-limit alerts never start.
+The monitor reads acknowledgment requests from the dashboard at each fault check.
+It has no independent notification path. Caregiver alerts stay inside the dashboard.
+The listed automated, virtual-serial, and simulator checks completed on Linux. Real ESP32 and sensor operation remains pending.
+
+## Software demo
+
+Run both entry points in the existing project environment, in separate terminals:
+
+```text
+python monitor.py --demo
+python dashboard.py --demo
+```
+
+Open http://127.0.0.1:5000. The demo uses its own SQLite database. It simulates an occupied room, BME680 readings, and Sharp dust voltage at three-second intervals.
+On a fresh demo database the temperature crosses the example limit at 18 seconds. A caregiver alert starts at about 27 seconds. The temperature returns to range at about 60 seconds.
+The example values apply only to the simulator. They are not patient limits.
+
+## Patient limits and occupancy
+
+The patient profile is a YAML file beside the database, for example `room.profile.yaml`.
+It holds a lower and upper limit for each enabled measurement and one sustained duration.
+Temperature, humidity, and pressure can have limits. Gas resistance and dust voltage cannot.
+The dashboard form saves the profile. Valid changes take effect on the next monitor update.
+An invalid file keeps the last valid profile and raises a profile fault.
+
+| Condition | Behavior |
+|---|---|
+| A reading is outside a limit | Start the sustained timer at that reading. |
+| The breach lasts the sustained duration | Start a patient-limit alert and log it. |
+| One reading returns inside the limits | End the alert and log it. |
+| Occupancy is unknown | Clear the timers. No patient-limit alert can start. |
+| The last reading is older than six seconds, or two readings are more than six seconds apart | Restart the timer. |
+| The profile changes | Restart all timers. |
+
+The camera check runs every 60 seconds. It uses OpenCV's default people detector.
+A detected person gives occupied status. No detection, failed capture, and an observation older than 65 seconds give unknown status.
+There is no absent status. Frames stay in memory and are never saved.
+The detector is trained on upright pedestrians. It can miss seated, lying, or occluded people. It has not been checked with a camera.
+
+Fault alerts for communication, the BME680, dust, and the profile do not depend on occupancy.
+Alert text names the measurement and direction only. It does not state the limit, value, or duration.
 
 ## Measurements and their meaning
 
@@ -125,9 +179,11 @@ The new terminal loop calls this router and checks faults during silence.
 | Unreadable or unknown input arrives | Ignore that input. Continue checking for communication timeout. |
 
 Communication recovery does not dismiss an outstanding communication alert.
-A person must acknowledge that alert. The terminal monitor has no acknowledgment control yet. Its communication alert remains active after recovery. The dashboard control remains future work.
-Acknowledgment during an outage dismisses the alert and starts another two-minute wait.
-Continued silence causes another alert after that wait.
+A person must acknowledge that alert on the dashboard.
+The dashboard shows the acknowledgment button only after contact recovers and while the monitor status is current.
+The monitor applies the acknowledgment at its next fault check. The event history records the cleared alert. It has no separate acknowledgment entry.
+The underlying tracker also supports acknowledgment during an outage: it dismisses the alert and starts another two-minute wait.
+The dashboard does not offer that action.
 Acknowledgment does not change the actual last-contact time.
 
 ## Missing or incomplete readings
@@ -138,15 +194,15 @@ Recognized errors change the input status even when no complete reading exists.
 The normal communication timeout still starts immediately.
 
 An incomplete reading must not replace the last complete reading.
-The future dashboard will retain the previous values and their original timestamp.
-It will also indicate that the latest input is incomplete.
+The dashboard shows the previous values and the time of the last BME680 reading.
+It labels the latest input status.
+When the monitor status is older than 15 seconds, the dashboard labels the values as retained.
 The dashboard must not present retained values as fresh measurements.
 
 A recognized incomplete reading counts as communication and as a sensor error.
 The sensor alert still waits for the configured error duration.
 The parser already identifies incomplete readings.
 The new state and router modules retain readings and update the fault trackers.
-The dashboard remains future work.
 
 ## Gas warm-up and calibration
 
@@ -175,7 +231,7 @@ Current gas status becomes unavailable when communication times out or the lates
 
 The program will continue during gas warm-up.
 Temperature, humidity, and pressure still need their own validity and settling checks.
-The dashboard and environmental gas rules remain future work.
+Environmental gas rules remain future work. The dashboard shows raw gas resistance and Bosch status labels only.
 The new code does not calculate an air quality index from raw resistance.
 
 The user selected three-second BSEC low-power sampling.
@@ -189,6 +245,17 @@ The firmware compiled with the installed Bosch libraries and ESP32 board package
 Initial sensor conditioning remains separate from this software status handling.
 See the [BSEC integration design](docs/superpowers/specs/2026-11-08-bsec-status-design.md) for the protocol and manufacturer references.
 
+## Sharp dust sensor
+
+The experimental GP2Y1010AU0F path adds an independent dust voltage and status.
+Dust records count as communication. They do not replace BME680 readings.
+BME680 silence for the sensor-error timeout while dust continues raises the BME680 alert.
+Missing dust reports for the sensor-error timeout raise a dust alert.
+The dashboard shows the raw voltage and its 24-hour trend.
+A dust estimate appears only when the user supplies a measured baseline and sensitivity.
+See [wiring, plan, calibration, and verification](docs/SHARP_DUST_INTEGRATION.md).
+Its wiring table uses the superseded DOIT pins. The decided ESP32-S3 dust pins are GPIO4 (analog input) and GPIO5 (LED drive). Compilation and hardware timing remain pending.
+
 ## Settings and timing
 
 | Setting | Selected behavior | Current state |
@@ -196,30 +263,35 @@ See the [BSEC integration design](docs/superpowers/specs/2026-11-08-bsec-status-
 | Communication timeout | 120 seconds | Exists in `config/alerts.yaml`. |
 | Sensor error timeout | 120 seconds | Exists in `config/alerts.yaml`. |
 | BME680 sampling | Every three seconds | BSEC low-power mode compiled. Physical acquisition remains unverified. |
-| Camera processing | Every 60 seconds | Planned. |
+| Camera processing | Every 60 seconds | Implemented. Constant in code. Not checked with a camera. |
 | Fault checks | Every 5 seconds | Implemented in source. Listed virtual-serial checks completed on Linux. |
-| Dashboard refresh | Every 10 seconds | Planned. |
-| Patient profiles | Apply valid changes during monitoring | Planned. Format and validation remain undecided. |
-| Technical settings | Apply changes at program startup | The terminal monitor loads both technical YAML files once. |
+| Dashboard refresh | Every 10 seconds | Implemented. Constant in code. |
+| Dashboard staleness | 15 seconds | Implemented. Constant in code. |
+| BME680 reading gap | 6 seconds | Implemented. Constant in code. Restarts sustained timers. |
+| Patient profiles | Apply valid changes during monitoring | Implemented as a YAML file beside the database. Checked in tests and the simulator. |
+| Sustained duration | Set in the patient profile | Implemented. No value is selected for real use. |
+| Reading retention | 7 days | Decided, not implemented. No pruning exists. |
+| Technical settings | Apply changes at program startup | The monitor loads both technical YAML files once. Demo mode uses fixed values instead. |
 
 Laptop YAML does not currently control the ESP32 sampling interval.
 That configuration mechanism remains deferred.
-Patient profiles will contain individual limits, but the project does not yet define those limits.
+Patient profiles contain individual limits, but the project does not define those limits.
 
 A five-second fault check can detect a timeout almost five seconds after its duration expires.
 Processing delays can add more time.
 Dashboard refreshes and camera observations have their own intervals.
+Unknown occupancy can delay a patient-limit alert until the next camera observation.
 
 ## Main files
 
-The application now uses eleven Python files in the main folder.
+The application now uses seventeen Python files in the main folder.
 Related settings, measurements, and state updates share files.
 See the [Python file guide](reference_files/PYTHON_FILE_GUIDE.md) for every application, tool, and test file.
 The test filenames remain unchanged so their original test cases are easy to track.
 
 | File or folder | Purpose |
 |---|---|
-| `monitor.py` | Starts the local terminal monitor. |
+| `monitor.py` | Starts the monitor with a serial port or the simulator. |
 | `serial_transport.py` | Reads complete serial lines and retries a lost connection. |
 | `monitoring_loop.py` | Routes messages and checks faults during silence. |
 | `status_output.py` | Formats readings, ages, and fault facts as JSON. |
@@ -232,27 +304,60 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | `monitoring_state.py` | Stores the combined state and applies incoming messages to readings and fault trackers. |
 | `gas_readiness.py` | Checks reported Bosch warm-up and calibration status. |
 | `serial_parser.py` | Classifies a decoded serial line. |
+| `room_store.py` | Stores status, readings, events, and the patient profile file. |
+| `room_session.py` | Applies patient limits, sustained timing, and occupancy gating. |
+| `occupancy.py` | Checks the camera for a person every 60 seconds. |
+| `simulated_input.py` | Supplies simulated records for the demo. |
+| `dust.py` | Reads Sharp dust records and reports dust status. |
+| `dashboard.py`, `templates/`, `static/` | Serve the local dashboard. |
+| `firmware/sharp_dust.h` | Experimental dust acquisition. Not compiled. |
 | `firmware/room_environment_safety_control_bme680.ino` | Prepares BSEC low-power readings and gas status reports. |
 | `firmware/README.md` | Explains firmware configuration and remaining hardware checks. |
 | `tools/read_sensor.py` | Prints JSON records from a selected serial port. It does not connect the monitoring components. |
 | `tools/check_setup.py` | Reports environment metadata. It does not prove that the application works. |
-| `tests/` | Contains eleven Python test files. The user executed the suite on Linux. See the verification record. |
+| `tests/` | Contains fourteen Python test files. The suite reported 317 passed on 15 November. See the verification records. |
 | `reference_files/` | Contains the course reference, implementation plan, Linux handoff, and VIGIL comparison. |
 | `docs/superpowers/` | Contains detailed component designs and implementation checklists. |
+| `docs/SHARP_DUST_INTEGRATION.md` | Describes dust wiring, calibration, and checks. |
+
+## Known limitations
+
+- Every new part is verified only with tests and the simulator.
+- The occupancy detector can miss seated, lying, or occluded people. Unknown occupancy suppresses patient-limit alerts.
+- No database pruning exists. The event list shows the latest 50 events.
+- The six-second reading gap, 15-second staleness limit, 60-second camera interval, and 10-second refresh are constants in code, not YAML settings.
+- Alert text does not state the limit, value, or duration.
+- No independent notification path exists. Caregiver alerts stay inside the dashboard.
+- Dust output is a raw voltage, not PM2.5, an air-quality index, or a calibrated concentration.
+
+## Decisions recorded on 15 November 2026
+
+These decisions are not implemented.
+
+- The board is an ESP32-S3 with an N8R2 module. The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. The firmware still targets the classic ESP32 and must change.
+- Completion work builds on the current branch. The dust sensor stays.
+- The primary dashboard viewer is a caregiver at a desk screen.
+- The notification channel is a local alarm on the ESP32: a buzzer and an LED.
+- The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound.
+- A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
+- The buzzer is a 3-pin buzzer module driven from one GPIO.
+- Raw readings will be kept for 7 days. Event history is kept regardless.
+- The dashboard will be redesigned. The current page is a first draft.
 
 ## What remains
 
-1. Obtain the ESP32 and BME680 hardware.
-2. Check the breakout wiring and confirmed 3.3 V supply.
-3. Upload the compiled firmware and check real readings with the laptop monitor.
-4. Check physical USB reconnection, sensor failures, units, and actual BSEC status transitions.
-5. Select and check the camera method.
-6. Define patient profiles and environmental alert rules.
-7. Add storage, event history, and the dashboard.
-8. Add the agreed notification method.
-9. Demonstrate normal operation, faults, and recovery with actual hardware.
+1. Identify the ESP32-S3 board model and finish the toolchain setup.
+2. Adapt the chip check and pins for the ESP32-S3 and compile the firmware, including the dust code.
+3. Obtain the hardware. Check the wiring and the 3.3 V sensor supply.
+4. Upload the firmware and check real readings with the laptop monitor.
+5. Check physical USB reconnection, sensor failures, units, and actual BSEC status transitions.
+6. Check dust timing with an oscilloscope and measure a clean-air baseline.
+7. Check the camera and the occupancy detector with seated, lying, and occluded people.
+8. Implement the local buzzer and LED alarm and the "Silence alarm" control.
+9. Implement 7-day reading retention and redesign the dashboard.
+10. Demonstrate normal operation, faults, and recovery with actual hardware.
 
-The project does not yet contain a complete rule engine, occupancy detector, database, dashboard, or notification worker.
+The project contains a rule engine, occupancy detector, database, and dashboard in software. It does not contain a notification worker or local alarm.
 It remains an educational prototype.
 
 ## How this project differs from VIGIL
@@ -262,12 +367,12 @@ This project monitors room conditions and uses a camera for occupancy.
 
 | Topic | VIGIL reference | This project |
 |---|---|---|
-| Main input | Camera posture classifications | BME680 measurements and planned occupancy observations |
+| Main input | Camera posture classifications | BME680 and dust measurements, plus camera occupancy observations |
 | Uncertain input | Occlusion preserves the last committed state | Incomplete readings will preserve the last complete values and timestamp |
 | Configuration | Loads settings at startup | Technical settings load at startup. Patient profiles will support changes during monitoring. |
-| Gas warm-up | No equivalent feature | Python reads Bosch status. Firmware integration remains future work. |
-| Communication acknowledgment | Records acknowledgment in the database | Acknowledgment during silence starts another timeout period |
-| Monitoring and dashboard | Separate monitor and web components | Same separation planned |
+| Gas warm-up | No equivalent feature | Python reads Bosch status. Firmware source prepares the reports. Hardware operation is unverified. |
+| Communication acknowledgment | Records acknowledgment in the database | The dashboard writes an acknowledgment request to SQLite. The monitor applies it. Acknowledgment during silence would start another timeout period, but the dashboard does not offer it. |
+| Monitoring and dashboard | Separate monitor and web components | Same separation. The monitor writes SQLite and the dashboard reads it. |
 
 See the [VIGIL comparison](reference_files/VIGIL_COMPARISON.md) for source findings and differences.
 See the [implementation plan](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md) for detailed project status.
@@ -276,8 +381,3 @@ See the [implementation plan](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PR
 
 This guide uses short sentences and consistent terms inspired by Simplified Technical English.
 It does not claim certified ASD-STE100 compliance.
-
-
-## Sharp dust sensor extension
-
-The experimental GP2Y1010AU0F path adds independent dust voltage and status. See [wiring, plan, calibration and verification](docs/SHARP_DUST_INTEGRATION.md). Hardware timing and the full pinned-environment run remain pending.

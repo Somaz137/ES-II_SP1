@@ -6,14 +6,36 @@ Physical ESP32 and BME680 operation remains unverified.
 The successful Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408.
 This record supersedes earlier pending-test statements in historical preparation notes and design checklists.
 
+**Software checks recorded on 15 November 2026:** See the [15 November verification record](LINUX_VERIFICATION_2026-11-15.md). Branch `feature/sharp-dust-integration` reported 317 passed. The software demo ran. No hardware was used.
 
-**Updated:** 8 November 2026  
+**Board change, 15 November 2026:** The ESP32-S3 (N8R2 module) supersedes the DOIT ESP32 DevKit V1. See [Decisions - 15 November 2026](#decisions---15-november-2026). Decided, not implemented.
+
+
+**Updated:** 15 November 2026 (status table and decisions); earlier sections 8 November 2026  
 **Project:** Idea 8, Room Environment Safety Monitor.  
 **Platform:** Ubuntu 22.04 laptop + ESP32 over USB serial.
 
 **Current prototype scope:** one room, one BME680 and one camera. Earlier multi-room expansion and Jetson migration proposals are deferred.
 
 This file owns current progress and decisions. The [manual reference](ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md) owns course facts and source citations. The [README](../README.md) is the short entry point; [requirements.txt](../requirements.txt) owns executable Python pins.
+
+
+## Decisions - 15 November 2026
+
+The user made these decisions on 15 November 2026. They are decided, not implemented.
+
+- Completion work builds on branch `feature/sharp-dust-integration`. The Sharp dust sensor stays.
+- Board: ESP32-S3 with an N8R2 module (8 MB flash, 2 MB PSRAM). This supersedes the DOIT ESP32 DevKit V1. The firmware source is unchanged; `firmware/bsec_board_config.h` still requires the classic ESP32 chip and refuses to compile for an ESP32-S3. The exact development board model is not identified.
+- ESP32-S3 pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, buzzer module GPIO7. Not implemented and not checked against the physical board.
+- Toolchain: this machine is being set up to match the recorded versions, ESP32 core 3.3.12, BSEC2 1.10.2610 and BME68x 1.3.40408. That setup is in progress. Nothing has been compiled for the ESP32-S3. No board has been connected or flashed.
+- Dashboard primary viewer: a caregiver at a desk screen.
+- Notification channel: a local alarm on the ESP32, a buzzer and an LED. The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound.
+- A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
+- Buzzer part: a 3-pin buzzer module driven from one GPIO.
+- Raw readings will be kept for 7 days. Event history is kept regardless.
+- The dashboard will be redesigned. The current page is a first draft.
+
+The as-built software is described in the [room software design](../docs/superpowers/specs/2026-11-15-room-software-design.md).
 
 
 ## Moderate Python merge
@@ -31,6 +53,8 @@ See [PYTHON_FILE_GUIDE.md](PYTHON_FILE_GUIDE.md) for the current file list.
 
 
 ## DOIT board selection - 8 November 2026
+
+**Superseded on 15 November 2026** by the ESP32-S3 decision below. This section is kept as history. Its pins do not carry over to the ESP32-S3.
 
 The user selected DOIT ESP32 DevKit V1 with the classic ESP32 chip.
 The user confirmed a 3.3 V sensor supply.
@@ -71,17 +95,17 @@ PRs #1 through #10 are merged into main as of 8 November 2026. The user executed
 | Arduino IDE | Manual specifies 2.3.10; installation status unknown |
 | ESP32 and port | Actual board, board-core version, and working serial connection unconfirmed |
 | BME680 | Sketch compiled with the recorded Bosch libraries and ESP32 core. Wiring, upload, and physical readings remain unverified |
-| Webcam/occupancy | Not implemented; method and failure behavior undecided |
-| Rules and configuration form | Not implemented; patient limits and timing undefined |
-| SQLite and dashboard | Not implemented |
-| Notifications/local alarm | Not implemented; channel and optional wiring undefined |
+| Webcam/occupancy | `occupancy.py` on this branch: OpenCV default HOG people detector, one frame every 60 seconds, frames never saved. Detection gives occupied; no detection, failure or an observation older than 65 seconds gives unknown. No absent state. Not checked with a camera. The detector is trained on upright pedestrians and can miss seated, lying or occluded people |
+| Rules and configuration form | `room_session.py`, `room_store.py` and the dashboard form on this branch: low/high limits for temperature, humidity and pressure, one sustained duration, occupancy gating, six-second reading-gap reset, timer reset on profile change, live YAML profile reload. No patient limits are selected. Verified in tests and the simulator only |
+| SQLite and dashboard | `room_store.py` and `dashboard.py` on this branch: SQLite status, readings and events; local-only Flask dashboard with live values, 24-hour trend, alerts, latest 50 events, limits form and communication acknowledgment. No pruning. First draft; redesign decided. Checked with simulated data only |
+| Notifications/local alarm | Not implemented. Decided 15 November 2026: ESP32 buzzer and LED with a dashboard "Silence alarm" control. Caregiver alerts currently stay inside the dashboard |
 | Technical alert settings | Implemented as `config/alerts.yaml`, `settings.py`; startup-only loading connected by the new terminal monitor; listed virtual-serial checks completed |
 | Communication-fault tracker | `communication_fault.py` implements initialization, recognized-message receipt, periodic evaluation and acknowledgment; takes supplied times and is connected by terminal runtime source; UI remains absent |
 | Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; connected by terminal runtime source; UI remains absent |
 | Serial parser / validator | `serial_parser.py` and `measurements.py` classify decoded lines and check four finite numeric fields; no hardware, tracker mutation or committed-reading storage yet |
 | Bosch gas status | gas_readiness.py plus parser/router integration consumes status metadata. Legacy firmware reports no BSEC metadata, so gas remains unknown. No host warm-up timer. Firmware source now uses selected three-second LP. Installed dependency versions compiled successfully. The user confirmed a 3.3 V supply. Hardware operation remains unverified. |
 | Reading state and router | measurements.py, monitoring_state.py retain complete values/time, expose initial waiting and latest input states, and connect parser classifications to both fault trackers. A new terminal runtime now supplies serial I/O, monotonic timing and periodic checks in source; listed virtual-serial checks completed; physical checks remain pending. |
-| Automated tests | All eleven Python test files (configuration, communication, sensor, measurement validation, serial parser, retained readings, routing, gas status) written; Linux output supplied: 301 cases collected, all displayed cases completed, and no failures reported. Final summary and exit code were not supplied. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
+| Automated tests | 15 November 2026: fourteen Python test files on this branch, 317 passed with exit code 0 and no skips; `main` 301 passed. Firmware formatter built with no warnings and passed. Earlier record: all eleven Python test files (configuration, communication, sensor, measurement validation, serial parser, retained readings, routing, gas status) written; Linux output supplied: 301 cases collected, all displayed cases completed, and no failures reported. Final summary and exit code were not supplied. Limited validator smoke and Python 3.10 grammar checks passed on the available Windows host |
 
 ## Terminal serial runtime prepared
 
@@ -129,6 +153,8 @@ Fault scheduling is implemented in the terminal loop source. Camera and dashboar
 | Camera occupancy processing | 60 seconds | Latest learner choice; supersedes the earlier 5-second proposal; Python scheduling not implemented |
 | Fault evaluation | 5 seconds | Implemented in new terminal loop source; listed virtual-serial checks completed; physical checks pending |
 | Dashboard refresh | 10 seconds | Selected for future dashboard |
+
+**15 November 2026:** On branch `feature/sharp-dust-integration`, the 60-second camera interval and the 10-second dashboard refresh are implemented as constants in code, not YAML settings. So are the 6-second reading-gap limit and the 15-second dashboard staleness limit.
 
 The future Python-side technical settings should load at startup. The camera processing interval does not select a capture frame rate or buffering policy; those remain open. Occupancy may reflect the previous observation until the next one-minute processing check. When five-second fault evaluation is integrated, timeout detection occurs on the next check, potentially almost five seconds after the duration expires plus scheduling/processing delay.
 
