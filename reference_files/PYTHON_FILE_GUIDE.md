@@ -1,33 +1,35 @@
 # Python file guide
 
 This guide explains the current files in simple terms.
-The main folder contains seventeen application Python files.
-The project also contains two Python tools and fourteen Python test files.
-The total is thirty-three Python files.
+The main folder contains eighteen application Python files.
+The project also contains two Python tools and sixteen Python test files.
+The total is thirty-six Python files.
 The six newest application files and three newest test files are on branch `feature/sharp-dust-integration`.
 They are verified only with automated tests and the simulator.
+The local alarm added `alarm.py`, `tests/test_alarm.py` and `tests/test_alarm_link.py` on branch `feature/local-alarm`. It is also verified only with tests and the simulator.
 
 ## Application files
 
 | File | Purpose |
 |---|---|
-| `monitor.py` | Starts the program with a serial port or `--demo`. Reads command options, loads settings, and starts monitoring. Connects storage, patient rules, the camera, and dashboard acknowledgment requests. |
+| `monitor.py` | Starts the program with a serial port or `--demo`. Reads command options, loads settings, and starts monitoring. Connects storage, patient rules, the camera, dashboard acknowledgment and silence requests, and the local alarm. |
 | `settings.py` | Reads both YAML settings files. Rejects missing or invalid settings and unworkable timing combinations. Holds the timing defaults. Imports PyYAML only when it reads a file. |
-| `serial_transport.py` | Opens the selected serial port. Collects complete lines and retries the connection after errors. |
-| `serial_parser.py` | Reads each text message. Identifies a valid reading, sensor error, incomplete reading, or ignored message. |
+| `serial_transport.py` | Opens the selected serial port. Collects complete lines and retries the connection after errors. Sends alarm commands with a write limited to about 20 ms; a failed send is reported, never raised. |
+| `serial_parser.py` | Reads each text message. Identifies a valid reading, sensor error, incomplete reading, alarm reply, or ignored message. |
 | `measurements.py` | Checks the four measurement values. Retains the last complete reading, its receipt time, and the latest input condition. |
 | `communication_fault.py` | Tracks messages from the ESP32. Raises an alert when communication stops and handles acknowledgment. |
 | `sensor_fault.py` | Tracks repeated measurement errors. Raises a sensor alert after the waiting period and clears it after a valid reading. |
 | `gas_readiness.py` | Checks the Bosch status fields. Reports gas warm-up and calibration status. |
-| `monitoring_state.py` | Keeps the reading, fault states, and gas status together. Applies each message to the correct parts. |
+| `monitoring_state.py` | Keeps the reading, fault states, and gas status together. Applies each message to the correct parts. Keeps the board's latest alarm reply, which is not a reading and not communication contact. |
 | `monitoring_loop.py` | Repeats serial reads and fault checks. Continues checking faults when no messages arrive. |
 | `status_output.py` | Prepares the status report. Includes measurements, reading age, receipt time, connection state, alerts, gas status, and dust status. |
 | `dust.py` | Reads Sharp dust records. Reports dust voltage, age, and status. Calculates a dust estimate only with user calibration. |
 | `room_store.py` | Stores status, readings, and events in SQLite. Loads, checks, and saves the patient profile file. |
-| `room_session.py` | Applies patient limits and the sustained duration. Requires occupied status and a fresh reading. Logs alert and fault events. |
+| `room_session.py` | Applies patient limits and the sustained duration. Requires occupied status and a fresh reading. Logs alert and fault events. Runs the local alarm after the limit state is built and logs silence and alarm reachability events. |
+| `alarm.py` | Decides the local alarm level (0 off, 1 LED, 2 LED and buzzer), applies silence to the limit alerts shown, and tracks whether the board confirmed the level. Has no I/O. |
 | `occupancy.py` | Checks one camera frame every 60 seconds with OpenCV's default people detector. Saves no frames. |
-| `simulated_input.py` | Produces simulated BME680 and dust records for `--demo`. It is not a hardware driver. |
-| `dashboard.py` | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits and acknowledgment requests. |
+| `simulated_input.py` | Produces simulated BME680 and dust records for `--demo` and echoes alarm commands like the board would. Tests can make it silent or failing. It is not a hardware driver. |
+| `dashboard.py` | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits, acknowledgment requests, and alarm silence requests. Reports alarm health. |
 
 The state means the program's current stored information.
 The serial parser identifies the message type.
@@ -64,11 +66,13 @@ Closing the dashboard does not stop monitoring.
 | `tests/test_sensor_fault.py` | Checks sensor-error timing, pauses, recovery, and alert clearing. |
 | `tests/test_gas_readiness.py` | Checks valid, missing, and invalid Bosch status fields. |
 | `tests/test_message_router.py` | Checks that parsed messages update readings, faults, and gas status together. |
-| `tests/test_serial_transport.py` | Checks line assembly, invalid input, connection retry, and connection cleanup. |
+| `tests/test_serial_transport.py` | Checks line assembly, invalid input, connection retry, and connection cleanup. Checks that a send failure, a short write, or a full pseudo-terminal buffer returns promptly without an error. |
 | `tests/test_monitoring_loop.py` | Checks the running loop with controlled time and simulated serial input. |
 | `tests/test_dust.py` | Checks dust record classification, retention, missing dust and BME680 reports, recovery, and calibration. |
 | `tests/test_room_software.py` | Checks the simulated alert and recovery, occupancy and profile-change timer restarts, invalid-profile handling, and event history for contact loss and acknowledgment. Checks active and pending alert details, limit-monitoring reasons, alert-end reasons, the acknowledgment event, trends, event paging, retention, the camera interval, and the legacy profile check. |
-| `tests/test_dashboard.py` | Checks the dashboard page, profile saving and rejection, the cross-origin check, and acknowledgment requests. Checks the `/api/room` response, system health, event paging, form error messages, and incomplete acknowledgment status. |
+| `tests/test_dashboard.py` | Checks the dashboard page, profile saving and rejection, the cross-origin check, and acknowledgment requests. Checks the `/api/room` response, system health, event paging, form error messages, and incomplete acknowledgment status. Checks the silence request, its rejections, and the alarm health entry. |
+| `tests/test_alarm.py` | Checks alarm levels, command timing, confirmation, timeout, failed sends, reconnect, silence, and events. |
+| `tests/test_alarm_link.py` | Checks the simulated board and the alarm through the session and the monitor loop. Shows that failing, silent and raising transports change no reading, fault check, limit alert, event, or published status. |
 
 The test filenames describe the behavior under test.
 They do not require an application file with the same name.
@@ -76,13 +80,14 @@ The original test filenames and all 301 test cases remain unchanged.
 Only their module imports changed.
 On 15 November `tests/test_runtime_settings.py` gained 48 cases for the timing settings.
 The three newer test files contain 41 cases. The full suite contains 401 cases.
+On 15 November the local alarm added 60 cases: 12 in `tests/test_alarm.py`, 9 in `tests/test_alarm_link.py`, and 39 in existing files (runtime settings 9, serial parser 9, message router 3, serial transport 6, dashboard 12). The full suite contains 461 cases.
 
 ## Other important files
 
 | File or folder | Purpose |
 |---|---|
 | `config/alerts.yaml` | Stores communication and sensor-error waiting periods. |
-| `config/runtime.yaml` | Stores host polling, connection retry, and periodic fault-check intervals. |
+| `config/runtime.yaml` | Stores host polling, connection retry, and periodic fault-check intervals, and the optional timing keys, including the alarm confirmation timeout. |
 | `requirements.txt` | Lists the required Python packages and versions. |
 | `firmware/room_environment_safety_control_bme680.ino` | Runs on the ESP32. Reads the sensor and sends measurements or errors. |
 | `firmware/bsec_board_config.h` | Stores the selected board settings, pins, supply, and reporting intervals. |
@@ -92,6 +97,8 @@ The three newer test files contain 41 cases. The full suite contains 401 cases.
 | `static/room.js` | Refreshes the dashboard every 10 seconds and draws the 24-hour trend. |
 | `static/room.css` | Dashboard styles. |
 | `firmware/tests/test_bsec_serial_format.cpp` | Checks firmware message formatting on a computer without the sensor. |
+| `firmware/alarm_command.h` | Parses alarm commands with a fixed buffer, maps the level to LED and buzzer, and formats the reply. Not used by the sketch yet. |
+| `firmware/tests/test_alarm_command.cpp` | Checks `firmware/alarm_command.h` on a computer with g++. |
 | `tests/fixtures/bsec_reading.json` | Supplies an example reading for tests. It is not a physical measurement. |
 | `README.md` | Gives the project entry point and current status. |
 | `README_HUMAN.md` | Explains the system and its behavior for people. |
@@ -107,7 +114,7 @@ The program still starts with monitor.py and an explicitly selected serial port.
 The two settings files remain separate.
 No dependency versions, firmware files, or alert rules changed.
 The merge did not add camera processing, patient rules, a dashboard, or notifications.
-The later branch `feature/sharp-dust-integration` adds camera processing, patient rules, storage, and a dashboard. It adds no notifications.
+The later branch `feature/sharp-dust-integration` adds camera processing, patient rules, storage, and a dashboard. It adds no notifications. Branch `feature/local-alarm` adds the host side of a local LED and buzzer alarm.
 
 Run the existing suite from the project folder with the approved environment active:
 
@@ -116,5 +123,5 @@ python3 -m pytest
 ```
 
 The original eleven test files contain the original 301 cases and 48 new timing-settings cases.
-On 15 November 2026 the full suite reported 401 passed after the dashboard data contract. See the [15 November verification record](LINUX_VERIFICATION_2026-11-15.md).
+On 15 November 2026 the full suite reported 401 passed after the dashboard data contract, and 461 passed after the local alarm host side. See the [15 November verification record](LINUX_VERIFICATION_2026-11-15.md).
 Hardware operation requires separate physical checks.

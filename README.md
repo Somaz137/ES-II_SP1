@@ -8,7 +8,8 @@ The selected board changed to an ESP32-S3 on 15 November 2026. See [Selected har
 This branch adds the room software: SQLite storage, patient limits, sustained-breach alerts, camera occupancy, a local dashboard, and a Sharp dust sensor path.
 These parts exist in software. They are verified only by automated tests and the simulator.
 No physical ESP32, BME680, dust sensor, or camera check has taken place.
-The local alarm and dashboard redesign are decided but not implemented. 7-day reading retention is implemented.
+The host side of the local alarm and the testable firmware core of it are implemented and checked only with the simulator and a host C++ test. The sketch does not drive the LED or buzzer yet. The dashboard redesign is decided but not implemented. 7-day reading retention is implemented.
+The [local alarm design](docs/superpowers/specs/2026-11-15-local-alarm-design.md) defines the alarm levels, the serial command, silence and reachability.
 The [dashboard data contract](docs/superpowers/specs/2026-11-15-dashboard-data-contract-design.md) defines the dashboard response, alert text, events, timing settings, and retention.
 
 Read the [15 November verification record](reference_files/LINUX_VERIFICATION_2026-11-15.md) for the current software results.
@@ -16,9 +17,11 @@ Read the [8 November verification record](reference_files/LINUX_VERIFICATION_202
 
 | Check | Recorded result |
 |---|---|
-| Python test suite, this branch | 401 passed, exit code 0, no skips (15 November, after the dashboard data contract). |
+| Python test suite, this branch | 461 passed, exit code 0, no skips, also with `-W error` (15 November, after the local alarm). |
 | Python test suite, `main` | 301 passed, exit code 0 (15 November). |
 | Firmware message formatting | Built with no warnings and passed (15 November). |
+| Firmware alarm command core | `firmware/tests/test_alarm_command.cpp` built with `g++ -std=c++11 -Wall -Wextra -pedantic` with no warnings and passed (15 November). |
+| Local alarm demo | With `--demo`, the simulated board confirmed level 2 during the limit alert, level 1 after "Silence alarm", and level 0 after the alert ended (15 November). No LED or buzzer was driven. |
 | Software demo | Monitor and dashboard ran together. The simulated limit alert started and ended as expected (15 November). |
 | Complete firmware compilation | Arduino Verify succeeded for the DOIT board on 8 November, before `sharp_dust.h` existed. The current sketch has not been compiled. |
 | Missing communication | Monitor raised the communication alert and retained previous measurements (8 November). |
@@ -77,7 +80,7 @@ The test filenames remain unchanged so their original test cases are easy to tra
 
 | File | Purpose |
 |---|---|
-| monitor.py | Starts the monitor with an explicit serial port, or with `--demo` for simulated input. Connects storage, rules, camera, and acknowledgment requests. |
+| monitor.py | Starts the monitor with an explicit serial port, or with `--demo` for simulated input. Connects storage, rules, camera, acknowledgment and silence requests, and the local alarm. |
 | serial_transport.py | Reads complete lines, handles partial input, and retries the selected port after connection errors. |
 | monitoring_loop.py | Routes input and checks faults during silence. |
 | status_output.py | Reports retained readings, reading age, estimated receipt time, faults, gas status, and dust status. |
@@ -86,10 +89,11 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | occupancy.py | Checks the camera at the configured interval (60 seconds) with OpenCV's default people detector. Saves no frames. |
 | simulated_input.py | Supplies simulated BME680 and dust records for `--demo`. |
 | dust.py | Classifies Sharp dust records and reports dust status. Calculates a dust estimate only with user calibration. |
-| dashboard.py | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits and acknowledgment requests. |
+| dashboard.py | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits, acknowledgment requests and alarm silence requests. |
+| alarm.py | Decides the local alarm level (0 off, 1 LED, 2 LED and buzzer), silence, and whether the board confirmed the level. No I/O. |
 | templates/, static/ | Dashboard page, script, and style. |
 | `settings.py` | Loads both YAML settings files and checks their values. |
-| config/runtime.yaml | Stores host polling, retry, and fault-check intervals, the reading gap, dashboard staleness and refresh, camera interval, and reading retention. |
+| config/runtime.yaml | Stores host polling, retry, and fault-check intervals, the reading gap, dashboard staleness and refresh, camera interval, reading retention, and the alarm confirmation timeout. |
 | config/alerts.yaml | Stores the communication and sensor-error timeouts. |
 | communication_fault.py | Tracks missing communication and alert acknowledgment. |
 | sensor_fault.py | Tracks repeated sensor errors and valid-reading recovery. |
@@ -105,6 +109,8 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | tools/read_sensor.py | Prints records from a selected serial port as a separate diagnostic. |
 | tests/ | Contains the automated Python tests. |
 | firmware/tests/test_bsec_serial_format.cpp | Contains the separate portable C++ formatting test. |
+| firmware/alarm_command.h | Parses `ALARM,<0|1|2>` commands with a fixed buffer, maps the level to LED and buzzer, and formats the reply. Not used by the sketch yet. |
+| firmware/tests/test_alarm_command.cpp | Tests `alarm_command.h` with g++ on Linux. |
 
 ## Run the software demo
 
@@ -117,13 +123,25 @@ python dashboard.py --demo
 
 Open http://127.0.0.1:5000. The demo uses its own SQLite database. It simulates an occupied room, BME680 readings, and Sharp dust voltage at three-second intervals. On a fresh demo database the temperature crosses the example limit at 18 seconds, raises a caregiver alert at about 27 seconds, and returns to range at about 60 seconds. Patient limits are saved beside the database in a `.profile.yaml` file. Valid changes take effect on the next monitor update. If the file is invalid, the monitor keeps its last valid profile and shows a profile error. The example values apply only to the simulator.
 
-The dashboard refreshes every ten seconds. It shows the last monitor update, sensor readings, occupancy, 24-hour trends, caregiver alerts with limit, value, and duration, pending breaches, the latest 50 events, a patient limits form, and the communication acknowledgment control. Trend points are one-minute averages with minimum and maximum. Gas resistance is charted but has no limit. `GET /api/room` returns all of this in one response. The dashboard accepts requests only for `localhost` and `127.0.0.1` and rejects cross-site form posts. The dashboard can be closed while monitoring continues. Readings and event history stay in local SQLite files. The 24-hour chart is a display window. The monitor deletes readings older than 7 days. Events are kept.
+The dashboard refreshes every ten seconds. It shows the last monitor update, sensor readings, occupancy, 24-hour trends, caregiver alerts with limit, value, and duration, pending breaches, the latest 50 events, a patient limits form, the communication acknowledgment control, and the local alarm state with a "Silence alarm" button. Trend points are one-minute averages with minimum and maximum. Gas resistance is charted but has no limit. `GET /api/room` returns all of this in one response. The dashboard accepts requests only for `localhost` and `127.0.0.1` and rejects cross-site form posts. The dashboard can be closed while monitoring continues. Readings and event history stay in local SQLite files. The 24-hour chart is a display window. The monitor deletes readings older than 7 days. Events are kept.
 
 On the real serial path, supply the existing serial port argument and the `--camera` index option when physical testing resumes. Both programs accept `--db` and must use the same file. OpenCV checks at one-minute intervals. A detected person gives occupied status. Failed capture, no detection, and expired observations give unknown status. Frames are processed locally and never saved. Physical validation is still pending.
 
 ## Sharp dust sensor
 
 The experimental GP2Y1010AU0F path adds independent dust voltage and status. A stale dust report raises a dust fault. No dust limit exists. `--dust-baseline-mv` and `--dust-sensitivity` together enable a user-calibrated estimate. See [wiring, plan, calibration, and verification](docs/SHARP_DUST_INTEGRATION.md). Its wiring table uses the superseded DOIT pins. The decided ESP32-S3 dust pins are GPIO4 (analog input) and GPIO5 (LED drive). Firmware compilation and hardware timing remain pending.
+
+## Local alarm
+
+The host commands a local alarm on the ESP32 over the serial link: `ALARM,0` (off), `ALARM,1` (LED only) or `ALARM,2` (LED and buzzer). The board replies `{"type":"alarm","state":<n>}` after applying a command.
+
+- Level 2: at least one patient-limit alert that has not been silenced.
+- Level 1: a silenced limit alert, or an active communication, BME680 or dust alert. The buzzer stays off.
+- Level 0: otherwise. The board starts at level 0.
+
+The host sends on every change and again at each fault check, so a board reset is corrected. The dashboard shows the alarm as confirmed, pending, or unreachable (port not connected, write failed, or no reply within `alarm_confirm_timeout_s`, default 2 seconds). "Silence alarm" stops the buzzer for the limit alerts shown. The LED stays on. The monitor applies the silence at its next fault check and logs it. A new limit alert sounds again. Alarm failures never delay readings, fault checks or the status.
+
+Only the host side and the firmware command core in `firmware/alarm_command.h` exist. The sketch does not read the command or drive the LED and buzzer yet. In the demo the simulated board echoes each command. No LED or buzzer has been driven.
 
 ## Behavior to preserve
 
@@ -132,6 +150,7 @@ The initial communication wait begins when the monitor starts.
 Recognized readings and sensor errors both count as communication.
 Incomplete readings retain the previous complete measurements and their original receipt time.
 Ignored input does not reset communication timing.
+Alarm replies do not count as communication. The host asks for them, so they must not hide a stopped measurement stream.
 
 Missing communication raises a communication alert.
 Communication recovery clears the timeout but does not dismiss that alert.
@@ -172,7 +191,8 @@ Firmware configuration commands and calibration-state storage remain future work
 - The occupancy detector is OpenCV's default people detector, trained on upright pedestrians. It can miss seated, lying, or occluded people. Unknown occupancy suppresses patient-limit alerts. It has not been checked with a camera.
 - In serial mode without `--camera`, occupancy is always unknown, so patient-limit alerts never start.
 - Readings older than 7 days are deleted hourly. Events are never deleted. The event list shows the latest 50 events and pages to older ones.
-- No independent notification path exists. Caregiver alerts stay inside the dashboard.
+- The independent notification path is a local LED and buzzer on the ESP32, commanded by the host over USB. Only the host side and the firmware command core exist. The sketch does not read the command or drive GPIO6 and GPIO7 yet. Pins and buzzer polarity are not checked on hardware.
+- When the USB link is down the host cannot command the LED or buzzer. The dashboard then shows the alarm as unreachable. A firmware fallback is an open decision.
 - Dust output is a raw sensor voltage. It is not PM2.5, AQI, or a calibrated concentration.
 
 ## Decided, not implemented (15 November 2026)
@@ -180,7 +200,7 @@ Firmware configuration commands and calibration-state storage remain future work
 - Board: ESP32-S3 with an N8R2 module. Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. The firmware still targets the classic ESP32 and must change.
 - Completion work builds on this branch. The dust sensor stays.
 - Primary dashboard viewer: a caregiver at a desk screen.
-- Notification: a local ESP32 buzzer and LED. The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound.
+- Notification: a local ESP32 buzzer and LED. Host side implemented on 15 November; sketch wiring open. The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
 - Buzzer part: a 3-pin buzzer module driven from one GPIO (GPIO7 on the ESP32-S3). The alarm LED uses GPIO6.
 - Raw readings will be kept for 7 days. Event history is kept regardless. Implemented on 15 November.
@@ -192,7 +212,7 @@ Firmware configuration commands and calibration-state storage remain future work
 2. Obtain the hardware and complete physical BME680, dust, and USB checks.
 3. Check camera capture and the occupancy detector with seated, lying, and occluded people.
 4. Agree on real patient limits for any demonstration.
-5. Implement the local buzzer and LED alarm and the "Silence alarm" control.
+5. Wire the local alarm into the sketch for the ESP32-S3 (read `Serial` without blocking, drive GPIO6 and GPIO7, reply after each command and at start-up), then check pins and buzzer polarity on the real board. The host side and the "Silence alarm" control exist.
 6. Redesign the dashboard.
 7. Demonstrate the complete system with actual hardware.
 

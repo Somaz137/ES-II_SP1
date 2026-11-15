@@ -29,7 +29,7 @@ The user made these decisions on 15 November 2026. They are decided, not impleme
 - ESP32-S3 pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, buzzer module GPIO7. Not implemented and not checked against the physical board.
 - Toolchain: this machine is being set up to match the recorded versions, ESP32 core 3.3.12, BSEC2 1.10.2610 and BME68x 1.3.40408. That setup is in progress. Nothing has been compiled for the ESP32-S3. No board has been connected or flashed.
 - Dashboard primary viewer: a caregiver at a desk screen.
-- Notification channel: a local alarm on the ESP32, a buzzer and an LED. The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound.
+- Notification channel: a local alarm on the ESP32, a buzzer and an LED. The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound. Host side implemented on 15 November; sketch wiring open.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
 - Buzzer part: a 3-pin buzzer module driven from one GPIO.
 - Raw readings will be kept for 7 days. Event history is kept regardless.
@@ -98,7 +98,7 @@ PRs #1 through #10 are merged into main as of 8 November 2026. The user executed
 | Webcam/occupancy | `occupancy.py` on this branch: OpenCV default HOG people detector, one frame every 60 seconds, frames never saved. Detection gives occupied; no detection, failure or an observation older than 65 seconds gives unknown. No absent state. Not checked with a camera. The detector is trained on upright pedestrians and can miss seated, lying or occluded people |
 | Rules and configuration form | `room_session.py`, `room_store.py` and the dashboard form on this branch: low/high limits for temperature, humidity and pressure, one sustained duration, occupancy gating, six-second reading-gap reset, timer reset on profile change, live YAML profile reload. No patient limits are selected. Verified in tests and the simulator only |
 | SQLite and dashboard | `room_store.py` and `dashboard.py` on this branch: SQLite status, readings and events; local-only Flask dashboard with live values, 24-hour trend, alerts, latest 50 events, limits form and communication acknowledgment. No pruning. First draft; redesign decided. Checked with simulated data only |
-| Notifications/local alarm | Not implemented. Decided 15 November 2026: ESP32 buzzer and LED with a dashboard "Silence alarm" control. Caregiver alerts currently stay inside the dashboard |
+| Notifications/local alarm | Host side implemented on branch `feature/local-alarm` (15 November 2026), see the [local alarm design](../docs/superpowers/specs/2026-11-15-local-alarm-design.md): `alarm.py` level and reachability, `ALARM,<0|1|2>` serial command with confirmation, dashboard "Silence alarm" control, events and health entry. Firmware command core `firmware/alarm_command.h` tested with g++. Simulated only: the sketch does not read the command or drive GPIO6 and GPIO7. Pins and buzzer polarity not checked on hardware. No firmware fallback when the USB link is down (open decision) |
 | Technical alert settings | Implemented as `config/alerts.yaml`, `settings.py`; startup-only loading connected by the new terminal monitor; listed virtual-serial checks completed |
 | Communication-fault tracker | `communication_fault.py` implements initialization, recognized-message receipt, periodic evaluation and acknowledgment; takes supplied times and is connected by terminal runtime source; UI remains absent |
 | Sensor-fault tracker | `sensor_fault.py` accumulates error time, pauses on communication timeout, resumes the remaining wait and auto-clears on valid measurements; connected by terminal runtime source; UI remains absent |
@@ -213,6 +213,13 @@ Use the pinned Flask dependency and standard-library SQLite. Keep monitoring ind
 ### G — Add independent alerts
 
 Agree on the notification channel and offline behavior. Slow delivery must not stop sampling or local decisions. Optional ESP32 LED/buzzer wiring must avoid GPIO21/22. Do not enable tunnels or services by default.
+
+Status, 15 November 2026: the channel is a local LED and buzzer on the ESP32. The host side, the silence control and the firmware command core exist and are checked with tests and the simulator. Tests show that a failing or silent alarm link does not delay readings, fault checks, limit alerts or the status. Remaining:
+
+1. In the firmware port step, wire `firmware/alarm_command.h` into the sketch: read `Serial` without blocking, drive the alarm LED on GPIO6 and the buzzer module on GPIO7, start at level 0, reply after each applied command and once at start-up.
+2. On the real ESP32-S3: check the GPIO6 and GPIO7 wiring, the LED series resistor, the buzzer module polarity (active high or low) and whether it needs a tone or a steady level.
+3. Check that reading `Serial` does not delay BSEC sampling.
+4. Decide whether the board should light its LED by itself when it stops hearing from the host. Not implemented.
 
 ### H — Verify and demonstrate
 

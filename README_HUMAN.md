@@ -2,7 +2,7 @@
 
 **Linux checks recorded:** See the [8 November verification record](reference_files/LINUX_VERIFICATION_2026-11-08.md) and the [15 November verification record](reference_files/LINUX_VERIFICATION_2026-11-15.md).
 On 8 November the user completed Python test execution, firmware formatting, compilation, and the listed virtual-serial scenarios.
-On 15 November the full suite on this branch reported 317 passed, and the software demo ran without errors. After the dashboard data contract it reported 401 passed.
+On 15 November the full suite on this branch reported 317 passed, and the software demo ran without errors. After the dashboard data contract it reported 401 passed. After the local alarm host side it reported 461 passed, also with `-W error`.
 Physical ESP32, BME680, dust sensor, and camera operation remains unverified.
 The 8 November Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408 for the DOIT board. It did not include the dust code.
 These records supersede earlier pending-test statements in historical preparation notes and design checklists.
@@ -16,7 +16,7 @@ It contains no instructions for an AI assistant.
 
 **Current status:** The repository contains the monitor, SQLite storage, patient-limit rules, camera occupancy, a local dashboard, and a Sharp dust path.
 These parts exist in software. Automated tests and a simulator verify them. No part has run with physical hardware or a real camera.
-The local alarm and the dashboard redesign are decided but not implemented. 7-day reading retention is implemented.
+The host side of the local alarm and its firmware command core are implemented and checked only with the simulator and a host C++ test. The sketch does not drive the LED or buzzer yet. The dashboard redesign is decided but not implemented. 7-day reading retention is implemented.
 
 ## What the project does
 
@@ -55,8 +55,8 @@ The project does not yet define those control functions.
 | ESP32 | Reads the sensors and sends records through USB serial | Firmware exists for the classic ESP32. The selected ESP32-S3 needs firmware and pin changes. |
 | Laptop | Runs the monitor, rules, storage, and dashboard | Implemented in software. Verified by tests and the simulator. |
 | Camera | Supplies frames for occupancy detection | OpenCV people detector implemented. Not checked with a camera. |
-| Dashboard | Shows room status, trends, events, and limits, and accepts communication acknowledgments | Local first draft implemented. Checked only with simulated data. A redesign is decided. |
-| Local alarm | Buzzer and LED on the ESP32 | Decided, not implemented. Decided pins: alarm LED GPIO6, buzzer GPIO7. |
+| Dashboard | Shows room status, trends, events, limits and the local alarm state, and accepts communication acknowledgments and alarm silence requests | Local first draft implemented. Checked only with simulated data. A redesign is decided. |
+| Local alarm | Buzzer and LED on the ESP32 | Host side and firmware command core implemented, checked with the simulator and a host C++ test. The sketch does not drive the LED or buzzer yet. Planned pins: alarm LED GPIO6, buzzer GPIO7, not checked on the board. |
 
 The laptop performs the main project logic.
 The ESP32 provides the connection to the environmental sensor.
@@ -97,8 +97,8 @@ Output can also change when a new record arrives.
 Each published record also goes to SQLite for the dashboard.
 
 The monitor checks the camera when `--camera` is given. Without it, occupancy is unknown in serial mode, so patient-limit alerts never start.
-The monitor reads acknowledgment requests from the dashboard at each fault check.
-It has no independent notification path. Caregiver alerts stay inside the dashboard.
+The monitor reads acknowledgment and alarm silence requests from the dashboard at each fault check.
+The independent notification path is a local LED and buzzer on the ESP32. The monitor sends `ALARM,<level>` over USB serial and the board confirms it. Level 2 (LED and buzzer) means an unsilenced patient-limit alert. Level 1 (LED only) means a silenced limit alert or a communication, BME680 or dust alert. Level 0 is off. The dashboard shows whether the board confirmed the level. The sketch does not yet act on the command, so this path is simulated only.
 The listed automated, virtual-serial, and simulator checks completed on Linux. Real ESP32 and sensor operation remains pending.
 
 ## Software demo
@@ -271,8 +271,9 @@ Its wiring table uses the superseded DOIT pins. The decided ESP32-S3 dust pins a
 | BME680 reading gap | 6 seconds | `reading_gap_limit_s` in `config/runtime.yaml`. Restarts sustained timers. |
 | Patient profiles | Apply valid changes during monitoring | Implemented as a YAML file beside the database. Checked in tests and the simulator. |
 | Sustained duration | Set in the patient profile | Implemented. No value is selected for real use. |
+| Alarm confirmation | 2 seconds | `alarm_confirm_timeout_s` in `config/runtime.yaml`. Must exceed the poll interval. The alarm shows as unreachable after it. |
 | Reading retention | 7 days | `readings_retention_days` in `config/runtime.yaml`, at least 1. The monitor prunes hourly. Events are kept. |
-| Technical settings | Apply changes at program startup | The monitor loads both technical YAML files once. The five newer runtime keys are optional and default to the values above. Demo mode uses fixed values and the same defaults. The dashboard reads the effective values from the monitor status. |
+| Technical settings | Apply changes at program startup | The monitor loads both technical YAML files once. The six newer runtime keys are optional and default to the values above. Demo mode uses fixed values and the same defaults. The dashboard reads the effective values from the monitor status. |
 
 Laptop YAML does not currently control the ESP32 sampling interval.
 That configuration mechanism remains deferred.
@@ -285,7 +286,7 @@ Unknown occupancy can delay a patient-limit alert until the next camera observat
 
 ## Main files
 
-The application now uses seventeen Python files in the main folder.
+The application now uses eighteen Python files in the main folder.
 Related settings, measurements, and state updates share files.
 See the [Python file guide](reference_files/PYTHON_FILE_GUIDE.md) for every application, tool, and test file.
 The test filenames remain unchanged so their original test cases are easy to track.
@@ -306,17 +307,19 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | `gas_readiness.py` | Checks reported Bosch warm-up and calibration status. |
 | `serial_parser.py` | Classifies a decoded serial line. |
 | `room_store.py` | Stores status, readings, events, and the patient profile file. |
-| `room_session.py` | Applies patient limits, sustained timing, and occupancy gating. |
+| `room_session.py` | Applies patient limits, sustained timing, and occupancy gating. Runs the local alarm after the limit state. |
+| `alarm.py` | Decides the local alarm level, silence, and whether the board confirmed it. |
 | `occupancy.py` | Checks the camera for a person at the configured interval. |
 | `simulated_input.py` | Supplies simulated records for the demo. |
 | `dust.py` | Reads Sharp dust records and reports dust status. |
 | `dashboard.py`, `templates/`, `static/` | Serve the local dashboard. |
 | `firmware/sharp_dust.h` | Experimental dust acquisition. Not compiled. |
+| `firmware/alarm_command.h` | Alarm command parsing, LED and buzzer mapping, and reply formatting. Tested on Linux with g++. Not used by the sketch yet. |
 | `firmware/room_environment_safety_control_bme680.ino` | Prepares BSEC low-power readings and gas status reports. |
 | `firmware/README.md` | Explains firmware configuration and remaining hardware checks. |
 | `tools/read_sensor.py` | Prints JSON records from a selected serial port. It does not connect the monitoring components. |
 | `tools/check_setup.py` | Reports environment metadata. It does not prove that the application works. |
-| `tests/` | Contains fourteen Python test files. The suite reported 401 passed on 15 November, after the dashboard data contract. See the verification records. |
+| `tests/` | Contains sixteen Python test files. The suite reported 461 passed on 15 November, after the local alarm host side. See the verification records. |
 | `reference_files/` | Contains the course reference, implementation plan, Linux handoff, and VIGIL comparison. |
 | `docs/superpowers/` | Contains detailed component designs and implementation checklists. |
 | `docs/SHARP_DUST_INTEGRATION.md` | Describes dust wiring, calibration, and checks. |
@@ -327,17 +330,18 @@ The test filenames remain unchanged so their original test cases are easy to tra
 - The occupancy detector can miss seated, lying, or occluded people. Unknown occupancy suppresses patient-limit alerts.
 - Raw readings older than 7 days are deleted. Events are never deleted. The dashboard shows the latest 50 events and pages to older ones.
 - Timing settings apply at monitor startup. The dashboard uses the values in the latest monitor status.
-- No independent notification path exists. Caregiver alerts stay inside the dashboard.
+- The local alarm exists only on the host and in a tested firmware header. The sketch does not drive GPIO6 or GPIO7 yet. Pins and buzzer polarity are not checked on hardware.
+- When the USB link is down the host cannot command the LED or buzzer. The dashboard then shows the alarm as unreachable. A firmware fallback is an open decision.
 - Dust output is a raw voltage, not PM2.5, an air-quality index, or a calibrated concentration.
 
 ## Decisions recorded on 15 November 2026
 
-These decisions are not implemented.
+These decisions are not implemented, except where an entry says so.
 
 - The board is an ESP32-S3 with an N8R2 module. The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. The firmware still targets the classic ESP32 and must change.
 - Completion work builds on the current branch. The dust sensor stays.
 - The primary dashboard viewer is a caregiver at a desk screen.
-- The notification channel is a local alarm on the ESP32: a buzzer and an LED.
+- The notification channel is a local alarm on the ESP32: a buzzer and an LED. The host side and the "Silence alarm" control were implemented on 15 November. The sketch wiring is open.
 - The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
 - The buzzer is a 3-pin buzzer module driven from one GPIO.
@@ -353,11 +357,11 @@ These decisions are not implemented.
 5. Check physical USB reconnection, sensor failures, units, and actual BSEC status transitions.
 6. Check dust timing with an oscilloscope and measure a clean-air baseline.
 7. Check the camera and the occupancy detector with seated, lying, and occluded people.
-8. Implement the local buzzer and LED alarm and the "Silence alarm" control.
+8. Wire the local alarm into the ESP32-S3 sketch with `firmware/alarm_command.h`, then check the LED, the buzzer polarity, and GPIO6 and GPIO7 on the real board.
 9. Redesign the dashboard.
 10. Demonstrate normal operation, faults, and recovery with actual hardware.
 
-The project contains a rule engine, occupancy detector, database, and dashboard in software. It does not contain a notification worker or local alarm.
+The project contains a rule engine, occupancy detector, database, and dashboard in software. Its local alarm exists on the host side only. The firmware sketch does not drive the LED or buzzer yet.
 It remains an educational prototype.
 
 ## How this project differs from VIGIL

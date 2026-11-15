@@ -147,7 +147,7 @@ These values are not YAML settings:
 - The HOG detector can miss seated, lying or occluded people. Unknown occupancy suppresses patient-limit alerts.
 - No database pruning. The event query returns the latest 50.
 - Alert text does not state the limit, value or duration.
-- Caregiver alerts stay inside the dashboard. No independent notification path exists.
+- Caregiver alerts stay inside the dashboard. No independent notification path exists. Superseded on 15 November by the [local alarm](2026-11-15-local-alarm-design.md) host side; the sketch does not drive the LED or buzzer yet.
 - The legacy profile fallback is not validated.
 - The constants above are not configurable.
 - Dust voltage and gas resistance have no patient limits.

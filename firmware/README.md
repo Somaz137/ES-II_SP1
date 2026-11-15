@@ -90,6 +90,23 @@ Use the upstream distribution rather than copying those files into this reposito
 - bsec_serial_format.h converts scalar values and status fields to JSON.
 - sharp_dust.h runs experimental Sharp dust acquisition on GPIO25 and GPIO34 and reports raw voltage records.
 - tests/test_bsec_serial_format.cpp checks the formatter without a sensor or Arduino library.
+- alarm_command.h is the local alarm command core: it parses `ALARM,<0|1|2>` lines with a fixed 32-byte buffer, maps the level to LED and buzzer, and formats the reply `{"type":"alarm","state":<n>}`. Pure C++11, no Arduino dependency, no dynamic allocation. The sketch does not include it yet.
+- tests/test_alarm_command.cpp checks alarm_command.h without a board. Build and run on Linux: `g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_alarm_command.cpp -o /tmp/test_alarm_command && /tmp/test_alarm_command`. It passed with no warnings on 15 November 2026.
+
+## Local alarm: not wired yet
+
+The host software sends `ALARM,0` (LED and buzzer off), `ALARM,1` (LED only) or `ALARM,2` (LED and buzzer) and waits for the reply. See the [local alarm design](../docs/superpowers/specs/2026-11-15-local-alarm-design.md).
+The sketch, the pin definitions and the board check were not changed in that step. The ESP32-S3 toolchain could not compile the sketch yet.
+The firmware port step must:
+
+1. Include alarm_command.h.
+2. Read `Serial` without blocking in `loop()` and feed each byte to one `AlarmLineReader`.
+3. Drive the alarm LED on GPIO6 and the buzzer module on GPIO7 from `alarmOutputs`. Set both to level 0 in `setup()`.
+4. Check the buzzer module polarity (active high or active low) and whether it needs a tone or a steady level, and the LED wiring and series resistor, on the real board.
+5. Print the reply with `formatAlarmReply` after each applied command and once at start-up.
+6. Confirm that reading `Serial` does not delay BSEC sampling, and that GPIO6 and GPIO7 are free on the chosen ESP32-S3 board.
+
+Until then the LED and buzzer exist only in the simulator. When the USB link is down the host cannot command them. A board-side fallback is an open decision.
 
 ## Serial behavior
 
