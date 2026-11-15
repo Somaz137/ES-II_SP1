@@ -72,7 +72,9 @@ def system_health(status, now):
                            "alert_active": None},
                 "dust": {**unknown, "age_s": None, "alert_active": None},
                 "occupancy": {**unknown, "source": None, "observation_age_s": None},
-                "profile": {**unknown, "error": None}}
+                "profile": {**unknown, "error": None},
+                "alarm": {**unknown, "wanted_level": None, "confirmed_level": None, "silenced": None,
+                          "confirmation_age_s": None}}
     updated = status.get("updated_at")
     age = now - updated if isinstance(updated, (int, float)) else None
     current = age is not None and age <= effective_timing(status)["status_stale_after_s"]
@@ -86,6 +88,7 @@ def system_health(status, now):
     profile_state = ("error" if status.get("profile_error") else
                      "none" if monitoring.get("reason") == "no_profile" else "loaded")
     connected = status.get("transport_connected")
+    alarm = status.get("alarm") if isinstance(status.get("alarm"), dict) else {}
     return {
         "monitor": {"state": "current" if current else "overdue", "updated_at": updated, "age_s": age},
         "serial": component("unknown" if connected is None else "connected" if connected else "disconnected",
@@ -102,6 +105,9 @@ def system_health(status, now):
         "occupancy": component(status.get("occupancy", "unknown"), source=status.get("occupancy_source"),
                                observation_age_s=aged(status.get("occupancy_observation_age_s"), since)),
         "profile": component(profile_state, error=status.get("profile_error")),
+        "alarm": component(alarm.get("state", "unknown"), wanted_level=alarm.get("wanted_level"),
+                           confirmed_level=alarm.get("confirmed_level"), silenced=alarm.get("silenced"),
+                           confirmation_age_s=aged(alarm.get("confirmation_age_s"), since)),
     }
 
 
@@ -119,6 +125,16 @@ def create_app(path=DEFAULT_DB, *, demo=False):
                 abort(403)
             if origin and origin.rstrip("/") != request.host_url.rstrip("/"):
                 abort(403)
+
+    def current_status():
+        """The stored status if it is a mapping and not overdue, otherwise None."""
+        status = store.read("status")
+        status = status if isinstance(status, dict) else {}
+        updated = status.get("updated_at")
+        if (isinstance(updated, bool) or not isinstance(updated, (int, float))
+                or time.time() - updated > effective_timing(status)["status_stale_after_s"]):
+            return None
+        return status
 
     def load_profile():
         try:
@@ -187,6 +203,23 @@ def create_app(path=DEFAULT_DB, *, demo=False):
                 or time.time() - updated > effective_timing(status)["status_stale_after_s"]):
             abort(409)
         store.write("communication_ack", token)
+        return redirect(url_for("index"), code=303)
+
+    @app.post("/silence")
+    def silence():
+        """Ask the monitor to silence the buzzer for the limit alerts shown."""
+        status = current_status()
+        if status is None:
+            abort(409, description="No current monitor status. The alarm was not silenced.")
+        alarm = status.get("alarm")
+        if not isinstance(alarm, dict):
+            abort(409, description="No local alarm state is published. The alarm was not silenced.")
+        current = alarm.get("silence_token")
+        if not current:
+            abort(409, description="No unsilenced limit alert is active. Nothing was silenced.")
+        if request.form.get("token") != current:
+            abort(409, description="The active limit alerts changed. Reload the page and try again.")
+        store.write("alarm_silence", current)
         return redirect(url_for("index"), code=303)
 
     return app

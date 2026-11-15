@@ -37,7 +37,7 @@ from status_output import status_record
 
 API_KEYS = {"status", "profile", "profile_error", "trends", "events", "events_has_more",
             "health", "timing", "now"}
-HEALTH_KEYS = {"monitor", "serial", "bme680", "dust", "occupancy", "profile"}
+HEALTH_KEYS = {"monitor", "serial", "bme680", "dust", "occupancy", "profile", "alarm"}
 LINE = '{"type":"reading","temp_c":%s,"humidity_pct":48,"pressure_hpa":1008,"gas_ohms":12000}'
 
 
@@ -209,3 +209,75 @@ def test_page_lists_every_stored_series(app_store):
     page = client.get("/").get_data(as_text=True)
     for key in ("temp_c", "humidity_pct", "pressure_hpa", "gas_ohms", "dust_mv"):
         assert f'<option value="{key}"' in page and f'id="{key}"' in page
+
+
+ALARM = {"wanted_level": 2, "requested_level": 2, "confirmed_level": 2, "state": "confirmed",
+         "reason": None, "silenced": False, "silenced_at": None, "silence_token": "run-1",
+         "confirmation_age_s": 1.5, "send_error": None}
+
+
+def test_silence_request_is_stored_for_the_monitor(app_store):
+    client, store = app_store
+    store.write("status", {"updated_at": time.time(), "alarm": ALARM})
+    assert client.post("/silence", data={"token": "run-1"}).status_code == 303
+    assert store.read("alarm_silence") == "run-1"
+
+
+@pytest.mark.parametrize("status, token, reason", [
+    (None, "run-1", "No current monitor status"),
+    ({"updated_at": time.time() - 40, "alarm": ALARM}, "run-1", "No current monitor status"),
+    ({"updated_at": "now", "alarm": ALARM}, "run-1", "No current monitor status"),
+    ({"updated_at": time.time()}, "run-1", "No local alarm state"),
+    ({"updated_at": time.time(), "alarm": "on"}, "run-1", "No local alarm state"),
+    ({"updated_at": time.time(), "alarm": {**ALARM, "silence_token": None}}, "run-1",
+     "No unsilenced limit alert"),
+    ({"updated_at": time.time(), "alarm": ALARM}, "run-2", "changed"),
+    ({"updated_at": time.time(), "alarm": ALARM}, "", "changed"),
+])
+def test_silence_without_an_unsilenced_alert_is_rejected(app_store, status, token, reason):
+    client, store = app_store
+    if status is not None:
+        store.write("status", status)
+    response = client.post("/silence", data={"token": token})
+    assert response.status_code == 409
+    assert reason in response.get_data(as_text=True)
+    assert store.read("alarm_silence") is None
+
+
+def test_cross_site_silence_is_refused(app_store):
+    client, store = app_store
+    store.write("status", {"updated_at": time.time(), "alarm": ALARM})
+    assert client.post("/silence", data={"token": "run-1"},
+                       headers={"Origin": "http://example.com"}).status_code == 403
+    assert client.post("/silence", data={"token": "run-1"},
+                       headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
+    assert client.post("/silence", data={"token": "run-1"},
+                       headers={"Host": "example.com"}).status_code == 403
+    assert store.read("alarm_silence") is None
+
+
+def test_alarm_health_entry(app_store):
+    client, store = app_store
+    assert client.get("/api/room").json["health"]["alarm"] == {
+        "state": "unknown", "reported_state": None, "wanted_level": None, "confirmed_level": None,
+        "silenced": None, "confirmation_age_s": None}
+    store.write("status", {"updated_at": time.time() - 2, "alarm": ALARM})
+    data = client.get("/api/room").json
+    assert data["status"]["alarm"] == ALARM
+    health = data["health"]["alarm"]
+    assert health["state"] == "confirmed" and health["reported_state"] == "confirmed"
+    assert health["wanted_level"] == 2 and health["confirmed_level"] == 2 and health["silenced"] is False
+    assert health["confirmation_age_s"] == pytest.approx(3.5, abs=1)
+    store.write("status", {"updated_at": time.time() - 40, "alarm": ALARM})
+    health = client.get("/api/room").json["health"]["alarm"]
+    assert health["state"] == "unknown" and health["reported_state"] == "confirmed"
+    store.write("status", {"updated_at": time.time()})
+    assert client.get("/api/room").json["health"]["alarm"]["reported_state"] == "unknown"
+
+
+def test_page_has_hidden_silence_control(app_store):
+    client, _ = app_store
+    page = client.get("/").get_data(as_text=True)
+    assert 'id="alarm"' in page
+    assert '<form id="silence" action="/silence" method="post" hidden>' in page
+    assert 'name="token"' in page and "Silence alarm" in page

@@ -61,6 +61,20 @@ function drawTrend(buckets, now) {
     ", highest " + format(highest);
 }
 
+const alarmLevels = ["LED and buzzer off", "LED on, buzzer off", "LED and buzzer on"];
+const alarmReasons = {not_connected: "serial port not connected", send_failed: "command could not be sent",
+  no_confirmation: "the board did not confirm the command"};
+function alarmText(alarm) {
+  if (!alarm) return "Local alarm state unavailable";
+  let text = alarm.state === "unreachable" ?
+    "Local alarm unreachable · " + (alarmReasons[alarm.reason] || "unknown reason") +
+      " · the host cannot confirm the LED or buzzer · wanted: " + alarmLevels[alarm.wanted_level] :
+    alarm.state === "confirmed" ? "Local alarm · " + alarmLevels[alarm.confirmed_level] + " · confirmed by the board" :
+    "Local alarm · requesting " + alarmLevels[alarm.wanted_level] + " · waiting for the board";
+  if (alarm.silenced) text += " · buzzer silenced at " + new Date(alarm.silenced_at * 1000).toLocaleTimeString();
+  return text;
+}
+
 let refreshId = 0;
 let latest = null;
 let refreshSeconds = 10;
@@ -107,10 +121,15 @@ async function refresh() {
     list("alerts", alerts.length ? alerts : [current ? "No active alerts" : "Current alerts unavailable"]);
     byId("ack").hidden = !(current && status.communication_alert_id && !status.communication_timed_out);
     byId("ack").elements.alert_id.value = status?.communication_alert_id || "";
+    byId("alarm").textContent = alarmText(current ? status.alarm : null);
+    byId("silence").hidden = !(current && status.alarm?.silence_token);
+    byId("silence").elements.token.value = status?.alarm?.silence_token || "";
   } catch {
     if (id !== refreshId) return;
     byId("connection").textContent = "Dashboard data unavailable · retrying";
     byId("ack").hidden = true;
+    byId("silence").hidden = true;
+    byId("alarm").textContent = alarmText(null);
     list("alerts", ["Current alerts unavailable"]);
   }
 }

@@ -36,6 +36,10 @@
       <form id="ack" action="{{ url_for('acknowledge') }}" method="post" hidden>
         <input type="hidden" name="alert_id"><button>Acknowledge communication recovery</button>
       </form>
+      <p id="alarm">Local alarm state unavailable</p>
+      <form id="silence" action="{{ url_for('silence') }}" method="post" hidden>
+        <input type="hidden" name="token"><button>Silence alarm</button>
+      </form>
       <p id="limit-monitoring"></p>
       <h3>Recent events</h3><ul id="events" class="events"></ul>
     </section>
