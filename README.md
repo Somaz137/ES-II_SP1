@@ -132,3 +132,17 @@ The original course PDFs and VIGIL archive are not included in this repository.
 ## Sharp dust sensor extension
 
 The experimental GP2Y1010AU0F path adds independent dust voltage and status. See [wiring, plan, calibration and verification](docs/SHARP_DUST_INTEGRATION.md). Hardware timing and the full pinned-environment run remain pending.
+## Software demo
+
+Run both entry points in your existing project environment, in separate terminals:
+
+```text
+python monitor.py --demo
+python dashboard.py --demo
+```
+
+Open http://127.0.0.1:5000. The demo uses its own SQLite database. It simulates an occupied room, BME680 readings and Sharp dust voltage at three-second intervals. On a fresh demo database the temperature crosses the example limit at 18 seconds, raises a caregiver alert at about 27 seconds and returns to range at about 60 seconds. Saved limits take effect on the next monitor update. The example values apply only to the simulator.
+
+The dashboard refreshes every ten seconds and shows the last monitor update, sensor readings, 24-hour trends, caregiver alerts, recent events and a patient limits form. Trend points are one-minute averages. The dashboard can be closed while monitoring continues. Readings and event history stay in local SQLite files. The 24-hour chart is a display window. There is no automatic database pruning yet.
+
+On the real serial path, supply the existing serial port argument and use the camera index option when physical testing resumes. OpenCV checks at one-minute intervals. A detected person gives occupied status. Failed capture, no detection and expired observations give unknown status. The built-in detector can miss seated or occluded people, so physical validation is still pending. Frames are processed locally and never saved. Sustained patient limit alerts require occupied status and fresh readings. A gap of more than six seconds between BME680 readings restarts the sustained timer. Sensor and communication fault alerts remain visible regardless of occupancy. Caregiver alerts stay inside the app.

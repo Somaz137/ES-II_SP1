@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room Environment Safety Control</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='room.css') }}">
+<script defer src="{{ url_for('static', filename='room.js') }}"></script>
+<main>
+  <header><div><p class="eyebrow">Project 8 / Room 01</p><h1>Room Environment Safety Control</h1></div>
+  {% if demo %}<strong class="badge">Simulation</strong>{% endif %}</header>
+  <p id="connection" role="status">Waiting for monitor status</p>
+  <section class="panel" aria-labelledby="live-title">
+    <h2 id="live-title">Current conditions</h2>
+    <p id="occupancy">Occupancy unknown</p>
+    <dl class="measures">
+    {% for key, (name, unit) in charts.items() %}
+      <div><dt>{{ name }}</dt><dd id="{{ key }}">—</dd><span>{{ unit }}</span></div>
+    {% endfor %}
+      <div><dt>Gas resistance</dt><dd id="gas_ohms">—</dd><span>Ω</span></div>
+    </dl>
+    <p id="last-reading"></p>
+    <p id="readiness"></p>
+  </section>
+  <div class="columns">
+    <section class="panel" aria-labelledby="trend-title">
+      <h2 id="trend-title">24-hour trend</h2>
+      <label for="metric">Measurement</label>
+      <select id="metric">{% for key, (name, unit) in charts.items() %}
+        <option value="{{ key }}" data-unit="{{ unit }}">{{ name }}</option>{% endfor %}
+      </select>
+      <svg id="trend" viewBox="0 0 560 200" role="img" aria-label="24-hour trend"></svg>
+      <p id="trend-summary"></p>
+    </section>
+    <section class="panel" aria-labelledby="alerts-title">
+      <h2 id="alerts-title">Caregiver alerts</h2>
+      <ul id="alerts" aria-live="polite"></ul>
+      <form id="ack" action="{{ url_for('acknowledge') }}" method="post" hidden>
+        <input type="hidden" name="alert_id"><button>Acknowledge communication recovery</button>
+      </form>
+      <h3>Recent events</h3><ul id="events" class="events"></ul>
+    </section>
+  </div>
+  <section class="panel" aria-labelledby="profile-title">
+    <h2 id="profile-title">Patient limits</h2>
+    <p>Leave both limits blank to disable a measurement. A new profile restarts the sustained alert timers.</p>
+    {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+    <form method="post" action="{{ url_for('profile') }}">
+      {% for key, (name, unit) in metrics.items() %}
+      {% set pair = profile.limits.get(key, ['', '']) %}
+      <fieldset><legend>{{ name }} ({{ unit }})</legend>
+        <label>Lower limit <input type="number" step="any" name="{{ key }}_low" value="{{ pair[0] }}"></label>
+        <label>Upper limit <input type="number" step="any" name="{{ key }}_high" value="{{ pair[1] }}"></label>
+      </fieldset>
+      {% endfor %}
+      <label>Sustained duration (seconds) <input type="number" step="any" name="hold_s" required value="{{ profile.hold_s }}"></label>
+      <button>Save limits</button>
+    </form>
+  </section>
+</main>
+</html>

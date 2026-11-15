@@ -12,6 +12,7 @@ from monitoring_state import (
 def run_monitor(
     transport, alert_settings, runtime_settings, publish,
     *, clock=time.monotonic, sleep=time.sleep, should_stop=lambda: False,
+    apply_controls=lambda state, now: state,
 ):
     """Run until stopped; publish startup and changes without opening a camera.
 
@@ -36,11 +37,13 @@ def run_monitor(
             for line in lines:
                 state = process_serial_line(state, line, clock())
             now = clock()
-            if now >= next_check:
+            periodic = now >= next_check
+            if periodic:
                 state = evaluate_monitoring_faults(state, now)
+                state = apply_controls(state, now)
                 # Skip missed ticks instead of replaying old timestamps.
                 next_check += (int((now - next_check) // interval) + 1) * interval
-            if state != previous or old_transport != (transport.connected, transport.last_error):
+            if periodic or state != previous or old_transport != (transport.connected, transport.last_error):
                 publish(state, now, transport)
             sleep(runtime_settings["serial_poll_interval_s"])
         return state
