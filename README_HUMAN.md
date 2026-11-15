@@ -276,3 +276,8 @@ See the [implementation plan](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PR
 
 This guide uses short sentences and consistent terms inspired by Simplified Technical English.
 It does not claim certified ASD-STE100 compliance.
+
+
+## Sharp dust sensor extension
+
+The experimental GP2Y1010AU0F path adds independent dust voltage and status. See [wiring, plan, calibration and verification](docs/SHARP_DUST_INTEGRATION.md). Hardware timing and the full pinned-environment run remain pending.

@@ -127,3 +127,8 @@ Do not recreate the removed setup installer.
 Ask before adding unspecified dependencies, algorithms, services, or hardware procedures.
 Use the [VIGIL comparison](reference_files/VIGIL_COMPARISON.md) for verified reference behavior.
 The original course PDFs and VIGIL archive are not included in this repository.
+
+
+## Sharp dust sensor extension
+
+The experimental GP2Y1010AU0F path adds independent dust voltage and status. See [wiring, plan, calibration and verification](docs/SHARP_DUST_INTEGRATION.md). Hardware timing and the full pinned-environment run remain pending.

@@ -7,6 +7,7 @@
 #include "bsec_board_config.h"
 #include <bsec2.h>
 #include "bsec_serial_format.h"
+#include "sharp_dust.h"
 
 const uint8_t roomBsecConfig[] = {
 #if ROOM_BME680_SUPPLY_MV == 3300
@@ -105,6 +106,7 @@ void receiveRoomSample(const bme68xData data, const bsecOutputs outputs,
 
 void setup() {
   Serial.begin(ROOM_SERIAL_BAUD);
+  beginDust();
   Wire.begin(ROOM_I2C_SDA_PIN, ROOM_I2C_SCL_PIN);
   if (!roomSensor.begin(BME68X_I2C_ADDR_LOW, Wire) &&
       !roomSensor.begin(BME68X_I2C_ADDR_HIGH, Wire)) {
@@ -134,6 +136,8 @@ void setup() {
 }
 
 void loop() {
+  reportDust();
+  delay(1);
   if (!roomConfigured) {
     reportRoomError(roomStartupError);
     return;
