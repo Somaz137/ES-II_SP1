@@ -90,14 +90,16 @@ On 15 November the local alarm added 60 cases: 12 in `tests/test_alarm.py`, 9 in
 | `config/runtime.yaml` | Stores host polling, connection retry, and periodic fault-check intervals, and the optional timing keys, including the alarm confirmation timeout. |
 | `requirements.txt` | Lists the required Python packages and versions. |
 | `firmware/room_environment_safety_control_bme680.ino` | Runs on the ESP32. Reads the sensor and sends measurements or errors. |
-| `firmware/bsec_board_config.h` | Stores the selected board settings, pins, supply, and reporting intervals. |
+| `firmware/bsec_board_config.h` | Requires the ESP32-S3. Stores all board pins, the buzzer polarity, supply, and reporting intervals. |
 | `firmware/bsec_serial_format.h` | Converts firmware measurements and Bosch status into JSON text. |
-| `firmware/sharp_dust.h` | Experimental Sharp dust acquisition. Not compiled. Uses the earlier DOIT pins. |
+| `firmware/sharp_dust.h` | Experimental Sharp dust acquisition on GPIO4 and GPIO5. Compiled for the ESP32-S3. Not hardware-checked. |
+| `firmware/sharp_dust_limits.h` | Pure dust sample rule: timing window, ADC limit, divider. |
+| `firmware/tests/test_sharp_dust_limits.cpp` | Checks `firmware/sharp_dust_limits.h` on a computer with g++. |
 | `templates/room.html` | Dashboard page layout and patient limits form. |
 | `static/room.js` | Refreshes the dashboard every 10 seconds and draws the 24-hour trend. |
 | `static/room.css` | Dashboard styles. |
 | `firmware/tests/test_bsec_serial_format.cpp` | Checks firmware message formatting on a computer without the sensor. |
-| `firmware/alarm_command.h` | Parses alarm commands with a fixed buffer, maps the level to LED and buzzer, and formats the reply. Not used by the sketch yet. |
+| `firmware/alarm_command.h` | Parses alarm commands with a fixed buffer, reads `Serial` with a byte bound, maps the level to LED and buzzer, and formats the reply. Used by the sketch. |
 | `firmware/tests/test_alarm_command.cpp` | Checks `firmware/alarm_command.h` on a computer with g++. |
 | `tests/fixtures/bsec_reading.json` | Supplies an example reading for tests. It is not a physical measurement. |
 | `README.md` | Gives the project entry point and current status. |

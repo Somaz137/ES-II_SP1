@@ -7,7 +7,7 @@ The successful Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bo
 This record supersedes earlier pending-test statements in historical preparation notes and design checklists.
 
 
-Updated: 15 November 2026 (current state section only); other sections 8 November 2026.
+Updated: 15 November 2026 (current state section and the ESP32-S3 port note); other sections 8 November 2026.
 
 
 ## Current state - 15 November 2026
@@ -18,15 +18,16 @@ This section supersedes the branch, state and milestone statements below where t
 - The branch adds SQLite storage, patient limits with sustained-breach timing and occupancy gating, OpenCV HOG occupancy, a simulator (`monitor.py --demo`), a local Flask dashboard with dashboard acknowledgment, and the Sharp dust path. See the [room software design](../docs/superpowers/specs/2026-11-15-room-software-design.md).
 - Verified only in software: 317 passed on this branch; the demo ran. See the [15 November verification record](LINUX_VERIFICATION_2026-11-15.md). No firmware compilation with `sharp_dust.h`, flashing, hardware or camera check has taken place.
 - The `env/` environment was created with `python3 -m venv --without-pip env` because `python3.10-venv` is not installed. Use `env/bin/python`.
-- Board: ESP32-S3 with an N8R2 module supersedes the DOIT ESP32 DevKit V1. Decided pins: I2C SDA GPIO8, SCL GPIO9, dust analog GPIO4, dust LED drive GPIO5, alarm LED GPIO6, buzzer GPIO7. The firmware still requires the classic ESP32 and does not compile for the S3. The toolchain setup to ESP32 core 3.3.12, BSEC2 1.10.2610 and BME68x 1.3.40408 is in progress. No board is connected or flashed.
+- Board: ESP32-S3 with an N8R2 module supersedes the DOIT ESP32 DevKit V1. Pins: I2C SDA GPIO8, SCL GPIO9, dust analog GPIO4, dust LED drive GPIO5, alarm LED GPIO6, buzzer GPIO7.
+- ESP32-S3 port (branch `feature/esp32-s3-port`): the chip check requires the ESP32-S3. All pins and the buzzer polarity (`ROOM_BUZZER_ACTIVE_HIGH`, default true, unverified) are in `firmware/bsec_board_config.h`. The sketch drives the local alarm. The sketch compiles with arduino-cli 1.5.1, ESP32 core 3.3.12, BSEC2 1.10.2610 and BME68x 1.3.40408 for `CDCOnBoot=default` and `CDCOnBoot=cdc`. Compilation only. No board is connected or flashed. See the [port design](../docs/superpowers/specs/2026-11-15-esp32-s3-port-design.md) and the hardware checklist in [firmware/README.md](../firmware/README.md).
 - Other decisions, not implemented: local buzzer and LED alarm with a dashboard "Silence alarm" control, 7-day raw-reading retention, dashboard redesign for a caregiver at a desk screen. See the [implementation plan](ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md).
 
 Next milestones, in order:
 
-1. Finish the toolchain setup. Adapt the chip check and pins for the ESP32-S3. Compile the sketch, including `sharp_dust.h`.
+1. Identify the ESP32-S3 board. Run the hardware checklist in `firmware/README.md`. Choose the USB port and the CDC On Boot setting.
 2. Flash and check the BME680, the dust timing and USB behavior on the physical board.
 3. Check camera occupancy with seated, lying and occluded people.
-4. Implement the buzzer and LED alarm, the "Silence alarm" control and its event log.
+4. Check the buzzer and LED alarm on the board. The host side, the "Silence alarm" control and the sketch wiring exist.
 5. Implement 7-day reading retention. Redesign the dashboard. State limit, value and duration in alert text.
 6. Demonstrate the complete system with hardware.
 

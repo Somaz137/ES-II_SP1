@@ -144,12 +144,12 @@ The smallest change. The alerts panel shows the alarm in words, for example "Loc
 
 **The sketch is not changed in this step.** The `.ino` sketch, the pin definitions and the board check stay as they are. The firmware port step, once the ESP32-S3 toolchain can compile the sketch, must:
 
-1. Include `alarm_command.h`.
-2. Read `Serial` without blocking in `loop()` and feed each byte to one `AlarmLineReader`.
-3. Drive the alarm LED on GPIO6 and the buzzer module on GPIO7 from `alarmOutputs`, and set both to level 0 in `setup()`.
-4. Check the buzzer module polarity (active high or active low) and whether it needs a tone or a steady level, and the LED wiring and series resistor, on the real board.
-5. Print the reply line with `formatAlarmReply` after each applied command and once at start-up.
-6. Confirm that reading `Serial` does not delay BSEC sampling, and that GPIO6 and GPIO7 are free on the chosen ESP32-S3 board.
+1. Include `alarm_command.h`. **Done** in the [ESP32-S3 port](2026-11-15-esp32-s3-port-design.md).
+2. Read `Serial` without blocking in `loop()` and feed each byte to one `AlarmLineReader`. **Done**: `pumpAlarmInput`, at most 64 bytes per pass.
+3. Drive the alarm LED on GPIO6 and the buzzer module on GPIO7 from `alarmOutputs`, and set both to level 0 in `setup()`. **Done**, compiled only.
+4. Check the buzzer module polarity (active high or active low) and whether it needs a tone or a steady level, and the LED wiring and series resistor, on the real board. **Open.** Polarity is the constant `ROOM_BUZZER_ACTIVE_HIGH`, default true.
+5. Print the reply line with `formatAlarmReply` after each applied command and once at start-up. **Done**, compiled only.
+6. Confirm that reading `Serial` does not delay BSEC sampling, and that GPIO6 and GPIO7 are free on the chosen ESP32-S3 board. **Open on hardware.** The read is bounded by design. The board check is in the firmware README checklist.
 
 ## Open point
 
