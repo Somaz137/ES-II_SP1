@@ -23,6 +23,7 @@ function duration(seconds) {
   if (m) return m + " min";
   return s + " s";
 }
+const alertIn = seconds => seconds < 1 ? "alert due now" : "alert in " + duration(seconds);
 const ago = seconds => seconds == null ? "age unknown" : duration(seconds) + " ago";
 const clock = at => RoomChart.clock(at);
 function dayWords(at, now) {
@@ -101,7 +102,7 @@ function reading(v, key) {
   if (alert) { out.tone = "red"; out.chip = side(alert) + " · " + duration(alert.elapsed_s + since); }
   else if (wait) {
     out.tone = "amber";
-    out.chip = side(wait) + " · alert in " + duration(Math.max(0, wait.hold_s - wait.elapsed_s - since));
+    out.chip = side(wait) + " · " + alertIn(wait.hold_s - wait.elapsed_s - since);
   } else if (limit) {
     const off = RoomChart.outside(out.value, limit.low, limit.high);
     out.tone = off ? "amber" : "green";
@@ -196,8 +197,8 @@ function renderAttention(v, failed) {
 
   const waits = current ? status.limit_pending || [] : [];
   rows.pending.hidden = !waits.length;
-  const waitText = e => `${condition(e, e.metric)} for ${duration(e.elapsed_s + since)} · alert in ` +
-    `${duration(Math.max(0, e.hold_s - e.elapsed_s - since))} if it continues · now ${withUnit(e.value, e.metric)}`;
+  const waitText = e => `${condition(e, e.metric)} for ${duration(e.elapsed_s + since)} · ` +
+    `${alertIn(e.hold_s - e.elapsed_s - since)} if it continues · now ${withUnit(e.value, e.metric)}`;
   $("att-pending-text").textContent = waits.length ? waitText(waits[0]) + (compact && waits.length > 1 ? " · and " + (waits.length - 1) + " more" : "") : "";
   $("att-pending-sub").textContent = compact ? "" : waits.slice(1).map(waitText).join(" · ");
 
@@ -237,7 +238,11 @@ function placeRange(box, v, key, r, trend) {
     const pad = (hi - lo) * .2 || Math.abs(hi) * .02 || 1;
     lo -= pad; hi += pad;
   } else { lo = 0; hi = 1; }
-  if (r.value != null && r.fresh !== "word") { lo = Math.min(lo, r.value); hi = Math.max(hi, r.value); }
+  if (r.value != null && r.fresh !== "word" && (r.value < lo || r.value > hi)) {
+    // Keep the dot inside the bar with a little room at the end.
+    const span = Math.max(hi, r.value) - Math.min(lo, r.value);
+    lo = Math.min(lo, r.value - span * .05); hi = Math.max(hi, r.value + span * .05);
+  }
   const pct = value => (100 * (value - lo) / (hi - lo || 1)).toFixed(2) + "%";
   const track = document.createElement("div");
   track.className = "range-track";

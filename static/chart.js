@@ -143,7 +143,9 @@ const RoomChart = (() => {
       el("circle", {cx: x(last.at), cy: y(last.avg), r: 4, fill: lastRed ? COLOR.red : COLOR.line, stroke: "#fff", "stroke-width": 2}, svg);
     }
     if (opts.alertLabel) {
-      text(svg, m.l + plotW - 4, m.t + 14, opts.alertLabel, {"text-anchor": "end", style: `fill:${COLOR.red}`, "font-weight": 600});
+      // Small multiples label at the left so the label never covers the newest readings.
+      text(svg, small ? m.l + 6 : m.l + plotW - 12, m.t + 14, opts.alertLabel,
+        {"text-anchor": small ? "start" : "end", style: `fill:${COLOR.red}`, "font-weight": 600});
     } else if (opts.noteLabel) {
       text(svg, m.l + 4, m.t + 14, opts.noteLabel, {"text-anchor": "start"});
     }

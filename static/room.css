@@ -175,7 +175,7 @@ input { caret-color: var(--primary); }
 .mval[data-tone="red"], .mval[data-tone="red"] .mstate { color: var(--red); }
 .mval[data-tone="amber"] .mstate { color: var(--amber); }
 .mval[data-fresh="retained"] > span:first-child { color: var(--muted); }
-.chart-small { height: 96px; padding: 4px 0; }
+.chart-small { height: 96px; margin: 4px 0; }
 .axis { position: relative; height: 28px; margin-left: 192px; color: var(--muted); font-size: var(--s12); }
 .axis span { position: absolute; top: 8px; transform: translateX(-50%); white-space: nowrap; }
 .axis span[data-edge="start"] { transform: none; }
@@ -192,6 +192,7 @@ input { caret-color: var(--primary); }
 .events-table .day { font-size: var(--s12); font-weight: 600; color: var(--muted); padding-top: 16px; }
 .events-table .t { width: 72px; font-weight: 600; white-space: nowrap; }
 .events-table .ty { width: 150px; }
+.events-table .chip { white-space: nowrap; }
 .events-table .s { width: 240px; }
 .state-red { color: var(--red); font-weight: 600; }
 .state-amber { color: var(--amber); font-weight: 600; }
@@ -217,7 +218,7 @@ input { caret-color: var(--primary); }
 .lm { font-weight: 600; }
 .lcell-lab { display: none; }
 .lnow { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
-.lnow .chip { white-space: nowrap; }
+.lnow .chip { max-width: 100%; }
 .lnow-val { font-weight: 700; }
 .lerr { grid-column: 2 / -1; margin-top: -4px; }
 .lerr[hidden] { display: none; }
@@ -243,7 +244,9 @@ input { caret-color: var(--primary); }
 
 /* Tablet and narrow laptop: the sidebar becomes a top navigation bar. */
 @media (max-width: 1279px) {
-  .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .tiles > * { grid-column: span 2; }
+  .tiles > :nth-child(n+4) { grid-column: span 3; }
   .cols { grid-template-columns: minmax(0, 1fr); }
   .sys-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -281,6 +284,7 @@ input { caret-color: var(--primary); }
   .att-row form { order: 3; }
   .att-full .att-row[data-tone="red"] .att-main { font-size: var(--s16); }
   .tiles { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .tiles > *, .tiles > :nth-child(n+4) { grid-column: auto; }
   .tile { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px; padding: 16px; }
   .tile-name { grid-column: 1; }
   .tile .chip { grid-column: 2; grid-row: 1; justify-self: end; }
@@ -290,7 +294,7 @@ input { caret-color: var(--primary); }
   .range { margin: 4px 0 0; }
   .card { padding: 16px; }
   .card-table { padding: 4px 16px; }
-  .chart { height: 220px; }
+  .chart:not(.chart-small) { height: 220px; }
   .mrow { grid-template-columns: minmax(0, 1fr); }
   .mlabel { padding: 12px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
   .mval { margin: 0 0 0 auto; }
@@ -302,8 +306,12 @@ input { caret-color: var(--primary); }
   .lnow { grid-column: 1 / -1; }
   .lerr { grid-column: 1 / -1; }
   .sys-cols { grid-template-columns: minmax(0, 1fr); }
-  .events-table .ty, .events-table .s { width: auto; }
-  .events-table { min-width: 560px; }
+  .events-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .events-table tr { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 12px; padding: 12px 0; border-bottom: 1px solid var(--hair); }
+  .events-table tbody tr:last-child { border-bottom: 0; }
+  .events-table td, .events-table th.day { display: block; border: 0 !important; padding: 0; width: auto !important; }
+  .events-table td:nth-child(n+3) { grid-column: 1 / -1; }
+  .events-table th.day { grid-column: 1 / -1; padding-top: 8px; }
   .count { margin-left: 0; width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
