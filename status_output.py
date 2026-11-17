@@ -40,5 +40,8 @@ def status_record(state, now, transport, *, monotonic_origin, utc_origin):
         "sensor_alert_active": state.sensor.alert_active or bme_stale_with_dust,
         "diagnostic": state.reading.diagnostic,
         "gas_warmup": "unavailable" if bme_stale_with_dust else current_gas_warmup_status(state),
+        # Last reported Bosch index and accuracy: retained values for system details.
+        "bsec_iaq": state.gas.iaq,
+        "bsec_iaq_accuracy": state.gas.iaq_accuracy,
         "gas_calibration": gas_calibration_status(state.gas) if available and not bme_stale_with_dust else "unavailable",
     }

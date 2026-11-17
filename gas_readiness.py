@@ -1,6 +1,7 @@
 """Interpret reported BSEC status without timing or gas safety decisions."""
 
 from dataclasses import dataclass
+import math
 from typing import Literal
 
 
@@ -11,6 +12,8 @@ class GasReadiness:
     stabilization_status: int | None = None
     run_in_status: int | None = None
     iaq_accuracy: int | None = None
+    # Bosch's BSEC_OUTPUT_IAQ, 0 to 500. Optional: older records have no index.
+    iaq: float | int | None = None
 
 
 def parse_gas_readiness(data: object) -> GasReadiness:
@@ -26,7 +29,19 @@ def parse_gas_readiness(data: object) -> GasReadiness:
         stabilization_status=data["stabilization_status"],
         run_in_status=data["run_in_status"],
         iaq_accuracy=data["iaq_accuracy"],
+        iaq=parse_index(data.get("iaq")),
     )
+
+
+def parse_index(value: object) -> float | int | None:
+    """A finite number from 0 to 500, else None. An unusable index never rejects a reading."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        usable = math.isfinite(value) and 0 <= value <= 500
+    except OverflowError:
+        usable = False
+    return value if usable else None
 
 
 def gas_warmup_status(

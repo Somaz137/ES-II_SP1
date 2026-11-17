@@ -1,0 +1,36 @@
+# System setup for air quality and dust. Not patient limits; not a dashboard control.
+# Loaded and validated once at monitor start; restart to apply edits.
+# The project supplies no limit values. Set upper_limit and hold_s together, or leave
+# both null to switch that alert off. The hold time is expected to be long (for example
+# tens of minutes), much longer than the temperature hold.
+air_quality:
+  upper_limit: null
+  hold_s: null
+  # Display words for Bosch's index (0 to 500). These are the bands commonly cited from
+  # the BME680 datasheet. UNVERIFIED: no Bosch document on this machine lists them.
+  # Project display defaults, not health standards.
+  bands:
+    - {up_to: 50, word: excellent}
+    - {up_to: 100, word: good}
+    - {up_to: 150, word: lightly polluted}
+    - {up_to: 200, word: moderately polluted}
+    - {up_to: 250, word: heavily polluted}
+    - {up_to: 350, word: severely polluted}
+    - {word: extremely polluted}
+dust:
+  upper_limit: null
+  hold_s: null
+  # Sharp GP2Y1010AU0F typical sensitivity 0.5 V per 0.1 mg/m3, cited in
+  # docs/SHARP_DUST_INTEGRATION.md. Typical, unverified against the datasheet on this
+  # machine, and not a per-unit calibration.
+  sensitivity_mv_per_mg_m3: 5000
+  # Clean-air baseline: the lowest sensor voltage in this window (at most 7 days).
+  baseline_window_s: 86400
+  # Fresh, unbroken dust records needed before an estimate is shown.
+  baseline_min_s: 600
+  # Display words for the estimate in ug/m3. Project display defaults, not health
+  # standards and not official air-quality category names.
+  levels:
+    - {up_to: 50, word: low}
+    - {up_to: 150, word: raised}
+    - {word: high}
