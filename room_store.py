@@ -155,17 +155,17 @@ class RoomStore:
             db.executemany("INSERT INTO events(at, kind, message) VALUES (?, ?, ?)",
                            ((now, kind, message) for kind, message in events))
 
-    def trends(self, now):
-        """Return one-minute average, minimum and maximum buckets for the past 24 hours."""
+    def trends(self, now, span_s=86400, bucket_s=60):
+        """Return average, minimum and maximum buckets; by default one-minute buckets for 24 hours."""
         result = {metric: [] for metric in SERIES}
         with self.connection() as db:
             rows = db.execute("""
-                SELECT metric, CAST(at / 60 AS INTEGER) AS minute, AVG(value), MIN(value), MAX(value)
-                FROM readings WHERE at BETWEEN ? AND ? GROUP BY metric, minute ORDER BY minute
-            """, (now - 86400, now)).fetchall()
-        for metric, minute, average, low, high in rows:
+                SELECT metric, CAST(at / ? AS INTEGER) AS slot, AVG(value), MIN(value), MAX(value)
+                FROM readings WHERE at BETWEEN ? AND ? GROUP BY metric, slot ORDER BY slot
+            """, (bucket_s, now - span_s, now)).fetchall()
+        for metric, slot, average, low, high in rows:
             if metric in result:
-                result[metric].append({"at": minute * 60, "avg": average, "min": low, "max": high})
+                result[metric].append({"at": slot * bucket_s, "avg": average, "min": low, "max": high})
         return result
 
     def history(self, metric, now):

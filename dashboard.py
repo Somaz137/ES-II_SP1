@@ -11,6 +11,38 @@ from room_store import (DEFAULT_DB, DEMO_DB, EVENT_LIMIT_MAX, LABEL_MAX, METRICS
 from settings import RUNTIME_DEFAULTS
 
 
+# (endpoint, path, title) for each page, in navigation order.
+PAGES = [("index", "/", "Overview"), ("trends", "/trends", "Trends"), ("events", "/events", "Events"),
+         ("limits", "/limits", "Patient limits"), ("system", "/system", "System")]
+PAGE_PATHS = {path for _, path, _ in PAGES}
+# Trend window name: (span in seconds, bucket size in seconds). Readings are kept 7 days.
+TREND_WINDOWS = {"24h": (86400, 60), "7d": (7 * 86400, 600)}
+
+
+def duration_words(seconds):
+    """Whole minutes and hours in words, e.g. 300 -> '5 min', 90 -> '1 min 30 s'."""
+    total = max(0, round(seconds))
+    hours, minutes, secs = total // 3600, total % 3600 // 60, total % 60
+    parts = [f"{hours} h"] * bool(hours) + [f"{minutes} min"] * bool(minutes) + [f"{secs} s"] * bool(secs)
+    return " ".join(parts) or "0 s"
+
+
+def number_text(value):
+    return f"{value:g}"
+
+
+def in_force(profile):
+    """Rows for the 'In force now' list, worded; None when no profile is loaded."""
+    if profile is None:
+        return None
+    rows = [("Label", profile.get("label") or "not set")]
+    for metric, (name, unit) in METRICS.items():
+        pair = profile["limits"].get(metric)
+        rows.append((name, f"{number_text(pair[0])} to {number_text(pair[1])} {unit}" if pair else "no limit set"))
+    rows.append(("Sustained time", duration_words(profile["hold_s"])))
+    return rows
+
+
 def effective_timing(status):
     """Timing published by the monitor; the defaults apply before the first status."""
     published = status.get("timing") if isinstance(status, dict) else None
@@ -25,41 +57,53 @@ def parse_number(text):
     return value if math.isfinite(value) else None
 
 
+class ProfileFormError(ValueError):
+    """Invalid profile form; `fields` maps a field group to its messages."""
+
+    def __init__(self, fields):
+        self.fields = fields
+        super().__init__(" ".join(message for messages in fields.values() for message in messages))
+
+
 def parse_profile_form(form):
     """Convert form text to a profile; each error message names its field."""
-    errors, limits = [], {}
+    fields, limits = {}, {}
+
+    def error(field, message):
+        fields.setdefault(field, []).append(message)
+
     for metric, (name, _) in METRICS.items():
         low = form.get(metric + "_low", "").strip()
         high = form.get(metric + "_high", "").strip()
         if not low and not high:
             continue
         if not low or not high:
-            errors.append(f"Enter both {name} limits, or leave both blank.")
+            error(metric, f"Enter both {name} limits, or leave both blank.")
             continue
         pair = [parse_number(low), parse_number(high)]
         for value, label in zip(pair, ("lower", "upper")):
             if value is None:
-                errors.append(f"{name} {label} limit must be a finite number.")
+                error(metric, f"{name} {label} limit must be a finite number.")
         if None in pair:
             continue
         if pair[0] >= pair[1]:
-            errors.append(f"{name} lower limit must be less than the upper limit.")
+            error(metric, f"{name} lower limit must be less than the upper limit.")
         limits[metric] = pair
     hold_text = form.get("hold_s", "").strip()
     hold = parse_number(hold_text) if hold_text else None
     if not hold_text:
-        errors.append("Enter the sustained duration in seconds.")
+        error("hold_s", "Enter the sustained duration in seconds.")
     elif hold is None:
-        errors.append("The sustained duration must be a finite number of seconds.")
+        error("hold_s", "The sustained duration must be a finite number of seconds.")
     elif hold <= 0:
-        errors.append("The sustained duration must be positive.")
+        error("hold_s", "The sustained duration must be positive.")
     label = form.get("label", "").strip()
     try:
         validate_label(label)
-    except ValueError as error:
-        errors.append(str(error))
-    if errors:
-        raise ValueError(" ".join(errors))
+    except ValueError as problem:
+        error("label", str(problem))
+    if fields:
+        raise ProfileFormError(fields)
     profile = {"limits": limits, "hold_s": hold}
     if label:  # an empty label is not written to the file
         profile["label"] = label
@@ -151,21 +195,56 @@ def create_app(path=DEFAULT_DB, *, demo=False):
         except (OSError, ValueError) as error:
             return None, str(error)
 
-    def render_profile(error=None, form=None):
+    def render_page(endpoint, **context):
         profile, profile_error = load_profile()
-        error = error or profile_error
-        profile = profile or {"limits": {}, "hold_s": ""}
-        fields = {"hold_s": profile["hold_s"], "label": profile.get("label", "")}
+        return render_template(("overview" if endpoint == "index" else endpoint) + ".html", page=endpoint, pages=PAGES, demo=demo,
+                               charts=SERIES, metrics=METRICS, system_metrics=SYSTEM_METRICS,
+                               profile=profile, profile_error=profile_error,
+                               label=(profile or {}).get("label", ""), **context)
+
+    def last_profile_change():
+        """Time of the newest profile change among the recent events, if any."""
+        for event in store.events(None, EVENT_LIMIT_MAX):
+            if event["kind"] == "profile_changed":
+                return event["at"]
+        return None
+
+    def render_limits(error=None, form=None, field_errors=None):
+        profile, profile_error = load_profile()
+        saved = profile or {"limits": {}, "hold_s": ""}
+        fields = {"hold_s": saved["hold_s"], "label": saved.get("label", "")}
         for metric in METRICS:
-            fields[metric + "_low"], fields[metric + "_high"] = profile["limits"].get(metric, ["", ""])
+            fields[metric + "_low"], fields[metric + "_high"] = saved["limits"].get(metric, ["", ""])
         if form is not None:
             fields = {key: form.get(key, "") for key in fields}
-        return render_template("room.html", charts=SERIES, metrics=METRICS, demo=demo,
-                               fields=fields, error=error, label_max=LABEL_MAX)
+        return render_page("limits", fields=fields, error=error or profile_error,
+                           field_errors=field_errors or {}, label_max=LABEL_MAX,
+                           changed_at=last_profile_change(), in_force=in_force(profile))
 
     @app.get("/")
     def index():
-        return render_profile()
+        return render_page("index")
+
+    @app.get("/trends")
+    def trends():
+        return render_page("trends")
+
+    @app.get("/events")
+    def events():
+        return render_page("events")
+
+    @app.get("/limits")
+    def limits():
+        return render_limits()
+
+    @app.get("/system")
+    def system():
+        return render_page("system")
+
+    def back(default="index"):
+        """The page a form was posted from, if it is one of ours; otherwise `default`."""
+        target = request.form.get("next", "")
+        return target if target in PAGE_PATHS else url_for(default)
 
     def query_int(name, default):
         text = request.args.get(name)
@@ -191,9 +270,13 @@ def create_app(path=DEFAULT_DB, *, demo=False):
             block = status.get(key) if isinstance(status, dict) else None
             return key in SYSTEM_METRICS and isinstance(block, dict) and block.get("limit") is not None
 
+        span, bucket = TREND_WINDOWS.get(request.args.get("window", "24h"), (None, None))
+        if span is None:
+            abort(400)
+        series = store.trends(now, span_s=span, bucket_s=bucket)
         trends = {key: {"name": name, "unit": unit, "limit_checked": limit_checked(key),
-                        "estimate": key in SYSTEM_METRICS, "buckets": buckets}
-                  for (key, (name, unit)), buckets in zip(SERIES.items(), store.trends(now).values())}
+                        "estimate": key in SYSTEM_METRICS, "buckets": series[key]}
+                  for key, (name, unit) in SERIES.items()}
         if profile is not None:
             profile = {**profile, "label": profile.get("label", "")}
         return jsonify(status=status, profile=profile, profile_error=profile_error, trends=trends,
@@ -204,11 +287,13 @@ def create_app(path=DEFAULT_DB, *, demo=False):
     def profile():
         try:
             store.save_profile(parse_profile_form(request.form))
+        except ProfileFormError as error:
+            return render_limits(str(error), request.form, error.fields), 400
         except ValueError as error:
-            return render_profile(str(error), request.form), 400
+            return render_limits(str(error), request.form), 400
         except OSError:
-            return render_profile("Could not save the patient profile.", request.form), 503
-        return redirect(url_for("index"), code=303)
+            return render_limits("Could not save the patient profile.", request.form), 503
+        return redirect(url_for("limits"), code=303)
 
     @app.post("/acknowledge")
     def acknowledge():
@@ -222,7 +307,7 @@ def create_app(path=DEFAULT_DB, *, demo=False):
                 or time.time() - updated > effective_timing(status)["status_stale_after_s"]):
             abort(409)
         store.write("communication_ack", token)
-        return redirect(url_for("index"), code=303)
+        return redirect(back(), code=303)
 
     @app.post("/silence")
     def silence():
@@ -239,7 +324,7 @@ def create_app(path=DEFAULT_DB, *, demo=False):
         if request.form.get("token") != current:
             abort(409, description="The active limit alerts changed. Reload the page and try again.")
         store.write("alarm_silence", current)
-        return redirect(url_for("index"), code=303)
+        return redirect(back(), code=303)
 
     return app
 

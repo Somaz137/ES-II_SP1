@@ -209,10 +209,14 @@ def test_requests_for_other_hosts_and_cross_site_posts_are_refused(app_store):
 
 
 def test_page_lists_every_stored_series(app_store):
+    # The overview charts the five measurements; raw gas and dust signals moved to the System page.
     client, _ = app_store
     page = client.get("/").get_data(as_text=True)
-    for key in ("temp_c", "humidity_pct", "pressure_hpa", "gas_ohms", "dust_mv", "air_quality", "dust_ugm3"):
-        assert f'<option value="{key}"' in page and f'id="{key}"' in page
+    for key in ("temp_c", "humidity_pct", "pressure_hpa", "air_quality", "dust_ugm3"):
+        assert f'<button type="button" data-metric="{key}"' in page and f'id="{key}"' in page
+    page = client.get("/system").get_data(as_text=True)
+    for key in ("gas_ohms", "dust_mv"):
+        assert f'id="{key}"' in page
 
 
 ALARM = {"wanted_level": 2, "requested_level": 2, "confirmed_level": 2, "state": "confirmed",
@@ -293,9 +297,9 @@ def test_label_is_trimmed_saved_returned_and_escaped(app_store):
     assert client.post("/profile", data={**form, "label": "  Bed 3 "}).status_code == 303
     assert store.load_profile() == {"limits": {"temp_c": [20, 27]}, "hold_s": 9, "label": "Bed 3"}
     assert client.get("/api/room").json["profile"]["label"] == "Bed 3"
-    assert 'value="Bed 3"' in client.get("/").get_data(as_text=True)
+    assert 'value="Bed 3"' in client.get("/limits").get_data(as_text=True)
     assert client.post("/profile", data={**form, "label": "<b>Bed</b>"}).status_code == 303
-    page = client.get("/").get_data(as_text=True)
+    page = client.get("/limits").get_data(as_text=True)
     assert "<b>Bed</b>" not in page and "&lt;b&gt;Bed&lt;/b&gt;" in page
     assert client.post("/profile", data={**form, "label": ""}).status_code == 303
     assert store.load_profile() == {"limits": {"temp_c": [20, 27]}, "hold_s": 9}
@@ -338,7 +342,106 @@ def test_api_returns_the_new_measurement_blocks(app_store):
 
 def test_page_has_no_form_for_system_limits(app_store):
     client, _ = app_store
-    page = client.get("/").get_data(as_text=True)
+    page = client.get("/limits").get_data(as_text=True)
     assert 'name="label"' in page and 'maxlength="40"' in page
     assert 'name="air_quality' not in page and 'name="dust' not in page
     assert 'id="system-limits"' in page and 'id="profile-label"' in page
+
+
+PAGES = [("/", "Overview"), ("/trends", "Trends"), ("/events", "Events"),
+         ("/limits", "Patient limits"), ("/system", "System")]
+
+
+@pytest.mark.parametrize("path, title", PAGES)
+def test_each_page_renders_and_marks_its_nav_item(app_store, path, title):
+    client, _ = app_store
+    response = client.get(path)
+    assert response.status_code == 200
+    page = response.get_data(as_text=True)
+    assert page.count('aria-current="page"') == 1
+    assert f'href="{path}" aria-current="page"' in page
+    assert f"<h1>{title}</h1>" in page
+    for other, name in PAGES:
+        assert f'href="{other}"' in page and name in page
+
+
+@pytest.mark.parametrize("path, _", PAGES)
+def test_attention_panel_and_controls_are_on_every_page(app_store, path, _):
+    client, _store = app_store
+    page = client.get(path).get_data(as_text=True)
+    assert 'id="attention"' in page and 'aria-live="polite"' in page
+    assert '<form id="silence" action="/silence" method="post" hidden>' in page
+    assert '<form id="ack" action="/acknowledge" method="post" hidden>' in page
+    assert f'name="next" value="{path}"' in page
+    assert "Online access: off" in page and "Sign in" not in page
+
+
+def test_label_appears_in_the_top_bar(app_store):
+    client, store = app_store
+    assert "Room 01</span>" in client.get("/trends").get_data(as_text=True)
+    store.save_profile({"limits": {}, "hold_s": 9, "label": "Bed 3"})
+    assert "Room 01 · Bed 3</span>" in client.get("/trends").get_data(as_text=True)
+
+
+@pytest.mark.parametrize("next_path, expected", [
+    ("/trends", "/trends"), ("/events", "/events"), ("/system", "/system"),
+    ("https://example.com/", "/"), ("//example.com", "/"), ("/nowhere", "/"), (None, "/")])
+def test_silence_and_acknowledge_return_to_the_page_they_came_from(app_store, next_path, expected):
+    client, store = app_store
+    extra = {} if next_path is None else {"next": next_path}
+    store.write("status", {"updated_at": time.time(), "alarm": ALARM,
+                           "communication_alert_id": "token", "communication_timed_out": False})
+    response = client.post("/silence", data={"token": "run-1", **extra})
+    assert response.status_code == 303 and response.location.endswith(expected)
+    assert response.location.split("//")[-1].partition("/")[2] == expected.lstrip("/")
+    response = client.post("/acknowledge", data={"alert_id": "token", **extra})
+    assert response.status_code == 303 and response.location.split("//")[-1].partition("/")[2] == expected.lstrip("/")
+
+
+def test_profile_save_returns_to_the_limits_page(app_store):
+    client, _ = app_store
+    response = client.post("/profile", data={"temp_c_low": "20", "temp_c_high": "27", "hold_s": "9"})
+    assert response.status_code == 303 and response.location.endswith("/limits")
+
+
+def test_profile_errors_are_shown_beside_their_field(app_store):
+    client, _ = app_store
+    response = client.post("/profile", data={"temp_c_low": "27", "temp_c_high": "20", "hold_s": ""})
+    assert response.status_code == 400
+    page = response.get_data(as_text=True)
+    assert 'id="temp_c-error">Temperature lower limit must be less than the upper limit.</p>' in page
+    assert 'id="hold_s-error">Enter the sustained duration in seconds.</p>' in page
+    assert 'aria-describedby="temp_c-error"' in page and 'aria-invalid="true"' in page
+    assert 'href="/limits" aria-current="page"' in page
+
+
+def test_limits_page_shows_limits_in_force(app_store):
+    client, store = app_store
+    store.save_profile({"limits": {"temp_c": [20, 27]}, "hold_s": 300, "label": "Bed 3"})
+    page = client.get("/limits").get_data(as_text=True)
+    assert "20 to 27 °C" in page and "5 min" in page
+    assert page.count("no limit set") >= 2  # humidity and pressure
+
+
+def test_seven_day_trend_window(app_store):
+    client, store = app_store
+    now = time.time()
+    samples = [("temp_c", now - age, 20 + age / 86400) for age in (60, 2 * 86400, 6 * 86400, 8 * 86400)]
+    store.publish({}, samples, [], now)
+    day = client.get("/api/room").json["trends"]["temp_c"]["buckets"]
+    assert len(day) == 1
+    week = client.get("/api/room?window=7d").json["trends"]["temp_c"]["buckets"]
+    assert len(week) == 3
+    assert all(bucket["at"] % 600 == 0 for bucket in week)
+    assert client.get("/api/room?window=24h").json["trends"]["temp_c"]["buckets"] == day
+    for query in ("window=30d", "window=", "window=7"):
+        assert client.get("/api/room?" + query).status_code == 400, query
+
+
+def test_store_trends_default_matches_the_24_hour_window(tmp_path):
+    store = RoomStore(tmp_path / "room.sqlite3")
+    now = 10 * 86400
+    store.publish({}, [("temp_c", now - 30, 21.0), ("temp_c", now - 3 * 86400, 22.0)], [], now)
+    assert [bucket["avg"] for bucket in store.trends(now)["temp_c"]] == [21.0]
+    week = store.trends(now, span_s=7 * 86400, bucket_s=600)["temp_c"]
+    assert [bucket["avg"] for bucket in week] == [22.0, 21.0]

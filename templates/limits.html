@@ -1,0 +1,69 @@
+{% extends "room.html" %}
+{% block content %}
+<section class="card limits-form" aria-labelledby="limits-title">
+  <h2 id="limits-title">Limits for this patient</h2>
+  <p class="help">An alert is raised when a value stays outside its limits for the sustained time while the room is occupied. Leave both limits blank to switch a measurement off.</p>
+  {% if error %}<div class="form-error" role="alert"><p><strong>The limits were not saved.</strong> {{ error }}</p></div>{% endif %}
+  <form method="post" action="{{ url_for('profile') }}" id="profile-form" novalidate>
+    <input type="hidden" name="next" value="/limits">
+    <div class="field">
+      <label for="label">Label</label>
+      <input id="label" name="label" value="{{ fields.label }}" maxlength="{{ label_max }}" class="w-label" autocomplete="off"
+             aria-describedby="label-help{{ ' label-error' if field_errors.label }}"{% if field_errors.label %} aria-invalid="true"{% endif %}>
+      <p class="small" id="label-help">Shown beside the room, for example a bed number. Do not enter a patient name.</p>
+      {% if field_errors.label %}<p class="field-error" id="label-error">{{ field_errors.label | join(" ") }}</p>{% endif %}
+    </div>
+    <div class="lgrid" role="group" aria-label="Measurement limits">
+      <span class="lh" aria-hidden="true">Measurement</span><span class="lh" aria-hidden="true">Lower limit</span><span class="lh" aria-hidden="true">Upper limit</span><span class="lh" aria-hidden="true">Now</span>
+      {% for key, (name, unit) in metrics.items() %}
+      {% set bad = field_errors.get(key) %}
+      <span class="lm" id="{{ key }}-name">{{ name }} ({{ unit }})</span>
+      <label class="lcell"><span class="lcell-lab">Lower limit</span>
+        <input name="{{ key }}_low" value="{{ fields[key ~ '_low'] }}" type="text" inputmode="decimal" autocomplete="off"
+               aria-label="{{ name }} lower limit"{% if bad %} aria-invalid="true" aria-describedby="{{ key }}-error"{% endif %}></label>
+      <label class="lcell"><span class="lcell-lab">Upper limit</span>
+        <input name="{{ key }}_high" value="{{ fields[key ~ '_high'] }}" type="text" inputmode="decimal" autocomplete="off"
+               aria-label="{{ name }} upper limit"{% if bad %} aria-invalid="true" aria-describedby="{{ key }}-error"{% endif %}></label>
+      <span class="lnow"><span class="lnow-val" id="{{ key }}-now">—</span><span class="chip" data-tone="none" id="{{ key }}-now-chip">no reading</span></span>
+      <p class="field-error lerr" id="{{ key }}-error"{% if not bad %} hidden{% endif %}>{{ bad | join(" ") if bad }}</p>
+      {% endfor %}
+    </div>
+    <div class="field">
+      <label for="hold_s">Sustained time</label>
+      <div class="unit"><input id="hold_s" name="hold_s" value="{{ fields.hold_s }}" type="number" step="any" min="0" required
+             aria-describedby="hold_s-help{{ ' hold_s-error' if field_errors.hold_s }}"{% if field_errors.hold_s %} aria-invalid="true"{% endif %}><span>seconds</span></div>
+      <p class="small" id="hold_s-help">Saving new limits restarts the sustained-time count.</p>
+      <p class="field-error" id="hold_s-error"{% if not field_errors.hold_s %} hidden{% endif %}>{{ field_errors.hold_s | join(" ") if field_errors.hold_s }}</p>
+    </div>
+    <div class="acts">
+      <button class="btn btn-primary" data-control>Save limits</button>
+      <a class="btn btn-text" href="/limits">Discard changes</a>
+    </div>
+  </form>
+</section>
+<div class="stack">
+  <section class="card" aria-labelledby="force-title">
+    <h2 id="force-title">In force now</h2>
+    {% if in_force %}
+    <dl class="dl">
+      {% for name, value in in_force %}<dt>{{ name }}</dt><dd>{{ value }}</dd>{% endfor %}
+      <dt>Last changed</dt><dd>{% if changed_at %}<time data-at="{{ changed_at }}">recorded</time>{% else %}not in recent events{% endif %}</dd>
+    </dl>
+    {% elif profile_error %}
+    <p class="help">The saved limits could not be read: {{ profile_error }}</p>
+    {% else %}
+    <p class="help">No limits are saved for this patient. No limit alerts are raised until limits are saved.</p>
+    {% endif %}
+  </section>
+  <section class="card" aria-labelledby="system-title" id="system-limits">
+    <h2 id="system-title">Set in system setup</h2>
+    <p class="help">These limits are set in the system settings file, not here.</p>
+    {% for key, (name, unit) in system_metrics.items() %}
+    <div class="srow">
+      <p>{{ "Air quality (Bosch estimate)" if key == "air_quality" else "Dust (estimate)" }}<span class="s" id="{{ key }}-system-limit">not known until the monitor reports</span></p>
+      <span class="chip" data-tone="none">Read only</span>
+    </div>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

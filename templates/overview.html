@@ -1,0 +1,33 @@
+{% extends "room.html" %}
+{% block content %}
+<section class="tiles" aria-label="Current readings">
+  {% for key, (name, unit) in charts.items() if key not in ("gas_ohms", "dust_mv") %}
+  <article class="card tile" id="tile-{{ key }}" data-metric="{{ key }}">
+    <h2 class="tile-name">{{ "Dust" if key == "dust_ugm3" else "Air quality" if key == "air_quality" else name }}</h2>
+    <p class="tile-val" data-fresh="none"><span class="tile-num" id="{{ key }}">—</span><span class="tile-unit">{{ "index" if key == "air_quality" else unit }}</span></p>
+    <span class="chip" data-tone="none" id="{{ key }}-chip">No reading yet</span>
+    <div class="range" id="{{ key }}-range" aria-hidden="true"><div class="range-track"></div></div>
+    <p class="meta" id="{{ key }}-meta">Waiting for the first reading</p>
+  </article>
+  {% endfor %}
+</section>
+<section class="cols">
+  <article class="card chart-card">
+    <div class="card-head">
+      <h2 id="chart-title">Last 24 hours</h2>
+      <div class="seg" role="group" aria-label="Measurement shown in the chart">
+        {% for key, (name, unit) in charts.items() if key not in ("gas_ohms", "dust_mv") %}
+        <button type="button" data-metric="{{ key }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ "Dust" if key == "dust_ugm3" else "Air quality" if key == "air_quality" else name }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="chart" id="overview-chart" data-metric="temp_c"></div>
+    <p class="chart-note" id="overview-chart-summary">No readings yet.</p>
+  </article>
+  <article class="card events-card">
+    <div class="card-head"><h2>Recent events</h2></div>
+    <ul class="ev" id="recent-events"><li class="ev-empty">No events yet.</li></ul>
+    <a class="link" href="/events">View all events</a>
+  </article>
+</section>
+{% endblock %}

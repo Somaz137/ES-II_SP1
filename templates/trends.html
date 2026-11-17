@@ -1,0 +1,41 @@
+{% extends "room.html" %}
+{% block content %}
+<div class="bar">
+  <div class="seg" role="group" aria-label="Time range">
+    <button type="button" data-window="24h" aria-pressed="true">24 hours</button>
+    <button type="button" data-window="7d" aria-pressed="false">7 days</button>
+  </div>
+  <ul class="legend" aria-label="Chart key">
+    <li><svg width="16" height="10" aria-hidden="true"><line x1="0" y1="5" x2="16" y2="5" stroke="#12805c" stroke-width="2"/></svg>Recorded value</li>
+    <li><span class="sw sw-band" aria-hidden="true"></span>Configured range</li>
+    <li><svg width="16" height="10" aria-hidden="true"><line x1="0" y1="5" x2="16" y2="5" stroke="#c62828" stroke-width="2.5"/></svg>Outside the configured limit</li>
+    <li><span class="sw sw-gap" aria-hidden="true"></span>No data</li>
+  </ul>
+  <p class="note" id="trend-note">Minute averages</p>
+</div>
+<section class="card multiples" aria-labelledby="multiples-title">
+  <h2 class="visually-hidden" id="multiples-title">Charts, one per measurement, on one time axis</h2>
+  {% for key, (name, unit) in charts.items() if key not in ("gas_ohms", "dust_mv") %}
+  <div class="mrow" data-metric="{{ key }}">
+    <div class="mlabel">
+      <h3 class="mname">{{ "Dust" if key == "dust_ugm3" else "Air quality" if key == "air_quality" else name }}</h3>
+      <p class="munit" id="{{ key }}-trend-unit">{{ "index" if key == "air_quality" else unit }}</p>
+      <p class="mval"><span id="{{ key }}-trend-now">—</span> <span class="mstate" id="{{ key }}-trend-state"></span></p>
+    </div>
+    <div class="chart chart-small" id="{{ key }}-trend"></div>
+  </div>
+  {% endfor %}
+  <div class="axis" id="trend-axis" aria-hidden="true"></div>
+</section>
+<section class="card" aria-labelledby="summary-title">
+  <h2 id="summary-title">Summary, last 24 hours</h2>
+  <div class="table-scroll" tabindex="0" role="region" aria-labelledby="summary-title">
+  <table class="table">
+    <thead><tr><th scope="col">Measurement</th><th scope="col" class="num">Lowest</th><th scope="col" class="num">Average</th><th scope="col" class="num">Highest</th><th scope="col">Time outside limits</th></tr></thead>
+    <tbody id="summary-body">
+      <tr><td colspan="5" class="muted">Loading readings.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}
