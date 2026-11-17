@@ -1,0 +1,548 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-17T18:37:04+00:00",
+  "title": "Design System: Room Environment Safety Control",
+  "extensions": {
+    "colorMeta": {
+      "ward-green": {
+        "role": "primary",
+        "displayName": "Ward Green",
+        "canonical": "#0f4c3a",
+        "tonalRamp": [
+          "#040e0a",
+          "#142a22",
+          "#274a3d",
+          "#3c6d5b",
+          "#5d8e7c",
+          "#89afa0",
+          "#b6d0c5",
+          "#e3f3ec"
+        ]
+      },
+      "ward-green-ink": {
+        "role": "primary",
+        "displayName": "Ward Green Ink",
+        "canonical": "#e6f2ec",
+        "tonalRamp": [
+          "#0a0c0b",
+          "#222624",
+          "#3d4441",
+          "#5b645f",
+          "#7b8580",
+          "#9fa7a3",
+          "#c5cbc8",
+          "#ecefee"
+        ]
+      },
+      "ward-green-active": {
+        "role": "primary",
+        "displayName": "Ward Green Active",
+        "canonical": "#1c6b52",
+        "tonalRamp": [
+          "#030e09",
+          "#0d2b21",
+          "#1d4c3c",
+          "#2e6f58",
+          "#519179",
+          "#81b19e",
+          "#b1d2c4",
+          "#e0f4eb"
+        ]
+      },
+      "primary": {
+        "role": "primary",
+        "displayName": "Console Green",
+        "canonical": "#12805c",
+        "tonalRamp": [
+          "#010f08",
+          "#042d1e",
+          "#0c4e37",
+          "#167253",
+          "#419573",
+          "#78b499",
+          "#abd4c0",
+          "#ddf5e9"
+        ]
+      },
+      "primary-deep": {
+        "role": "primary",
+        "displayName": "Console Green Deep",
+        "canonical": "#0e6b4c",
+        "tonalRamp": [
+          "#020f08",
+          "#0b2c1f",
+          "#194d38",
+          "#287054",
+          "#4c9375",
+          "#7eb29a",
+          "#afd3c1",
+          "#e0f4ea"
+        ]
+      },
+      "mint": {
+        "role": "primary",
+        "displayName": "Mint Band",
+        "canonical": "#d8f0e6",
+        "tonalRamp": [
+          "#080c0b",
+          "#1f2724",
+          "#384640",
+          "#53665f",
+          "#748880",
+          "#9aa9a3",
+          "#c1ccc7",
+          "#eaf0ed"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Ward Ground",
+        "canonical": "#f1f5f3",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242525",
+          "#404341",
+          "#5f6260",
+          "#808382",
+          "#a3a6a4",
+          "#c8c9c9",
+          "#eeefee"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Card White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Card Border",
+        "canonical": "#dfe7e3",
+        "tonalRamp": [
+          "#0a0b0b",
+          "#232624",
+          "#3f4341",
+          "#5d6360",
+          "#7e8481",
+          "#a1a6a4",
+          "#c6cac8",
+          "#edefee"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#e3ebe7",
+        "tonalRamp": [
+          "#0a0b0b",
+          "#232624",
+          "#3f4341",
+          "#5d6360",
+          "#7e8481",
+          "#a1a6a4",
+          "#c6cac8",
+          "#edefee"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#10231c",
+        "tonalRamp": [
+          "#080c0a",
+          "#1f2724",
+          "#384640",
+          "#53665e",
+          "#74887f",
+          "#9aa9a3",
+          "#c1ccc7",
+          "#eaf0ed"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "canonical": "#51635b",
+        "tonalRamp": [
+          "#090c0a",
+          "#202724",
+          "#394540",
+          "#55665e",
+          "#76877f",
+          "#9ba9a3",
+          "#c2ccc7",
+          "#eaf0ed"
+        ]
+      },
+      "input-stroke": {
+        "role": "neutral",
+        "displayName": "Input Stroke",
+        "canonical": "#7a8f85",
+        "tonalRamp": [
+          "#080c0a",
+          "#1f2723",
+          "#39453f",
+          "#54665e",
+          "#75877f",
+          "#9aa9a2",
+          "#c1ccc7",
+          "#eaf0ed"
+        ]
+      },
+      "neutral-tint": {
+        "role": "neutral",
+        "displayName": "Neutral Tint",
+        "canonical": "#eef2f0",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242525",
+          "#404341",
+          "#5f6260",
+          "#808382",
+          "#a3a6a4",
+          "#c8c9c9",
+          "#eeefee"
+        ]
+      },
+      "gap-fill": {
+        "role": "neutral",
+        "displayName": "Gap Fill",
+        "canonical": "#eceff0",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242526",
+          "#414243",
+          "#5f6262",
+          "#808383",
+          "#a3a5a6",
+          "#c8c9ca",
+          "#eeeeef"
+        ]
+      },
+      "alert-red": {
+        "role": "tertiary",
+        "displayName": "Alert Red",
+        "canonical": "#c62828",
+        "tonalRamp": [
+          "#1d0202",
+          "#480a09",
+          "#791716",
+          "#ae2524",
+          "#d64e46",
+          "#ed8277",
+          "#feb3aa",
+          "#ffe9e6"
+        ]
+      },
+      "alert-red-deep": {
+        "role": "tertiary",
+        "displayName": "Alert Red Deep",
+        "canonical": "#a91f1f",
+        "tonalRamp": [
+          "#1b0302",
+          "#450f0d",
+          "#751f1c",
+          "#a8312c",
+          "#cf564d",
+          "#e6867c",
+          "#fbb5ac",
+          "#ffe9e6"
+        ]
+      },
+      "alert-red-tint": {
+        "role": "tertiary",
+        "displayName": "Red Tint",
+        "canonical": "#fdecea",
+        "tonalRamp": [
+          "#0d0a0a",
+          "#292323",
+          "#493f3e",
+          "#6b5e5c",
+          "#8c7f7d",
+          "#ada2a1",
+          "#cfc7c6",
+          "#f2eded"
+        ]
+      },
+      "alert-red-line": {
+        "role": "tertiary",
+        "displayName": "Red Line",
+        "canonical": "#f3c9c4",
+        "tonalRamp": [
+          "#100908",
+          "#30211f",
+          "#523b39",
+          "#785854",
+          "#9b7975",
+          "#b99e9a",
+          "#d8c4c1",
+          "#f7ebea"
+        ]
+      },
+      "hold-amber": {
+        "role": "secondary",
+        "displayName": "Hold Amber",
+        "canonical": "#a15c07",
+        "tonalRamp": [
+          "#150800",
+          "#391d01",
+          "#613604",
+          "#8d5009",
+          "#b17235",
+          "#cc996d",
+          "#e6c1a2",
+          "#ffead9"
+        ]
+      },
+      "hold-amber-tint": {
+        "role": "secondary",
+        "displayName": "Amber Tint",
+        "canonical": "#fff4d6",
+        "tonalRamp": [
+          "#0d0b06",
+          "#29251a",
+          "#484231",
+          "#696149",
+          "#8b826a",
+          "#aca592",
+          "#cec9bb",
+          "#f1eee6"
+        ]
+      },
+      "hold-amber-hover": {
+        "role": "secondary",
+        "displayName": "Amber Hover Tint",
+        "canonical": "#fdeab4",
+        "tonalRamp": [
+          "#0e0b03",
+          "#2b2410",
+          "#4c4122",
+          "#6f6034",
+          "#918155",
+          "#b1a482",
+          "#d1c9b0",
+          "#f3eee0"
+        ]
+      },
+      "hold-amber-line": {
+        "role": "secondary",
+        "displayName": "Amber Line",
+        "canonical": "#f0dca6",
+        "tonalRamp": [
+          "#0e0b03",
+          "#2c2410",
+          "#4c4121",
+          "#706033",
+          "#918154",
+          "#b1a481",
+          "#d2c9b0",
+          "#f4eee0"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Reading number in an Overview tile."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page title; red attention line on Overview; section headings; Trends current values."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All running text and table cells; help text capped at 70ch."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Chips, table headers, legend, chart notes, ages, axis ticks."
+      }
+    },
+    "shadows": [
+      {
+        "name": "input-focus-ring",
+        "value": "0 0 0 3px var(--mint), 0 0 0 4px var(--primary)",
+        "purpose": "Text inputs on focus only; never elevation."
+      },
+      {
+        "name": "hollow-dot",
+        "value": "inset 0 0 0 1.5px var(--muted)",
+        "purpose": "Outlined status dot for unknown or not-fresh state."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-step",
+        "value": "none",
+        "purpose": "State changes in one step (dot position, chip, row tint); no transitions or animation; reduced motion strips any that appear."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "640px"
+      },
+      {
+        "name": "tablet",
+        "value": "1023px"
+      },
+      {
+        "name": "narrow-laptop",
+        "value": "1279px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one committing action on a form, such as Save on Patient limits.",
+      "html": "<button class=\"ds-btn-primary\">Save limits</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;min-height:40px;padding:0 16px;border-radius:8px;border:1px solid var(--primary,#12805c);background:var(--primary,#12805c);color:#fff;font:600 14px/1.45 ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;cursor:pointer} .ds-btn-primary:hover{background:#0e6b4c} .ds-btn-primary:focus-visible{outline:3px solid var(--primary,#12805c);outline-offset:2px}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary actions such as Sign in or Show older events.",
+      "html": "<button class=\"ds-btn-outline\">Show older events</button>",
+      "css": ".ds-btn-outline{display:inline-flex;align-items:center;min-height:36px;padding:0 16px;border-radius:8px;border:1px solid var(--primary,#12805c);background:#fff;color:var(--primary,#12805c);font:600 14px/1.45 ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;cursor:pointer} .ds-btn-outline:hover{background:var(--mint,#d8f0e6)} .ds-btn-outline:focus-visible{outline:3px solid var(--primary,#12805c);outline-offset:2px}"
+    },
+    {
+      "name": "Status Chips",
+      "kind": "chip",
+      "refersTo": "chip-within",
+      "description": "State in words on a tinted pill: within, holding, alerting, neutral.",
+      "html": "<span class=\"ds-chip ds-chip-green\">Within limits</span> <span class=\"ds-chip ds-chip-amber\">Outside limits</span> <span class=\"ds-chip ds-chip-red\">Above limit · 12&nbsp;s</span> <span class=\"ds-chip\">No limit set</span>",
+      "css": ".ds-chip{display:inline-block;border-radius:999px;padding:4px 10px;font:600 12px/1.3 ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;white-space:nowrap;background:#eef2f0;color:#51635b} .ds-chip-green{background:#d8f0e6;color:#0f4c3a} .ds-chip-amber{background:#fff4d6;color:#a15c07} .ds-chip-red{background:#fdecea;color:#c62828}"
+    },
+    {
+      "name": "Number Input",
+      "kind": "input",
+      "refersTo": "input-number",
+      "description": "Limit fields on Patient limits, with unit beside.",
+      "html": "<label class=\"ds-field\"><span>High limit</span><span class=\"ds-unit\"><input class=\"ds-input\" value=\"27.0\" inputmode=\"decimal\">°C</span></label>",
+      "css": ".ds-field{display:block;font:14px/1.45 ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;color:#10231c} .ds-field>span:first-child{display:block;font-weight:600;margin-bottom:6px} .ds-unit{display:flex;align-items:center;gap:10px} .ds-input{width:140px;height:40px;border:1px solid #7a8f85;border-radius:8px;padding:0 12px;font:16px ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;font-variant-numeric:tabular-nums;background:#fff;color:#10231c} .ds-input:hover{border-color:#51635b} .ds-input:focus-visible{outline:none;border-color:#12805c;box-shadow:0 0 0 3px #d8f0e6,0 0 0 4px #12805c}"
+    },
+    {
+      "name": "Sidebar Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Ward-green sidebar with pill items; current page filled.",
+      "html": "<nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\"><svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\"/></svg>Overview</a><a href=\"#\"><svg viewBox=\"0 0 24 24\"><path d=\"M3 17l5-5 4 4 8-8\"/></svg>Trends</a></nav>",
+      "css": ".ds-nav{display:flex;flex-direction:column;gap:4px;width:232px;padding:20px 16px;background:#0f4c3a;font:14px/1.45 ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif} .ds-nav a{display:flex;align-items:center;gap:12px;min-height:40px;padding:0 12px;border-radius:999px;color:#e6f2ec;text-decoration:none} .ds-nav a:hover{background:rgb(255 255 255/.08)} .ds-nav a[aria-current=page]{background:#1c6b52;color:#fff;font-weight:600} .ds-nav a:focus-visible{outline:3px solid #e6f2ec;outline-offset:2px} .ds-nav svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "White bordered container on the pale ground; no shadow.",
+      "html": "<article class=\"ds-card\"><h2>Recent events</h2><p>23:30 · Limit alert · Temperature above the configured limit of 27&nbsp;°C.</p></article>",
+      "css": ".ds-card{background:#fff;border:1px solid #dfe7e3;border-radius:14px;padding:20px 24px;font:14px/1.45 ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;color:#10231c} .ds-card h2{font-size:16px;font-weight:700;margin:0 0 16px} .ds-card p{margin:0;color:#51635b}"
+    },
+    {
+      "name": "Attention Row",
+      "kind": "custom",
+      "refersTo": "button-alert",
+      "description": "Signature: the state row above all content, tinted by urgency, with its one action.",
+      "html": "<div class=\"ds-att\"><div class=\"ds-att-row ds-red\"><span class=\"ds-att-lab\">Alerting</span><div class=\"ds-att-txt\"><p class=\"ds-att-main\">Temperature above 27.0&nbsp;°C for 12&nbsp;s · now 31.0&nbsp;°C</p><p class=\"ds-att-sub\">Outside the configured limit since 23:29</p></div><button class=\"ds-btn-red\">Silence alarm</button></div><div class=\"ds-att-row ds-amber\"><span class=\"ds-att-lab\">To acknowledge</span><div class=\"ds-att-txt\"><p class=\"ds-att-main\">Humidity alert ended at 22:10</p></div><button class=\"ds-btn-amber\">Acknowledge</button></div></div>",
+      "css": ".ds-att{border:1px solid #dfe7e3;border-radius:14px;overflow:hidden;background:#fff;font:14px/1.45 ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;color:#10231c} .ds-att-row{display:flex;align-items:center;gap:8px 24px;padding:16px 24px} .ds-att-row+.ds-att-row{border-top:1px solid #e3ebe7} .ds-red{background:#fdecea} .ds-amber{background:#fff4d6} .ds-att-lab{width:140px;flex:none;font-weight:700} .ds-red .ds-att-lab{color:#c62828} .ds-amber .ds-att-lab{color:#a15c07} .ds-att-txt{flex:1;min-width:0} .ds-att-txt p{margin:0} .ds-att-main{font-weight:600} .ds-red .ds-att-main{font-size:20px;font-weight:700} .ds-att-sub{margin-top:4px!important;color:#6b2a24} .ds-btn-red,.ds-btn-amber{min-height:36px;padding:0 16px;border-radius:8px;font:600 14px ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;cursor:pointer} .ds-btn-red{background:#c62828;border:1px solid #c62828;color:#fff} .ds-btn-red:hover{background:#a91f1f} .ds-btn-amber{background:#fff;border:1px solid #a15c07;color:#a15c07} .ds-btn-amber:hover{background:#fdeab4} .ds-btn-red:focus-visible,.ds-btn-amber:focus-visible{outline:3px solid #12805c;outline-offset:2px}"
+    },
+    {
+      "name": "Measurement Tile",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Signature: value, state chip in words, banded range bar with the reading dot, age.",
+      "html": "<article class=\"ds-tile\"><h2>Temperature</h2><p class=\"ds-val\"><span>31.0</span><span>°C</span></p><span class=\"ds-chip-r\">Above limit · 12&nbsp;s</span><div class=\"ds-range\"><div class=\"ds-track\"><div class=\"ds-band\" style=\"left:20%;width:50%\"></div></div><span class=\"ds-dot\" style=\"left:96%\"></span></div><p class=\"ds-meta\">Range 20.0–27.0&nbsp;°C · 2&nbsp;s ago</p></article>",
+      "css": ".ds-tile{width:200px;background:#fff;border:1px solid #dfe7e3;border-radius:14px;padding:20px;font:14px/1.45 ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;color:#10231c;font-variant-numeric:tabular-nums} .ds-tile h2{font-size:14px;font-weight:600;margin:0} .ds-val{display:flex;align-items:baseline;gap:4px;margin:8px 0;line-height:1.1} .ds-val span:first-child{font-size:40px;font-weight:700} .ds-val span:last-child{font-size:16px;font-weight:600;color:#51635b} .ds-chip-r{display:inline-block;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600;line-height:1.3;background:#fdecea;color:#c62828;white-space:nowrap} .ds-range{position:relative;height:22px;margin:12px 0 4px} .ds-track{position:absolute;left:0;right:0;top:6px;height:8px;border-radius:4px;background:#fff4d6;overflow:hidden} .ds-band{position:absolute;top:0;bottom:0;background:#d8f0e6} .ds-dot{position:absolute;top:2px;width:16px;height:16px;margin-left:-8px;border-radius:50%;border:2px solid #fff;background:#c62828;box-sizing:border-box} .ds-meta{margin:0;font-size:12px;color:#51635b}"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "custom",
+      "refersTo": "segmented-option-active",
+      "description": "Chooses the chart's measurement or time window.",
+      "html": "<div class=\"ds-seg\" role=\"group\"><button aria-pressed=\"true\">24 hours</button><button aria-pressed=\"false\">7 days</button></div>",
+      "css": ".ds-seg{display:inline-flex;gap:2px;padding:2px;border:1px solid #dfe7e3;border-radius:8px;background:#fff} .ds-seg button{border:0;background:none;min-height:32px;padding:6px 12px;border-radius:6px;color:#51635b;font:12px ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;cursor:pointer} .ds-seg button:hover{color:#10231c;background:#f1f5f3} .ds-seg button[aria-pressed=true]{background:#12805c;color:#fff;font-weight:600} .ds-seg button:focus-visible{outline:3px solid #12805c;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Green Ward Console",
+    "overview": "**Creative North Star: \"The Green Ward Console\"**\n\nA calm clinical admin console. A deep ward-green sidebar frames white, softly rounded cards on a pale green-grey ground, and whatever needs the caregiver sits in a coloured attention row above everything else on every page. The page is read in one pass from the top: the attention row says what, how long, and now; the page's own content answers when and why below it.\n\nDensity is moderate and even: one 14px sans family with tabular figures, an 8px rhythm, hairline dividers inside cards, borders instead of shadows. Colour carries state and nothing else. Green means within the configured limits, amber means a hold timer is running or something waits to be acknowledged, red means alerting; muted grey means the value is not fresh. Every coloured mark sits beside words that say the same thing.\n\nThe system refuses decoration: no gradients, no glass, no elevation shadows, no ornamental charts, no decorative motion. State changes happen in one step.",
+    "keyCharacteristics": [
+      "Ward-green sidebar, pale ground, white 14px-radius cards with a 1px border and no shadow.",
+      "One attention row on every page, tinted by the most urgent state, carrying its single action.",
+      "Three status tones (green, amber, red) plus grey for not-fresh; never colour without words.",
+      "One system sans family, tabular figures everywhere, sentence case, no letter-spacing.",
+      "Charts are inline SVG: mint limit band, gaps left visibly empty, outside-limit stretches drawn in red."
+    ],
+    "rules": [
+      {
+        "name": "The Three Tones Rule",
+        "body": "Status uses exactly three hues: Console Green within limits, Hold Amber while a timer runs or an action waits, Alert Red when alerting. No fourth status hue, and none of the three is used decoratively.",
+        "section": "colors"
+      },
+      {
+        "name": "The Words Beside Colour Rule",
+        "body": "A dot, chip, row tint or chart stretch never carries state alone. Chips always contain words (\"Above limit · 12 s\", \"No limit set\"); dots always sit beside a text label; red chart stretches carry a text label (\"above limit · 12 s\").",
+        "section": "colors"
+      },
+      {
+        "name": "The Grey Means Not Fresh Rule",
+        "body": "A retained, estimated-before-ready or missing value renders in Muted, its dot hollow, its tone dropped. A value is never shown in a tone colour unless it is a fresh reading.",
+        "section": "colors"
+      },
+      {
+        "name": "The Sentence Case Rule",
+        "body": "No uppercase, no letter-spacing, no small labels above headings. A heading says what the card holds and stands alone.",
+        "section": "typography"
+      },
+      {
+        "name": "The Unit Stays With Its Number Rule",
+        "body": "A value and its unit, and a duration and its unit, are joined by a no-break space and never split across lines. A chip never wraps inside its pill; when space runs out it moves below the value whole.",
+        "section": "typography"
+      },
+      {
+        "name": "The Attention Row First Rule",
+        "body": "On every page the attention panel sits directly under the top bar, above all page content, and holds that state's one action. Nothing is placed above it.",
+        "section": "layout"
+      },
+      {
+        "name": "The Border Not Shadow Rule",
+        "body": "Cards, panels and controls separate from the ground by a 1px Card Border on white. box-shadow appears only as a focus ring or a dot outline, never as elevation.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** put the attention panel directly under the top bar on every page, with that state's single action in the row.",
+      "**Do** pair every status colour with words: chips contain text, dots sit beside a label, red chart stretches carry a label.",
+      "**Do** render retained, missing or not-yet-calibrated values in Muted with a hollow dot, never in a tone colour.",
+      "**Do** separate surfaces with a 1px Card Border on white and hairline dividers inside cards.",
+      "**Do** join every number to its unit with a no-break space, and keep chips on one line.",
+      "**Do** keep tabular figures on for all text.",
+      "**Do** change state in one step; honour reduced motion by removing any transition."
+    ],
+    "donts": [
+      "**Don't** use box-shadow for elevation; it is reserved for the input focus ring and the hollow dot.",
+      "**Don't** use gradients, glass or blur, or ornamental chart fills.",
+      "**Don't** introduce a fourth status hue or use green, amber or red for decoration.",
+      "**Don't** set text in uppercase or with letter-spacing, and don't place small labels above headings.",
+      "**Don't** draw a chart line across missing data; leave the gap visible and labelled.",
+      "**Don't** add icons outside the navigation, and don't use glyph or emoji icons; navigation icons are stroked inline SVG."
+    ]
+  }
+}
