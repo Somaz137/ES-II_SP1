@@ -347,7 +347,8 @@ function renderRecent(v) {
 }
 
 // ---------- trends ----------
-let trendWindow = "24h";
+// The window can be linked to as /trends?window=7d.
+let trendWindow = new URLSearchParams(location.search).get("window") === "7d" ? "7d" : "24h";
 function renderTrends(v) {
   const w = WINDOWS[trendWindow];
   const start = v.now - w.span;
@@ -678,10 +679,12 @@ function wire() {
   }
   if (PAGE === "trends") {
     const buttons = document.querySelectorAll("[data-window]");
+    pressGroup(buttons, [...buttons].find(button => button.dataset.window === trendWindow));
     for (const button of buttons) button.addEventListener("click", () => {
       if (trendWindow === button.dataset.window) return;
       trendWindow = button.dataset.window;
       pressGroup(buttons, button);
+      history.replaceState(null, "", trendWindow === "7d" ? "?window=7d" : location.pathname);
       refresh();
     });
   }
