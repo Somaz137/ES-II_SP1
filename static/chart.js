@@ -177,7 +177,7 @@ const RoomChart = (() => {
       g.setAttribute("visibility", "visible");
       const f = v => v.toFixed(opts.digits);
       const when = opts.end - opts.start > 2 * 86400 ? dayName(best.at) + " " + clock(best.at) : clock(best.at);
-      tip.textContent = `${when} · ${f(best.avg)} ${opts.unit}`.trim() +
+      tip.textContent = `${when} · ${f(best.avg)}\u00a0${opts.unit}`.trim() +
         (best.min !== best.max ? ` (${f(best.min)} to ${f(best.max)})` : "");
       tip.hidden = false;
       const scale = box.width / svg.viewBox.baseVal.width;

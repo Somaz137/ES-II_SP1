@@ -96,6 +96,7 @@ input { caret-color: var(--primary); }
 .att-compact .att-lab { width: auto; }
 .att-compact .att-main { font-size: var(--s14); font-weight: 700; }
 .att-compact .att-sub { display: none; }
+.att-compact #att-calm-sub:not(:empty) { display: block; margin-top: 2px; }
 .att-compact .att-row + .att-row:not([hidden]) { border-top: 0; }
 
 /* Content */
@@ -213,12 +214,13 @@ input { caret-color: var(--primary); }
 .limits-form input[aria-invalid="true"] { border-color: var(--red); }
 .w-label { max-width: 240px; }
 .field-error { color: var(--red); font-weight: 600; margin-top: 6px; }
-.lgrid { display: grid; grid-template-columns: minmax(120px, 180px) minmax(88px, 140px) minmax(88px, 140px) minmax(120px, 1fr); gap: 12px 16px; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--hair); }
+.lgrid { display: grid; grid-template-columns: minmax(110px, 180px) minmax(80px, 140px) minmax(80px, 140px) minmax(160px, 1fr); gap: 12px 16px; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--hair); }
 .lh { font-size: var(--s12); color: var(--muted); font-weight: 600; }
 .lm { font-weight: 600; }
 .lcell-lab { display: none; }
 .lnow { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
-.lnow .chip { max-width: 100%; }
+/* The chip never wraps inside its pill; it moves below the value as a whole. */
+.lnow .chip { white-space: nowrap; }
 .lnow-val { font-weight: 700; }
 .lerr { grid-column: 2 / -1; margin-top: -4px; }
 .lerr[hidden] { display: none; }

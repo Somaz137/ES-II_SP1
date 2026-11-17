@@ -14,17 +14,19 @@ const WINDOWS = {"24h": {span: 86400, bucket: 60, words: "last 24 hours", note: 
 
 // ---------- wording helpers ----------
 const fmt = (value, key) => value == null ? "—" : Number(value).toFixed(DIGITS[key] ?? 1);
-const withUnit = (value, key) => (fmt(value, key) + " " + (UNIT[key] || "")).trim();
+// A no-break space keeps every number on the same line as its unit.
+const NB = "\u00a0";
+const withUnit = (value, key) => (fmt(value, key) + NB + (UNIT[key] || "")).trim();
 function duration(seconds) {
   const total = Math.max(0, Math.round(seconds));
   const d = Math.floor(total / 86400), h = Math.floor(total % 86400 / 3600), m = Math.floor(total % 3600 / 60), s = total % 60;
-  if (d) return d + " d" + (h ? " " + h + " h" : "");
-  if (h) return h + " h" + (m ? " " + m + " min" : "");
-  if (m) return m + " min";
-  return s + " s";
+  if (d) return d + NB + "d" + (h ? " " + h + NB + "h" : "");
+  if (h) return h + NB + "h" + (m ? " " + m + NB + "min" : "");
+  if (m) return m + NB + "min";
+  return s + NB + "s";
 }
 const alertIn = seconds => seconds < 1 ? "alert due now" : "alert in " + duration(seconds);
-const ago = seconds => seconds == null ? "age unknown" : duration(seconds) + " ago";
+const ago = seconds => seconds == null ? "age unknown" : duration(seconds) + NB + "ago";
 const clock = at => RoomChart.clock(at);
 function dayWords(at, now) {
   const date = new Date(at * 1000), today = new Date(now * 1000);
@@ -114,7 +116,7 @@ function reading(v, key) {
 
 function limitText(v, key) {
   const limit = v.limits[key];
-  if (PATIENT.includes(key)) return limit ? `Range ${fmt(limit.low, key)}–${fmt(limit.high, key)} ${UNIT[key]}` : "No range configured";
+  if (PATIENT.includes(key)) return limit ? `Range ${fmt(limit.low, key)}–${fmt(limit.high, key)}${NB}${UNIT[key]}` : "No range configured";
   if (!v.status?.[key]) return "System limit not known";
   return limit ? `System limit ${withUnit(limit.high, key)} for ${duration(limit.hold)}` : "No system limit configured";
 }
@@ -154,6 +156,20 @@ const condition = (e, key) => `${SHORT[key] || e.name} ${e.direction === "low" ?
 function restoredAt(events) {
   const found = (events || []).find(e => e.kind === "fault_ended" && e.message.startsWith("Communication"));
   return found ? " · contact restored " + clock(found.at) : " · contact restored";
+}
+// What the last status before the monitor went quiet said; worded as past, never as current.
+function lastConfirmed(v) {
+  const {status} = v;
+  const lower = text => text.charAt(0).toLowerCase() + text.slice(1);
+  const items = (status.limit_alerts || []).map(e => lower(condition(e, e.metric)));
+  if (status.communication_alert_active && status.communication_timed_out) items.push("no contact with the ESP32");
+  if (status.sensor_alert_active) items.push("BME680 readings not arriving");
+  if (status.dust?.alert_active) items.push("dust readings not arriving");
+  const alarm = status.alarm;
+  const sounding = alarm && alarm.state === "confirmed" && alarm.confirmed_level === 2 && !alarm.silenced;
+  return "Last confirmed " + clock(status.updated_at) + ": " +
+    (items.length ? items.join("; ") + "." : "no limit, communication or sensor alert.") +
+    (sounding ? " Alarm may still be sounding." : alarm?.confirmed_level > 0 ? " The alarm LED may still be on." : "");
 }
 let lastAnnounced = null;
 function renderAttention(v, failed) {
@@ -205,12 +221,18 @@ function renderAttention(v, failed) {
   const calm = rows.calm;
   const nothing = !red.length && !ack && !waits.length;
   calm.hidden = !nothing;
+  let staleSub = "";
   let lab = "No action needed", text = "No limit, communication or sensor alert is active.", tone = "calm";
   if (failed) { lab = "Data unavailable"; text = "The dashboard cannot reach its data. Retrying."; tone = "amber"; }
   else if (!status) { lab = "Waiting"; text = "Waiting for the first monitor update."; tone = "calm"; }
-  else if (!current) { lab = "Monitor overdue"; text = "No monitor update for " + duration(since) + ". Alerts cannot be confirmed and the readings shown are retained."; tone = "amber"; }
+  else if (!current) {
+    lab = "Monitor overdue"; tone = "amber";
+    text = "No monitor update for " + duration(since) + ". Alerts cannot be confirmed; the readings shown are retained, not current.";
+    staleSub = lastConfirmed(v);
+  }
   else if (status.limit_monitoring?.state && status.limit_monitoring.state !== "running") text += " " + status.limit_monitoring.message;
   calm.dataset.tone = tone;
+  $("att-calm-sub").textContent = staleSub;
   $("att-calm-lab").textContent = lab;
   $("att-calm-text").textContent = text;
 
@@ -606,16 +628,16 @@ function renderSystem(v) {
     a.confirmed_level == null ? "No confirmation from the board" : `${ALARM_LEVEL[a.confirmed_level]}, confirmed by the board · level ${a.confirmed_level} of 2`);
   const retained = current && status.measurement_current ? "" : status ? " (retained)" : "";
   const gas = status?.last_reading?.gas_ohms;
-  $("gas_ohms").textContent = gas == null ? "—" : (gas / 1000).toFixed(1) + " kΩ" + retained;
+  $("gas_ohms").textContent = gas == null ? "—" : (gas / 1000).toFixed(1) + NB + "kΩ" + retained;
   const mv = status?.dust?.sensor_mv;
-  $("dust_mv").textContent = mv == null ? "—" : Math.round(mv) + " mV" + (current ? "" : " (retained)");
+  $("dust_mv").textContent = mv == null ? "—" : Math.round(mv) + NB + "mV" + (current ? "" : " (retained)");
   const base = status?.dust_ugm3?.baseline_mv;
-  $("dust-baseline").textContent = base == null ? (status ? "not established yet" : "—") : Math.round(base) + " mV";
+  $("dust-baseline").textContent = base == null ? (status ? "not established yet" : "—") : Math.round(base) + NB + "mV";
   const acc = status?.air_quality?.accuracy;
   $("bosch-accuracy").textContent = acc == null ? "—" : acc + " of 3" + (acc < 3 && status.air_quality.state === "calibrating" ? ", calibrating" : "");
   for (const node of document.querySelectorAll("[data-timing]")) {
     const key = node.dataset.timing, value = timing[key];
-    node.textContent = value == null ? "—" : key.endsWith("_days") ? value + (value === 1 ? " day" : " days") : value + " s";
+    node.textContent = value == null ? "—" : key.endsWith("_days") ? value + NB + (value === 1 ? "day" : "days") : value + NB + "s";
   }
   void since;
 }

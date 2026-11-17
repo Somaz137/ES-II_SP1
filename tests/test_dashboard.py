@@ -373,6 +373,7 @@ def test_attention_panel_and_controls_are_on_every_page(app_store, path, _):
     assert '<form id="silence" action="/silence" method="post" hidden>' in page
     assert '<form id="ack" action="/acknowledge" method="post" hidden>' in page
     assert f'name="next" value="{path}"' in page
+    assert 'id="att-calm-sub"' in page  # where the stale state repeats the last confirmed condition
     assert "Online access: off" in page and "Sign in" not in page
 
 
