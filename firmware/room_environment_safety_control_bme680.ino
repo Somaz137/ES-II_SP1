@@ -79,6 +79,7 @@ void receiveRoomSample(const bme68xData data, const bsecOutputs outputs,
   sample.stabilization = -1;
   sample.run_in = -1;
   sample.accuracy = -1;
+  sample.iaq = NAN;
   if (outputs.nOutputs > 0) {
     const int64_t cycleTime = outputs.output[0].time_stamp;
     for (uint8_t i = 0; i < outputs.nOutputs; ++i) {
@@ -93,6 +94,8 @@ void receiveRoomSample(const bme68xData data, const bsecOutputs outputs,
           break;
         case BSEC_OUTPUT_IAQ:
           sample.accuracy = value.accuracy <= 3 ? value.accuracy : -1;
+          // Bosch's index, 0 to 500. The formatter prints null when unusable.
+          sample.iaq = value.signal;
           break;
         default: break;
       }
