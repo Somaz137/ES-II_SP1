@@ -129,7 +129,9 @@ Only the loop task writes `Serial`. The dust task never writes it. Lines therefo
 With `CDCOnBoot=cdc`, a write can wait up to about 100 ms per block when the laptop holds the port open but does not read. This is core behaviour (`HWCDC.cpp`). It is not checked on the board.
 
 Each reading includes temp_c, humidity_pct, pressure_hpa, and gas_ohms.
-The bsec object includes stabilization_status, run_in_status, and iaq_accuracy.
+The bsec object includes stabilization_status, run_in_status, iaq_accuracy and iaq.
+`iaq` is Bosch's `BSEC_OUTPUT_IAQ` index with two decimals, added on 15 November 2026. It is null when the signal is not finite or outside 0 to 500. The host still accepts records without it.
+The firmware keeps `BSEC_OUTPUT_IAQ`, not `BSEC_OUTPUT_STATIC_IAQ`. The installed library describes the static output only as "Unscaled indoor-air-quality estimate". That does not settle which suits a fixed room device.
 Missing status fields appear as null.
 Python treats incomplete status information as unknown.
 The example in [bsec_reading.json](../tests/fixtures/bsec_reading.json) describes the format.
@@ -141,7 +143,7 @@ Continuous failure reports errors at most once every three seconds.
 Two missing sample periods trigger reporting when BSEC returns without measurements.
 Python still applies its separate 120-second fault rules.
 Initialization failures continue reporting until intervention or restart.
-Automatic sensor reinitialization and calibration-state storage remain future work.
+Automatic sensor reinitialization and calibration-state storage remain future work. Without stored state the index calibrates again after each board start.
 
 Python receives the same JSON records at the same serial speed.
 Its parser, fault rules and gas readiness rules need no change for this board.

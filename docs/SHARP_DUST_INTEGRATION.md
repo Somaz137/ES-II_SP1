@@ -6,7 +6,8 @@
 2. Add experimental ESP32 acquisition in firmware/sharp_dust.h; initialize before BME680 and report independently every three seconds. Implemented.
 3. Route separate dust/dust_error records without overwriting BME680 readings or readiness. Implemented in dust.py and monitoring_state.py.
 4. Expose retained voltage, age, status and separate timeout in status_output.py. Dust uses the existing configured sensor timeout (120 seconds by default). BME680 silence while dust messages arrive is also exposed. Implemented.
-5. Add optional explicit calibration in monitor.py. Default concentration is null. Implemented.
+5. Add optional explicit calibration in monitor.py. Default concentration is null. Implemented, then replaced on 15 November 2026 by the automatic baseline below.
+8. Show an estimated concentration with a word level and an automatic clean-air baseline, with a system-setup limit. Implemented on 15 November 2026; tests and simulator only.
 6. Verify host behavior and document hardware checks. The full pinned Ubuntu suite passed on 15 November 2026. The sketch with `firmware/sharp_dust.h` compiled for the ESP32-S3 on 15 November 2026. Oscilloscope timing and physical calibration are pending.
 7. Port to the ESP32-S3: GPIO5 LED drive, GPIO4 analog input, ADC limit aligned with `dust.py`. Implemented and compiled. Not checked on hardware.
 
@@ -54,13 +55,20 @@ Open points:
 - The divider's source impedance (about 5 kohm) against the ADC sampling time is not checked.
 - The real sampling instant within the LED pulse needs an oscilloscope.
 
-## Calibration
+## Estimate and baseline
 
-Run the existing monitor normally for raw sensor millivolts (divider compensation is done in firmware). Concentration stays null until both --dust-baseline-mv and --dust-sensitivity are supplied. Baseline is the measured clean-air sensor-side voltage. Sensitivity units are mV per mg/m3; Sharp's typical 0.5 V per 0.1 mg/m3 corresponds to 5000, but is not a per-unit calibration guarantee.
+Decision of 15 November 2026: dust is shown as an estimated concentration with a word level, labelled "estimate". This replaces the earlier rule that dust voltage is a raw signal only. The raw sensor millivolts (divider compensation is done in firmware) stay stored and shown as a system detail.
 
-Estimated ug/m3 = max(0, sensor_mv - baseline_mv) * 1000 / sensitivity.
+Estimated ug/m3 = max(0, sensor_mv - baseline_mv) * 1000 / sensitivity. It is never negative.
 
-Do not automatically zero the sensor at startup in an unknown room. Verify against a reference instrument if concentration matters. The output is estimated dust concentration, not size-selective PM2.5, AQI, or a medical safe/unsafe verdict. No dust health threshold has been invented. Stale retained values remain labelled stale even when a concentration is shown.
+- Sensitivity: `sensitivity_mv_per_mg_m3` in `config/system.yaml`, 5000. This is Sharp's typical 0.5 V per 0.1 mg/m3. It is typical, unverified against the datasheet on this machine, and not a per-unit calibration.
+- Baseline: the lowest fresh sensor voltage in the last `baseline_window_s` (24 hours, at most 7 days), kept as one minimum per minute. No estimate is shown, and the state is "establishing baseline", until an unbroken run of fresh records has lasted `baseline_min_s` (10 minutes).
+- A dust error, a stale report, communication loss or a gap of more than `reading_gap_limit_s` between records clears the history. A monitor restart also starts again; the history is in memory only.
+- A low outlier lowers the baseline, and raises later estimates, until it leaves the window.
+- Word levels: `low` up to 50, `raised` up to 150, `high` above. These are project display defaults, not health standards and not official category names.
+- Limit: `upper_limit` and `hold_s` in `config/system.yaml`, off as shipped. The project supplies no dust limit. The demo uses 100 ug/m3 for 30 s as a demonstration value.
+
+The old `--dust-baseline-mv` and `--dust-sensitivity` options are removed. The estimate is not size-selective PM2.5, an official index, or a medical verdict. Verify against a reference instrument if concentration matters. A retained value is never shown as a current estimate.
 
 ## Verification on Ubuntu and hardware
 
@@ -68,7 +76,7 @@ Use the existing approved Python 3.10.12 environment and pinned requirements. Ru
 
 Before flashing, inspect wiring and measure the divider. After flashing, check LED timing with an oscilloscope, accepted/rejected sample counts, and raw voltage stability. Check BME680 continues to report every three seconds. Test BME680 failure while dust continues, missing dust reports while BME680 continues, USB loss, and recovery. A failed dust sensor must not overwrite the last good BME680 reading and vice versa. Missing-data alerts clear on valid fresh input; the existing communication acknowledgment behavior is retained.
 
-The dust fields appear in terminal JSON and in the local dashboard (`dashboard.py`). The dashboard shows the raw dust voltage, its status and a 24-hour trend of `dust_mv`. A stale dust report raises a Dust fault on the dashboard. No dust limit exists. The dashboard was checked only with simulated dust records. Camera occupancy is a separate module (`occupancy.py`) and does not use dust data.
+The dust fields appear in terminal JSON and in the local dashboard (`dashboard.py`). The dashboard shows the dust estimate with its word level and state, the raw dust voltage as a system detail, its status, and 24-hour trends of `dust_ugm3` and `dust_mv`. A stale dust report raises a Dust fault on the dashboard. A dust limit exists only when set in `config/system.yaml`. The dashboard was checked only with simulated dust records. Camera occupancy is a separate module (`occupancy.py`) and does not use dust data.
 
 ## Sources
 

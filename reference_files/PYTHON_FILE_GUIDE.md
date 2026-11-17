@@ -1,34 +1,36 @@
 # Python file guide
 
 This guide explains the current files in simple terms.
-The main folder contains eighteen application Python files.
-The project also contains two Python tools and sixteen Python test files.
-The total is thirty-six Python files.
+The main folder contains nineteen application Python files.
+The project also contains two Python tools and eighteen Python test files.
+The total is thirty-nine Python files.
 The six newest application files and three newest test files are on branch `feature/sharp-dust-integration`.
 They are verified only with automated tests and the simulator.
 The local alarm added `alarm.py`, `tests/test_alarm.py` and `tests/test_alarm_link.py` on branch `feature/local-alarm`. It is also verified only with tests and the simulator.
+The air-quality and dust-estimate step added `air_quality.py`, `tests/test_air_quality.py` and `tests/test_system_limits.py` on branch `feature/air-quality-dust-label`. It is verified only with tests and the simulator.
 
 ## Application files
 
 | File | Purpose |
 |---|---|
 | `monitor.py` | Starts the program with a serial port or `--demo`. Reads command options, loads settings, and starts monitoring. Connects storage, patient rules, the camera, dashboard acknowledgment and silence requests, and the local alarm. |
-| `settings.py` | Reads both YAML settings files. Rejects missing or invalid settings and unworkable timing combinations. Holds the timing defaults. Imports PyYAML only when it reads a file. |
+| `settings.py` | Reads the three YAML settings files. Rejects missing or invalid settings and unworkable timing combinations. Holds the timing defaults, the system defaults and the demonstration system values. Imports PyYAML only when it reads a file. |
 | `serial_transport.py` | Opens the selected serial port. Collects complete lines and retries the connection after errors. Sends alarm commands with a write limited to about 20 ms; a failed send is reported, never raised. |
 | `serial_parser.py` | Reads each text message. Identifies a valid reading, sensor error, incomplete reading, alarm reply, or ignored message. |
 | `measurements.py` | Checks the four measurement values. Retains the last complete reading, its receipt time, and the latest input condition. |
 | `communication_fault.py` | Tracks messages from the ESP32. Raises an alert when communication stops and handles acknowledgment. |
 | `sensor_fault.py` | Tracks repeated measurement errors. Raises a sensor alert after the waiting period and clears it after a valid reading. |
-| `gas_readiness.py` | Checks the Bosch status fields. Reports gas warm-up and calibration status. |
+| `gas_readiness.py` | Checks the Bosch status fields. Reports gas warm-up and calibration status. Keeps the reported Bosch air-quality index, 0 to 500, or none. |
+| `air_quality.py` | Decides whether the Bosch index is current, calibrating or unavailable (current from accuracy 2), and picks its display word. |
 | `monitoring_state.py` | Keeps the reading, fault states, and gas status together. Applies each message to the correct parts. Keeps the board's latest alarm reply, which is not a reading and not communication contact. |
 | `monitoring_loop.py` | Repeats serial reads and fault checks. Continues checking faults when no messages arrive. |
 | `status_output.py` | Prepares the status report. Includes measurements, reading age, receipt time, connection state, alerts, gas status, and dust status. |
-| `dust.py` | Reads Sharp dust records. Reports dust voltage, age, and status. Calculates a dust estimate only with user calibration. |
-| `room_store.py` | Stores status, readings, and events in SQLite. Loads, checks, and saves the patient profile file. |
-| `room_session.py` | Applies patient limits and the sustained duration. Requires occupied status and a fresh reading. Logs alert and fault events. Runs the local alarm after the limit state is built and logs silence and alarm reachability events. |
+| `dust.py` | Reads Sharp dust records. Reports dust voltage, age, and status. Tracks the clean-air baseline (lowest recent voltage) and calculates the dust estimate. |
+| `room_store.py` | Stores status, readings, and events in SQLite. Loads, checks, and saves the patient profile file, including its optional short label. |
+| `room_session.py` | Applies patient limits and the sustained duration, and the air-quality and dust system limits with their own hold times. Requires occupied status and a fresh reading. Publishes the air-quality and dust-estimate states. Logs alert, fault and profile-change events. Runs the local alarm after the limit state is built and logs silence and alarm reachability events. |
 | `alarm.py` | Decides the local alarm level (0 off, 1 LED, 2 LED and buzzer), applies silence to the limit alerts shown, and tracks whether the board confirmed the level. Has no I/O. |
 | `occupancy.py` | Checks one camera frame every 60 seconds with OpenCV's default people detector. Saves no frames. |
-| `simulated_input.py` | Produces simulated BME680 and dust records for `--demo` and echoes alarm commands like the board would. Tests can make it silent or failing. It is not a hardware driver. |
+| `simulated_input.py` | Produces simulated BME680 records with a Bosch index (calibrating at start, then a scripted episode) and dust records with a scripted episode for `--demo` and echoes alarm commands like the board would. Tests can make it silent or failing. It is not a hardware driver. |
 | `dashboard.py` | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits, acknowledgment requests, and alarm silence requests. Reports alarm health. |
 
 The state means the program's current stored information.
@@ -68,7 +70,9 @@ Closing the dashboard does not stop monitoring.
 | `tests/test_message_router.py` | Checks that parsed messages update readings, faults, and gas status together. |
 | `tests/test_serial_transport.py` | Checks line assembly, invalid input, connection retry, and connection cleanup. Checks that a send failure, a short write, or a full pseudo-terminal buffer returns promptly without an error. |
 | `tests/test_monitoring_loop.py` | Checks the running loop with controlled time and simulated serial input. |
-| `tests/test_dust.py` | Checks dust record classification, retention, missing dust and BME680 reports, recovery, and calibration. |
+| `tests/test_dust.py` | Checks dust record classification, retention, missing dust and BME680 reports, recovery, the estimate and the clean-air baseline. |
+| `tests/test_air_quality.py` | Checks the Bosch index in the reading record, older records without it, the current and calibrating rule, word bands and the system settings file. |
+| `tests/test_system_limits.py` | Checks the air-quality and dust-estimate blocks, their sustained alerts, pauses and reasons, the buzzer and silence, stored series, the simulator episode, the profile label and the profile-change event. |
 | `tests/test_room_software.py` | Checks the simulated alert and recovery, occupancy and profile-change timer restarts, invalid-profile handling, and event history for contact loss and acknowledgment. Checks active and pending alert details, limit-monitoring reasons, alert-end reasons, the acknowledgment event, trends, event paging, retention, the camera interval, and the legacy profile check. |
 | `tests/test_dashboard.py` | Checks the dashboard page, profile saving and rejection, the cross-origin check, and acknowledgment requests. Checks the `/api/room` response, system health, event paging, form error messages, and incomplete acknowledgment status. Checks the silence request, its rejections, and the alarm health entry. |
 | `tests/test_alarm.py` | Checks alarm levels, command timing, confirmation, timeout, failed sends, reconnect, silence, and events. |
@@ -81,12 +85,14 @@ Only their module imports changed.
 On 15 November `tests/test_runtime_settings.py` gained 48 cases for the timing settings.
 The three newer test files contain 41 cases. The full suite contains 401 cases.
 On 15 November the local alarm added 60 cases: 12 in `tests/test_alarm.py`, 9 in `tests/test_alarm_link.py`, and 39 in existing files (runtime settings 9, serial parser 9, message router 3, serial transport 6, dashboard 12). The full suite contains 461 cases.
+On 15 November the air-quality and dust-estimate step added 76 cases: 37 in `tests/test_air_quality.py`, 28 in `tests/test_system_limits.py`, 5 in `tests/test_dust.py` and 6 in `tests/test_dashboard.py`. The full suite reported 538 passed, with and without `-W error`.
 
 ## Other important files
 
 | File or folder | Purpose |
 |---|---|
 | `config/alerts.yaml` | Stores communication and sensor-error waiting periods. |
+| `config/system.yaml` | Air-quality and dust limits (off as shipped), word bands and levels, dust sensitivity and baseline rule. |
 | `config/runtime.yaml` | Stores host polling, connection retry, and periodic fault-check intervals, and the optional timing keys, including the alarm confirmation timeout. |
 | `requirements.txt` | Lists the required Python packages and versions. |
 | `firmware/room_environment_safety_control_bme680.ino` | Runs on the ESP32. Reads the sensor and sends measurements or errors. |
@@ -106,7 +112,7 @@ On 15 November the local alarm added 60 cases: 12 in `tests/test_alarm.py`, 9 in
 | `README_HUMAN.md` | Explains the system and its behavior for people. |
 | `reference_files/` | Stores the manual reference, project plan, handoff, comparisons, and verification records. |
 | `docs/superpowers/` | Stores detailed component designs and implementation checklists. |
-| `docs/SHARP_DUST_INTEGRATION.md` | Describes dust wiring, calibration, and checks. |
+| `docs/SHARP_DUST_INTEGRATION.md` | Describes dust wiring, the estimate and baseline, and checks. |
 
 ## Effect of the merge
 

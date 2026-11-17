@@ -109,7 +109,9 @@ The example values apply only to the simulator. They are not patient limits.
 
 The patient profile is a YAML file beside the database, for example `room.profile.yaml`.
 It holds a lower and upper limit for each enabled measurement and one sustained duration.
-Temperature, humidity, and pressure can have limits. Gas resistance and dust voltage cannot.
+Temperature, humidity, and pressure can have patient limits. Gas resistance and dust voltage cannot.
+The profile can also hold a short label, for example "Bed 3". It has at most 40 characters and no line breaks. It is not a patient name.
+Air quality and dust have system limits instead. They are set in `config/system.yaml`, not on the dashboard.
 The dashboard form saves the profile. Valid changes take effect on the next monitor update.
 An invalid file keeps the last valid profile and raises a profile fault.
 
@@ -223,8 +225,12 @@ Current gas status becomes unavailable when communication times out or the lates
 
 The program will continue during gas warm-up.
 Temperature, humidity, and pressure still need their own validity and settling checks.
-Environmental gas rules remain future work. The dashboard shows raw gas resistance and Bosch status labels only.
-The new code does not calculate an air quality index from raw resistance.
+On 15 November 2026 the user decided that air quality is shown as Bosch's BSEC index. This replaces the earlier rule that gas resistance is a raw signal only.
+The firmware sends the index with its accuracy. The page shows it with a word band and the label "Bosch estimate".
+When Bosch's accuracy is 0 or 1 the page shows "calibrating" and no value. Bosch's library describes 0 as run-in ongoing and 1 as low accuracy.
+The word bands are commonly cited Bosch bands. No Bosch document on this machine lists them, so they are unverified.
+Raw gas resistance stays stored and shown as a system detail.
+The BSEC calibration state is not saved across power loss. After each board start the index calibrates again.
 
 The user selected three-second BSEC low-power sampling.
 The new firmware source uses that mode.
@@ -243,8 +249,12 @@ The experimental GP2Y1010AU0F path adds an independent dust voltage and status.
 Dust records count as communication. They do not replace BME680 readings.
 BME680 silence for the sensor-error timeout while dust continues raises the BME680 alert.
 Missing dust reports for the sensor-error timeout raise a dust alert.
-The dashboard shows the raw voltage and its 24-hour trend.
-A dust estimate appears only when the user supplies a measured baseline and sensitivity.
+The dashboard shows the raw voltage and its 24-hour trend as system details.
+On 15 November 2026 the user decided that dust is shown as an estimated concentration in µg/m³ with a word level and the label "estimate".
+The estimate uses Sharp's typical sensitivity, 0.5 V per 0.1 mg/m³. It is not checked against the datasheet on this machine.
+The clean-air baseline is the lowest voltage of the last 24 hours. No estimate is shown until 10 minutes of unbroken fresh records exist.
+A dust fault, a gap of more than six seconds, or a monitor restart starts the baseline again. The estimate is never negative.
+The word levels (low, raised, high) are project display defaults, not official categories or health standards.
 See [wiring, plan, calibration, and verification](docs/SHARP_DUST_INTEGRATION.md).
 Its wiring table uses the ESP32-S3 dust pins: GPIO4 (analog input) and GPIO5 (LED drive). The code compiles. Hardware timing remains pending.
 
@@ -289,13 +299,15 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | `monitoring_loop.py` | Routes messages and checks faults during silence. |
 | `status_output.py` | Formats readings, ages, and fault facts as JSON. |
 | `config/runtime.yaml` | Sets host polling, retry, and fault-check intervals. |
-| `settings.py` | Loads both YAML settings files and checks their values. |
+| `settings.py` | Loads the three YAML settings files and checks their values. |
 | `config/alerts.yaml` | Stores the two technical fault durations. |
 | `communication_fault.py` | Tracks communication timeout and acknowledgment. |
 | `sensor_fault.py` | Tracks persistent measurement errors and recovery. |
 | `measurements.py` | Checks measurements and retains the last complete reading and its receipt time. |
 | `monitoring_state.py` | Stores the combined state and applies incoming messages to readings and fault trackers. |
-| `gas_readiness.py` | Checks reported Bosch warm-up and calibration status. |
+| `gas_readiness.py` | Checks reported Bosch warm-up and calibration status and keeps the reported index. |
+| `air_quality.py` | Decides whether the Bosch index is current or calibrating and picks its word. |
+| `config/system.yaml` | Air quality and dust limits (off as shipped), word bands, dust sensitivity and baseline rule. |
 | `serial_parser.py` | Classifies a decoded serial line. |
 | `room_store.py` | Stores status, readings, events, and the patient profile file. |
 | `room_session.py` | Applies patient limits, sustained timing, and occupancy gating. Runs the local alarm after the limit state. |
@@ -324,7 +336,9 @@ The test filenames remain unchanged so their original test cases are easy to tra
 - Timing settings apply at monitor startup. The dashboard uses the values in the latest monitor status.
 - The sketch drives the alarm LED on GPIO6 and the buzzer module on GPIO7 with a steady level. Pins and buzzer polarity are not checked on hardware. The polarity default is active high.
 - When the USB link is down the host cannot command the LED or buzzer. The dashboard then shows the alarm as unreachable. A firmware fallback is an open decision.
-- Dust output is a raw voltage, not PM2.5, an air-quality index, or a calibrated concentration.
+- The dust value is an estimate with a typical sensitivity and an automatic baseline. It is not PM2.5, an official index, or a calibrated concentration.
+- The air-quality index is a Bosch estimate. Its word bands are not checked against the Bosch datasheet.
+- Air-quality and dust alerts sound the buzzer like patient-limit alerts. No limit values are supplied; the demo uses demonstration values only.
 
 ## Decisions recorded on 15 November 2026
 
@@ -334,11 +348,12 @@ These decisions are not implemented, except where an entry says so.
 - Completion work builds on the current branch. The dust sensor stays.
 - The primary dashboard viewer is a caregiver at a desk screen.
 - The notification channel is a local alarm on the ESP32: a buzzer and an LED. The host side, the "Silence alarm" control and the sketch wiring were implemented on 15 November.
-- The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound.
+- The buzzer sounds for limit alerts only: patient limits, and the air-quality and dust system limits. System faults light the LED and show on the dashboard without sound.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
 - The buzzer is a 3-pin buzzer module driven from one GPIO.
 - Raw readings will be kept for 7 days. Event history is kept regardless. Implemented on 15 November.
 - The dashboard will be redesigned. The current page is a first draft.
+- Air quality is Bosch's BSEC index and dust is an estimated concentration, both with words and an "estimate" label. Their limits are system setup. The profile has a short label. This replaces the raw-signals-only rule. Implemented on 15 November; tests and simulator only.
 
 ## What remains
 

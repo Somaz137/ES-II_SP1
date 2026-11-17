@@ -29,11 +29,12 @@ The user made these decisions on 15 November 2026. They are decided, not impleme
 - ESP32-S3 pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, buzzer module GPIO7. Implemented in `firmware/bsec_board_config.h`. Not checked against the physical board.
 - Toolchain: arduino-cli 1.5.1 with ESP32 core 3.3.12, BSEC2 1.10.2610 and BME68x 1.3.40408. The sketch compiles for the ESP32-S3 with `CDCOnBoot=default` and `CDCOnBoot=cdc`. No board has been connected or flashed. See the [15 November verification record](LINUX_VERIFICATION_2026-11-15.md).
 - Dashboard primary viewer: a caregiver at a desk screen.
-- Notification channel: a local alarm on the ESP32, a buzzer and an LED. The buzzer sounds for patient-limit alerts only. System faults light the LED and show on the dashboard without sound. Host side and sketch wiring implemented on 15 November. Not checked on hardware.
+- Notification channel: a local alarm on the ESP32, a buzzer and an LED. The buzzer sounds for limit alerts only (patient limits, and since the step below the air-quality and dust system limits). System faults light the LED and show on the dashboard without sound. Host side and sketch wiring implemented on 15 November. Not checked on hardware.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
 - Buzzer part: a 3-pin buzzer module driven from one GPIO.
 - Raw readings will be kept for 7 days. Event history is kept regardless.
 - The dashboard will be redesigned. The current page is a first draft.
+- Air quality is Bosch's BSEC index with a word band, labelled "Bosch estimate", and "calibrating" while Bosch's accuracy is 0 or 1. Dust is an estimated concentration with a word level and an automatic clean-air baseline, labelled "estimate". Their limits are system setup in `config/system.yaml` (off as shipped), with long hold times; their alerts sound the buzzer. The patient profile has a short label. This replaces the earlier rule that gas resistance and dust voltage are raw signals only; the raw values stay as system details. Implemented on 15 November; tests, simulator and compilation only. See the [design](../docs/superpowers/specs/2026-11-15-air-quality-dust-label-design.md).
 
 The as-built software is described in the [room software design](../docs/superpowers/specs/2026-11-15-room-software-design.md).
 
@@ -220,6 +221,14 @@ Status, 15 November 2026: the channel is a local LED and buzzer on the ESP32. Th
 2. On the real ESP32-S3: check the GPIO6 and GPIO7 wiring, the LED series resistor, the buzzer module polarity (`ROOM_BUZZER_ACTIVE_HIGH`, default true) and whether it needs a tone or a steady level.
 3. On the real board, check that reading `Serial` does not delay BSEC sampling. By design the read is bounded and the dust task has a higher priority.
 4. Decide whether the board should light its LED by itself when it stops hearing from the host. Not implemented.
+
+Air quality and dust estimate, 15 November 2026: done with tests, the simulator and a compilation. Remaining:
+
+1. Decide whether to save the BSEC calibration state across power loss. Not implemented; the index calibrates again after each board start.
+2. Check the Bosch word bands and the Sharp typical sensitivity against the datasheets. No copy is on this machine.
+3. Decide whether `BSEC_OUTPUT_STATIC_IAQ` suits a fixed room device better. The local library documentation does not settle it.
+4. Agree on real air-quality and dust limits and hold times if any are wanted. None are supplied.
+5. Compare the dust estimate with a reference instrument if concentration matters.
 
 ### H — Verify and demonstrate
 

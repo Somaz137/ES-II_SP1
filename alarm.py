@@ -2,7 +2,7 @@
 
 Pure logic: no serial access, no clock and no storage. Times are monotonic
 host times supplied by the caller. Level 0 is off, 1 is LED only, 2 is LED
-and buzzer. The buzzer sounds only for unsilenced patient-limit alerts.
+and buzzer. The buzzer sounds only for unsilenced limit alerts (patient or system limits).
 """
 from uuid import uuid4
 

@@ -66,7 +66,7 @@ Example: "Temperature above the configured limit of 27 °C for 9 s. Value 31 °C
 | `timing` | Effective timing settings published by the monitor, or the defaults when no status exists. |
 | `now` | Server time. |
 
-Stored series: `temp_c`, `humidity_pct`, `pressure_hpa`, `gas_ohms`, `dust_mv`. Gas resistance is stored and charted only. It is a raw signal and has no patient limit. The `?metric=` parameter is removed.
+Stored series: `temp_c`, `humidity_pct`, `pressure_hpa`, `gas_ohms`, `dust_mv`. Gas resistance is stored and charted only. It is a raw signal and has no patient limit. (Since the [air quality and dust design](2026-11-15-air-quality-dust-label-design.md) of 15 November 2026, `air_quality` and `dust_ugm3` are also stored, and each trend entry has `estimate`. The raw series stay as system details.) The `?metric=` parameter is removed.
 
 `health` has `monitor`, `serial`, `bme680`, `dust`, `occupancy` and `profile`. Each component has `state`, `reported_state` and its facts. `reported_state` is the last published value. `state` is `unknown` when the status is overdue, so a retained value never shows as current. Ages are recalculated to the server time, so a retained value always shows its true age. `monitor.state` is `waiting`, `current` or `overdue`. `occupancy.source` is `camera`, `simulated` or `none`; `none` means no camera is configured. The monitor publishes it as `occupancy_source`, with `occupancy_observation_age_s`.
 

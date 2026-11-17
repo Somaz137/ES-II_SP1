@@ -4,7 +4,7 @@ Approved scope: the user decided on 15 November 2026 that the independent notifi
 
 ## Goal and constraints
 
-- The buzzer sounds for patient-limit alerts only.
+- The buzzer sounds for patient-limit alerts only. (Since 15 November 2026 also for the air-quality and dust system-limit alerts; see the [air quality and dust design](2026-11-15-air-quality-dust-label-design.md).)
 - Communication, BME680 sensor and dust alerts light the LED silently.
 - The dashboard has a "Silence alarm" button. Silencing stops the buzzer. The LED stays on. The silence is logged. A new limit alert sounds again.
 - The three alert families (communication, sensor, patient-limit) stay separate. `status["limit_alerts"]` and the existing contract stay unchanged.
