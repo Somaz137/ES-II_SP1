@@ -17,8 +17,7 @@ from monitoring_state import acknowledge_monitoring_communication
 from monitoring_loop import run_monitor
 from serial_transport import SerialTransport
 from status_output import status_record
-from dust import estimate_dust
-from settings import RUNTIME_DEFAULTS
+from settings import DEMO_SYSTEM_SETTINGS, RUNTIME_DEFAULTS
 
 
 def main():
@@ -32,18 +31,9 @@ def main():
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--alerts", type=Path, default=root / "config/alerts.yaml")
     parser.add_argument("--runtime", type=Path, default=root / "config/runtime.yaml")
-    parser.add_argument("--dust-baseline-mv", type=float)
-    parser.add_argument("--dust-sensitivity", type=float,
-                        help="Sensitivity in mV per mg/m3; use with measured baseline")
+    parser.add_argument("--system", type=Path, default=root / "config/system.yaml",
+                        help="Air quality and dust limits, words and baseline rule")
     args = parser.parse_args()
-    calibrated = args.dust_baseline_mv is not None and args.dust_sensitivity is not None
-    if (args.dust_baseline_mv is None) != (args.dust_sensitivity is None):
-        parser.error("Supply both dust calibration parameters or neither.")
-    if calibrated:
-        try:
-            estimate_dust(5500, args.dust_baseline_mv, args.dust_sensitivity)
-        except ValueError as error:
-            parser.error(str(error))
     if args.camera is not None and (args.demo or args.camera < 0):
         parser.error("Choose a nonnegative camera index in serial mode.")
     if args.camera is not None:
@@ -56,16 +46,19 @@ def main():
     if args.demo:
         alerts = {"communication_timeout_s": 120, "sensor_error_timeout_s": 120}
         runtime = {"fault_check_interval_s": 5, "serial_poll_interval_s": 0.05, **RUNTIME_DEFAULTS}
+        # Demonstration limits, not recommendations: see settings.DEMO_SYSTEM_SETTINGS.
+        system = DEMO_SYSTEM_SETTINGS
         transport = SimulatedTransport()
     else:
-        from settings import load_alert_settings, load_runtime_settings
+        from settings import load_alert_settings, load_runtime_settings, load_system_settings
         alerts = load_alert_settings(args.alerts)
         runtime = load_runtime_settings(args.runtime)
+        system = load_system_settings(args.system)
         transport = SerialTransport(args.port, args.baud, runtime["serial_retry_interval_s"])
     store = RoomStore(args.db or (DEMO_DB if args.demo else DEFAULT_DB))
     timing = {key: runtime[key] for key in RUNTIME_DEFAULTS}
     timing["fault_check_interval_s"] = runtime["fault_check_interval_s"]
-    session = RoomSession(store, demo=args.demo, timing=timing,
+    session = RoomSession(store, demo=args.demo, timing=timing, system=system,
                           alarm=AlarmTracker(runtime["alarm_confirm_timeout_s"]))
     if args.demo and not store.profile_path.exists() and store.load_profile() is None:
         store.save_profile({"limits": {"temp_c": [20, 27]}, "hold_s": 9})
@@ -97,10 +90,6 @@ def main():
         record = status_record(
             state, now, connection, monotonic_origin=mono_origin, utc_origin=utc_origin
         )
-        if calibrated and record["dust"]["sensor_mv"] is not None:
-            record["dust"]["estimated_dust_ug_m3"] = estimate_dust(
-                record["dust"]["sensor_mv"], args.dust_baseline_mv, args.dust_sensitivity)
-            record["dust"]["calibration"] = "user_configured_estimate"
         if state.communication.alert_active:
             if displayed_alert is None:
                 displayed_alert = uuid4().hex

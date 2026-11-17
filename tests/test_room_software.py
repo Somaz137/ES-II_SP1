@@ -187,7 +187,7 @@ def test_alert_end_by_profile_change_names_reason(tmp_path):
     room = active_alert_room(tmp_path)
     room.store.save_profile({"limits": {"temp_c": [20, 28]}, "hold_s": 3})
     assert not room.step(6, 31)["limit_alerts"]
-    assert room.kinds() == ["limit_reset_profile", "limit_alert"]
+    assert room.kinds() == ["limit_reset_profile", "profile_changed", "limit_alert"]
     assert "because the patient limits changed" in room.store.events()[0]["message"]
 
 
@@ -264,7 +264,8 @@ def test_trends_carry_minute_average_minimum_and_maximum(tmp_path):
     store.publish({}, [("temp_c", 6000, 20), ("temp_c", 6030, 30), ("temp_c", 6059, 25),
                        ("temp_c", 6060, 22), ("dust_mv", 6010, 900), ("temp_c", 6200, 99)], [], 6060)
     trends = store.trends(6100)
-    assert list(trends) == ["temp_c", "humidity_pct", "pressure_hpa", "gas_ohms", "dust_mv"]
+    assert list(trends) == ["temp_c", "humidity_pct", "pressure_hpa", "gas_ohms", "dust_mv",
+                            "air_quality", "dust_ugm3"]
     assert trends["temp_c"] == [{"at": 6000, "avg": 25, "min": 20, "max": 30},
                                 {"at": 6060, "avg": 22, "min": 22, "max": 22}]
     assert trends["dust_mv"] == [{"at": 6000, "avg": 900, "min": 900, "max": 900}]

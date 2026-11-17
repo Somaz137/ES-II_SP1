@@ -6,19 +6,40 @@ import os
 import sqlite3
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+import unicodedata
 
 METRICS = {"temp_c": ("Temperature", "°C"), "humidity_pct": ("Humidity", "%"),
            "pressure_hpa": ("Pressure", "hPa")}
-# Stored and charted series. Only METRICS accept patient limits; gas resistance is a raw signal.
-SERIES = {**METRICS, "gas_ohms": ("Gas resistance", "Ω"), "dust_mv": ("Dust signal", "mV")}
+# Estimates checked against system-setup limits (config/system.yaml), never patient limits.
+SYSTEM_METRICS = {"air_quality": ("Air quality index", ""), "dust_ugm3": ("Dust estimate", "µg/m³")}
+LIMITED = {**METRICS, **SYSTEM_METRICS}
+# Stored and charted series. Only METRICS accept patient limits. Raw gas resistance and dust
+# voltage stay stored as system details; the two estimates are stored only while current.
+SERIES = {**METRICS, "gas_ohms": ("Gas resistance", "Ω"), "dust_mv": ("Dust signal", "mV"),
+          **SYSTEM_METRICS}
+LABEL_MAX = 40
 EVENT_LIMIT_MAX = 200
 DEFAULT_DB = Path(__file__).resolve().parent / "room.sqlite3"
 DEMO_DB = DEFAULT_DB.with_name("room-demo.sqlite3")
 
 
+def validate_label(label):
+    """A short trimmed label such as a bed number. Not a patient name field."""
+    if not isinstance(label, str):
+        raise ValueError("The profile label must be text.")
+    if label != label.strip():
+        raise ValueError("The profile label must not start or end with spaces.")
+    if len(label) > LABEL_MAX:
+        raise ValueError(f"The profile label must be at most {LABEL_MAX} characters.")
+    if any(unicodedata.category(char) in ("Cc", "Cf", "Zl", "Zp") for char in label):
+        raise ValueError("The profile label must not contain control characters or line breaks.")
+
+
 def validate_profile(profile):
-    if not isinstance(profile, dict) or set(profile) != {"limits", "hold_s"}:
+    if not isinstance(profile, dict) or set(profile) - {"label"} != {"limits", "hold_s"}:
         raise ValueError("Supply limits and a sustained duration.")
+    if "label" in profile:
+        validate_label(profile["label"])
     limits = profile["limits"]
     if not isinstance(limits, dict) or not limits.keys() <= METRICS.keys():
         raise ValueError("Choose a supported measurement.")
