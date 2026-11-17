@@ -19,8 +19,23 @@ const duration = seconds => {
   if (s || !parts.length) parts.push(s + " s");
   return parts.join(" ");
 };
+const withUnit = (value, unit) => (format(value) + " " + (unit || "")).trim();
 const condition = entry => entry.name + (entry.direction === "low" ? " below " : " above ") +
-  format(entry.limit) + " " + entry.unit;
+  withUnit(entry.limit, entry.unit);
+const estimateStates = {calibrating: "calibrating, no current value", establishing_baseline:
+  "establishing baseline, no current value", unavailable: "no current value"};
+// Estimates show a value only when current, always with their word and source label.
+function estimateText(block, current) {
+  if (!block || !current) return "no current value";
+  if (block.state !== "current") return estimateStates[block.state] || "no current value";
+  return withUnit(block.value, block.unit) + " · " + (block.band || block.level) + " · " + block.source;
+}
+function systemLimitText(block) {
+  if (!block) return "";
+  const limit = block.limit == null ? "no limit set" : "limit " + withUnit(block.limit, block.unit) +
+    " for " + duration(block.hold_s);
+  return block.name + ": " + limit + " · " + block.check.message;
+}
 
 function drawTrend(buckets, now) {
   const points = buckets.map(bucket => [bucket.at, bucket.avg, bucket.min, bucket.max]);
@@ -84,7 +99,7 @@ async function refresh() {
     const response = await fetch("/api/room", {cache:"no-store"});
     if (!response.ok) throw new Error("Dashboard data unavailable");
     const data = await response.json();
-    const {status, trends, events, now, timing} = data;
+    const {status, trends, events, now, timing, profile} = data;
     if (id !== refreshId) return;
     latest = data;
     refreshSeconds = timing.dashboard_refresh_s;
@@ -100,6 +115,13 @@ async function refresh() {
       byId(key).textContent = format(status?.last_reading?.[key]);
     });
     byId("dust_mv").textContent = format(status?.dust.sensor_mv);
+    byId("air_quality").textContent = estimateText(status?.air_quality, current);
+    byId("dust_ugm3").textContent = estimateText(status?.dust_ugm3, current);
+    byId("system-limits").textContent = current && status.air_quality ?
+      systemLimitText(status.air_quality) + " | " + systemLimitText(status.dust_ugm3) :
+      "Air quality and dust limits unavailable";
+    byId("profile-label").textContent = profile?.label ? "Profile label · " + profile.label :
+      "Profile label not set";
     const lastReading = status?.last_measurement_received_utc_estimate;
     byId("last-reading").textContent = lastReading ?
       "Last BME680 reading " + new Date(lastReading).toLocaleString() : "No BME680 reading received";
@@ -108,10 +130,10 @@ async function refresh() {
       " | Gas · " + label(current && status.measurement_current ? status.gas_calibration : "unavailable") +
       " | Dust · " + label(current ? status.dust.status : "retained");
     const alerts = current ? status.limit_alerts.map(entry => condition(entry) + " for " +
-      duration(entry.elapsed_s + since) + " · now " + format(entry.value) + " " + entry.unit) : [];
+      duration(entry.elapsed_s + since) + " · now " + withUnit(entry.value, entry.unit)) : [];
     if (current) (status.limit_pending || []).forEach(entry => alerts.push("Pending: " + condition(entry) +
       " for " + duration(entry.elapsed_s + since) + " · alert after " + duration(entry.hold_s) +
-      " if it continues · now " + format(entry.value) + " " + entry.unit));
+      " if it continues · now " + withUnit(entry.value, entry.unit)));
     byId("limit-monitoring").textContent = current && status.limit_monitoring ? status.limit_monitoring.message :
       "Limit monitoring state unavailable";
     if (current && status.communication_alert_active) alerts.push("Communication alert");

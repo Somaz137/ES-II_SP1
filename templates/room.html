@@ -8,17 +8,19 @@
 <main>
   <header><div><p class="eyebrow">Project 8 / Room 01</p><h1>Room Environment Safety Control</h1></div>
   {% if demo %}<strong class="badge">Simulation</strong>{% endif %}</header>
+  <p id="profile-label">Profile label not set</p>
   <p id="connection" role="status">Waiting for monitor status</p>
   <section class="panel" aria-labelledby="live-title">
     <h2 id="live-title">Current conditions</h2>
     <p id="occupancy">Occupancy unknown</p>
     <dl class="measures">
     {% for key, (name, unit) in charts.items() %}
-      <div><dt>{{ name }}</dt><dd id="{{ key }}">—</dd><span>{{ unit }}</span></div>
+      <div><dt>{{ name }}</dt><dd id="{{ key }}">—</dd>{% if key not in ("air_quality", "dust_ugm3") %}<span>{{ unit }}</span>{% endif %}</div>
     {% endfor %}
     </dl>
     <p id="last-reading"></p>
     <p id="readiness"></p>
+    <p id="system-limits">Air quality and dust limits unavailable</p>
   </section>
   <div class="columns">
     <section class="panel" aria-labelledby="trend-title">
@@ -46,9 +48,10 @@
   </div>
   <section class="panel" aria-labelledby="profile-title">
     <h2 id="profile-title">Patient limits</h2>
-    <p>Leave both limits blank to disable a measurement. A new profile restarts the sustained alert timers.</p>
+    <p>Leave both limits blank to disable a measurement. A new profile restarts the sustained alert timers. Air quality and dust limits are system setup and are not changed here.</p>
     {% if error %}<p role="alert">{{ error }}</p>{% endif %}
     <form method="post" action="{{ url_for('profile') }}">
+      <label>Profile label, for example a bed number (optional, no patient name) <input name="label" maxlength="{{ label_max }}" value="{{ fields.label }}"></label>
       {% for key, (name, unit) in metrics.items() %}
       <fieldset><legend>{{ name }} ({{ unit }})</legend>
         <label>Lower limit <input type="number" step="any" name="{{ key }}_low" value="{{ fields[key ~ '_low'] }}"></label>

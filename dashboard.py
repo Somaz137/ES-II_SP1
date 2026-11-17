@@ -6,7 +6,8 @@ import time
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
-from room_store import DEFAULT_DB, DEMO_DB, EVENT_LIMIT_MAX, METRICS, SERIES, RoomStore
+from room_store import (DEFAULT_DB, DEMO_DB, EVENT_LIMIT_MAX, LABEL_MAX, METRICS, SERIES, SYSTEM_METRICS,
+                        RoomStore, validate_label)
 from settings import RUNTIME_DEFAULTS
 
 
@@ -52,9 +53,17 @@ def parse_profile_form(form):
         errors.append("The sustained duration must be a finite number of seconds.")
     elif hold <= 0:
         errors.append("The sustained duration must be positive.")
+    label = form.get("label", "").strip()
+    try:
+        validate_label(label)
+    except ValueError as error:
+        errors.append(str(error))
     if errors:
         raise ValueError(" ".join(errors))
-    return {"limits": limits, "hold_s": hold}
+    profile = {"limits": limits, "hold_s": hold}
+    if label:  # an empty label is not written to the file
+        profile["label"] = label
+    return profile
 
 
 def aged(value, extra):
@@ -146,13 +155,13 @@ def create_app(path=DEFAULT_DB, *, demo=False):
         profile, profile_error = load_profile()
         error = error or profile_error
         profile = profile or {"limits": {}, "hold_s": ""}
-        fields = {"hold_s": profile["hold_s"]}
+        fields = {"hold_s": profile["hold_s"], "label": profile.get("label", "")}
         for metric in METRICS:
             fields[metric + "_low"], fields[metric + "_high"] = profile["limits"].get(metric, ["", ""])
         if form is not None:
             fields = {key: form.get(key, "") for key in fields}
         return render_template("room.html", charts=SERIES, metrics=METRICS, demo=demo,
-                               fields=fields, error=error)
+                               fields=fields, error=error, label_max=LABEL_MAX)
 
     @app.get("/")
     def index():
@@ -175,8 +184,18 @@ def create_app(path=DEFAULT_DB, *, demo=False):
         profile, profile_error = load_profile()
         events = store.events(before, limit)
         more = bool(events) and bool(store.events(events[-1]["id"], 1))
-        trends = {key: {"name": name, "unit": unit, "limit_checked": key in METRICS, "buckets": buckets}
+        def limit_checked(key):
+            """Patient measurements, and the estimates whose system limit the monitor published."""
+            if key in METRICS:
+                return True
+            block = status.get(key) if isinstance(status, dict) else None
+            return key in SYSTEM_METRICS and isinstance(block, dict) and block.get("limit") is not None
+
+        trends = {key: {"name": name, "unit": unit, "limit_checked": limit_checked(key),
+                        "estimate": key in SYSTEM_METRICS, "buckets": buckets}
                   for (key, (name, unit)), buckets in zip(SERIES.items(), store.trends(now).values())}
+        if profile is not None:
+            profile = {**profile, "label": profile.get("label", "")}
         return jsonify(status=status, profile=profile, profile_error=profile_error, trends=trends,
                        events=events, events_has_more=more, health=system_health(status, now),
                        timing=effective_timing(status), now=now)

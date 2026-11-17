@@ -76,9 +76,13 @@ def test_api_without_status_uses_defaults(app_store):
     assert set(data["health"]) == HEALTH_KEYS
     assert data["health"]["monitor"] == {"state": "waiting", "updated_at": None, "age_s": None}
     assert data["health"]["serial"]["state"] == "unknown"
-    assert set(data["trends"]) == {"temp_c", "humidity_pct", "pressure_hpa", "gas_ohms", "dust_mv"}
+    assert set(data["trends"]) == {"temp_c", "humidity_pct", "pressure_hpa", "gas_ohms", "dust_mv",
+                                   "air_quality", "dust_ugm3"}
     assert data["trends"]["gas_ohms"] == {"name": "Gas resistance", "unit": "Ω",
-                                          "limit_checked": False, "buckets": []}
+                                          "limit_checked": False, "estimate": False, "buckets": []}
+    assert data["trends"]["air_quality"] == {"name": "Air quality index", "unit": "",
+                                             "limit_checked": False, "estimate": True, "buckets": []}
+    assert data["trends"]["dust_ugm3"]["estimate"] is True
     assert data["trends"]["temp_c"]["limit_checked"] is True
     assert abs(data["now"] - time.time()) < 5
 
@@ -90,7 +94,7 @@ def test_api_returns_alert_profile_trends_and_health(app_store):
     timing = {**RUNTIME_DEFAULTS, "status_stale_after_s": 30, "fault_check_interval_s": 5}
     publish_live(store, [31, 31, 31], timing=timing)
     data = client.get("/api/room?metric=ignored").json
-    assert data["profile"] == profile and data["timing"] == timing
+    assert data["profile"] == {**profile, "label": ""} and data["timing"] == timing
     alert = data["status"]["limit_alerts"][0]
     assert {key: alert[key] for key in ("metric", "direction", "limit", "value")} == {
         "metric": "temp_c", "direction": "high", "limit": 27, "value": 31}
@@ -207,7 +211,7 @@ def test_requests_for_other_hosts_and_cross_site_posts_are_refused(app_store):
 def test_page_lists_every_stored_series(app_store):
     client, _ = app_store
     page = client.get("/").get_data(as_text=True)
-    for key in ("temp_c", "humidity_pct", "pressure_hpa", "gas_ohms", "dust_mv"):
+    for key in ("temp_c", "humidity_pct", "pressure_hpa", "gas_ohms", "dust_mv", "air_quality", "dust_ugm3"):
         assert f'<option value="{key}"' in page and f'id="{key}"' in page
 
 
@@ -281,3 +285,60 @@ def test_page_has_hidden_silence_control(app_store):
     assert 'id="alarm"' in page
     assert '<form id="silence" action="/silence" method="post" hidden>' in page
     assert 'name="token"' in page and "Silence alarm" in page
+
+
+def test_label_is_trimmed_saved_returned_and_escaped(app_store):
+    client, store = app_store
+    form = {"temp_c_low": "20", "temp_c_high": "27", "hold_s": "9"}
+    assert client.post("/profile", data={**form, "label": "  Bed 3 "}).status_code == 303
+    assert store.load_profile() == {"limits": {"temp_c": [20, 27]}, "hold_s": 9, "label": "Bed 3"}
+    assert client.get("/api/room").json["profile"]["label"] == "Bed 3"
+    assert 'value="Bed 3"' in client.get("/").get_data(as_text=True)
+    assert client.post("/profile", data={**form, "label": "<b>Bed</b>"}).status_code == 303
+    page = client.get("/").get_data(as_text=True)
+    assert "<b>Bed</b>" not in page and "&lt;b&gt;Bed&lt;/b&gt;" in page
+    assert client.post("/profile", data={**form, "label": ""}).status_code == 303
+    assert store.load_profile() == {"limits": {"temp_c": [20, 27]}, "hold_s": 9}
+    assert client.get("/api/room").json["profile"]["label"] == ""
+
+
+@pytest.mark.parametrize("label, message", [("x" * 41, "at most 40 characters"),
+                                            ("Bed\x073", "control characters")])
+def test_invalid_label_is_refused_and_kept_in_the_form(app_store, label, message):
+    client, store = app_store
+    response = client.post("/profile", data={"hold_s": "9", "label": label})
+    assert response.status_code == 400
+    page = response.get_data(as_text=True)
+    assert message in page
+    if len(label) == 41:
+        assert f'value="{label}"' in page  # the typed text is kept
+    assert store.load_profile() is None
+
+
+def test_system_limit_trends_follow_the_published_limits(app_store):
+    client, store = app_store
+    store.write("status", {"updated_at": time.time(), "air_quality": {"limit": 150},
+                           "dust_ugm3": {"limit": None}})
+    trends = client.get("/api/room").json["trends"]
+    assert trends["air_quality"]["limit_checked"] is True
+    assert trends["dust_ugm3"]["limit_checked"] is False
+
+
+def test_api_returns_the_new_measurement_blocks(app_store):
+    client, store = app_store
+    publish_live(store, [24, 24])
+    status = client.get("/api/room").json["status"]
+    assert status["air_quality"]["state"] == "unavailable"  # this line has no Bosch fields
+    assert status["air_quality"]["source"] == "Bosch estimate"
+    assert status["dust_ugm3"]["state"] == "establishing_baseline"
+    assert status["dust_ugm3"]["source"] == "estimate"
+    assert status["gas_calibration"] and "gas_ohms" in status["last_reading"]
+    assert status["dust"]["sensor_mv"] == 920
+
+
+def test_page_has_no_form_for_system_limits(app_store):
+    client, _ = app_store
+    page = client.get("/").get_data(as_text=True)
+    assert 'name="label"' in page and 'maxlength="40"' in page
+    assert 'name="air_quality' not in page and 'name="dust' not in page
+    assert 'id="system-limits"' in page and 'id="profile-label"' in page
