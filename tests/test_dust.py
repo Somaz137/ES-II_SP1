@@ -55,3 +55,55 @@ def test_firmware_dust_limit_matches_host_limit():
     assert largest == 5500
     assert parse_dust(json.dumps({"type": "dust", "sensor_mv": float(largest)})) == (largest, None)
     assert parse_dust(json.dumps({"type": "dust", "sensor_mv": largest + 0.1}))[0] is None
+
+
+def test_baseline_needs_an_unbroken_run_then_is_the_lowest_voltage():
+    from dust import DustBaseline
+    baseline = DustBaseline(window_s=3600, min_s=30, gap_s=6)
+    for at, mv in [(0, 950), (3, 900), (6, 980)]:
+        baseline.add(mv, at)
+    assert baseline.value(6) is None  # 6 s of data: still establishing
+    for at in range(9, 31, 3):
+        baseline.add(1000, at)
+    assert baseline.value(30) == 900
+
+
+def test_baseline_forgets_voltages_older_than_the_window():
+    from dust import DustBaseline
+    baseline = DustBaseline(window_s=600, min_s=30, gap_s=6)
+    baseline.add(800, 0)
+    for at in range(3, 901, 3):
+        baseline.add(950, at)
+    assert baseline.value(900) == 950
+
+
+def test_baseline_restarts_after_a_gap_or_a_reset():
+    from dust import DustBaseline
+    baseline = DustBaseline(window_s=3600, min_s=30, gap_s=6)
+    for at in range(0, 61, 3):
+        baseline.add(900, at)
+    assert baseline.value(60) == 900
+    baseline.add(1000, 70)  # 10 s since the last record: the board may have restarted
+    assert baseline.value(70) is None
+    for at in range(73, 101, 3):
+        baseline.add(1000, at)
+    assert baseline.value(100) == 1000
+    baseline.reset()  # a dust fault clears everything
+    assert baseline.value(100) is None
+
+
+def test_baseline_memory_is_bounded_by_the_window():
+    from dust import DustBaseline
+    baseline = DustBaseline(window_s=600, min_s=30, gap_s=6)
+    for at in range(0, 7200, 3):
+        baseline.add(900 + at % 7, at)
+    assert len(baseline.buckets) <= 11
+
+
+def test_estimate_from_the_tracked_baseline_is_never_negative():
+    from dust import DustBaseline, estimate_dust
+    baseline = DustBaseline(window_s=3600, min_s=0.001, gap_s=6)
+    baseline.add(920, 0)
+    baseline.add(1420, 3)
+    assert estimate_dust(1420, baseline.value(3), 5000) == 100
+    assert estimate_dust(920, baseline.value(3), 5000) == 0

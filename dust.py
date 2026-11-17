@@ -1,4 +1,5 @@
-"""Independent Sharp dust records; voltage is not PM2.5 or AQI."""
+"""Independent Sharp dust records and an estimated concentration; not PM2.5 or AQI."""
+from collections import deque
 from dataclasses import dataclass, replace
 import json
 import math
@@ -61,3 +62,44 @@ def estimate_dust(sensor_mv, baseline_mv, sensitivity_mv_per_mg_m3):
     if not math.isfinite(result):
         raise ValueError("Dust estimate overflow.")
     return result
+
+
+class DustBaseline:
+    """Clean-air baseline: the lowest fresh sensor voltage in the last window_s.
+
+    Keeps one minimum per bucket_s, so memory is bounded by window_s / bucket_s.
+    The baseline exists only after an unbroken run of fresh records lasting
+    min_s. Two records more than gap_s apart, or reset() on a dust fault,
+    clear everything. The history is in memory only: a restart starts again.
+    """
+
+    def __init__(self, window_s, min_s, gap_s, bucket_s=60):
+        self.window_s, self.min_s, self.gap_s, self.bucket_s = window_s, min_s, gap_s, bucket_s
+        self.buckets = deque(maxlen=int(math.ceil(window_s / bucket_s)) + 1)
+        self.run_start = None
+        self.last_at = None
+
+    def reset(self):
+        self.buckets.clear()
+        self.run_start = self.last_at = None
+
+    def add(self, sensor_mv, at):
+        """Record one fresh voltage at monotonic time `at`."""
+        if self.last_at is not None and at - self.last_at > self.gap_s:
+            self.reset()
+        if self.run_start is None:
+            self.run_start = at
+        self.last_at = at
+        key = math.floor(at / self.bucket_s)
+        if self.buckets and self.buckets[-1][0] == key:
+            self.buckets[-1][1] = min(self.buckets[-1][1], sensor_mv)
+        else:
+            self.buckets.append([key, sensor_mv])
+        while self.buckets and (self.buckets[0][0] + 1) * self.bucket_s <= at - self.window_s:
+            self.buckets.popleft()
+
+    def value(self, at):
+        """The baseline in mV, or None while it is being established."""
+        if self.run_start is None or at - self.run_start < self.min_s or not self.buckets:
+            return None
+        return min(minimum for _, minimum in self.buckets)
