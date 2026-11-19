@@ -95,6 +95,9 @@ class LoginLimiter:
 
     def failed(self, client):
         now = self.clock()
+        if len(self.failures) >= 1000:  # keep memory bounded: forget clients with no recent failure
+            self.failures = {key: times for key, times in self.failures.items()
+                             if times and times[-1] > now - self.window_s}
         self.failures.setdefault(client, deque()).append(now)
         self.all_failures.append(now)
 
