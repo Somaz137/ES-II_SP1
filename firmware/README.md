@@ -79,7 +79,7 @@ In Arduino IDE, select **ESP32S3 Dev Module** and set Flash Size "16MB (128Mb)",
 
 The board was flashed on 17 November 2026 with nothing wired to it. The serial link and the alarm replies were checked. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md). Items marked partly done say what is still open. All other items are still to do.
 
-Before the first flash:
+Before wiring the board:
 
 1. Identify the exact ESP32-S3 board and get its pinout and schematic.
 2. Check that GPIO4 to GPIO9 are broken out and free on this board. Check that GPIO6 and GPIO7 are not used by an on-board RGB LED, button or other part.
@@ -91,7 +91,7 @@ Before the first flash:
 8. Measure the dust divider with a meter. Check that the ADC pin never sees more than about 3.1 V.
 9. Decide how a disconnected dust sensor is detected. With no sensor attached, the dust input read about 870 to 930 mV and was accepted as a fresh dust record, most likely because the ADC pin floats. Candidates: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. Not decided.
 
-After the first flash:
+After flashing:
 
 1. Partly done on 17 November 2026: the first firmware line after reset was `{"type":"alarm","state":0}`. Still open: check that the LED and buzzer are off.
 2. Partly done on 17 November 2026: `ALARM,0`, `ALARM,1`, `ALARM,2` and `ALARM,0` each got the matching reply in about 10 ms, and `ALARM,9` got none. Still open: check the LED and the buzzer, and whether the buzzer needs a tone instead of a steady level.
