@@ -66,6 +66,7 @@ Estimated ug/m3 = max(0, sensor_mv - baseline_mv) * 1000 / sensitivity. It is ne
 - A dust error, a stale report, communication loss or a gap of more than `reading_gap_limit_s` between records clears the history. A monitor restart also starts again; the history is in memory only.
 - A low outlier lowers the baseline, and raises later estimates, until it leaves the window.
 - Word levels: `low` up to 50, `raised` up to 150, `high` above. These are project display defaults, not health standards and not official category names.
+- Not-connected floor: `disconnected_below_mv` in `config/system.yaml`, default 100 mV (sensor side). Required: the file must contain it. It must be above 0 and at most 5500; other values are refused at load. A dust voltage below it is not counted as a reading. After `sensor_error_timeout_s` (120 s) with no reading at or above the floor, the dust status is `not_connected` and the dust fault is on. Not yet checked on the bench.
 - Limit: `upper_limit` and `hold_s` in `config/system.yaml`, off as shipped. The project supplies no dust limit. The demo uses 100 ug/m3 for 30 s as a demonstration value.
 
 The old `--dust-baseline-mv` and `--dust-sensitivity` options are removed. The estimate is not size-selective PM2.5, an official index, or a medical verdict. Verify against a reference instrument if concentration matters. A retained value is never shown as a current estimate.

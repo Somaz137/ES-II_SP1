@@ -89,7 +89,7 @@ Before wiring the board:
 6. Read the buzzer module's markings or documentation for its trigger level and supply voltage. Set `ROOM_BUZZER_ACTIVE_HIGH` to match. Check that the module's signal input is safe at 3.3 V.
 7. Check the BME680 breakout supply (3.3 V) and its I2C address pin (0x76 or 0x77).
 8. Measure the dust divider with a meter. Check that the ADC pin never sees more than about 3.1 V.
-9. Decide how a disconnected dust sensor is detected. With no sensor attached, the dust input read about 870 to 930 mV and was accepted as a fresh dust record, most likely because the ADC pin floats. Candidates: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. Not decided.
+9. Dust disconnect: the host applies a floor rule (decided and implemented on the host on 20 November 2026). A dust voltage below `dust.disconnected_below_mv` (default 100 mV, sensor side) is not counted as a reading. After `sensor_error_timeout_s` (120 s) with no reading at or above the floor, the dust status is `not_connected` and the dust fault is on. Not yet checked on the bench: with the 2:1 divider wired and no sensor, confirm that the input reads below 100 mV (on 17 November, with nothing wired, the floating input read about 870 to 930 mV) and that a connected sensor reads above it.
 
 After flashing:
 
