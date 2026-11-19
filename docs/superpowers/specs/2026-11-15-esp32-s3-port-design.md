@@ -1,5 +1,7 @@
 # ESP32-S3 firmware port design
 
+> **Note, 17 November 2026:** esptool shows the connected board is an N16R8-type module (16 MB quad flash, 8 MB embedded PSRAM, CH343 USB-UART bridge), not the N8R2 this document names. It was flashed with `esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. This document is kept as written. See the [17 November verification record](../../../reference_files/LINUX_VERIFICATION_2026-11-17.md).
+
 Approved scope: the user changed the board to an ESP32-S3 with an N8R2 module (8 MB quad flash, 2 MB quad PSRAM) on 15 November 2026. This step ports the firmware source to that chip and wires the local alarm into the sketch, as the [local alarm design](2026-11-15-local-alarm-design.md) lists. Verification is compilation and host tests only. Nothing is flashed. No board is connected.
 
 ## Decisions taken by the user

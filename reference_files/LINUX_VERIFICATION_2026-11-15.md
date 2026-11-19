@@ -1,5 +1,7 @@
 # Linux verification results - 15 November 2026
 
+> **Note, 17 November 2026:** esptool shows the connected board is an N16R8-type module (16 MB quad flash, 8 MB embedded PSRAM, CH343 USB-UART bridge), not the N8R2 this document names. It was flashed with `esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. This document is kept as written. See the [17 November verification record](LINUX_VERIFICATION_2026-11-17.md).
+
 An assistant ran these checks on the project Linux machine. A second assistant re-ran them.
 The checks cover branch `feature/sharp-dust-integration` at commit 5e2de1b and `main` at commit 85d5f05.
 No ESP32 was connected. No physical sensor or camera was used.
