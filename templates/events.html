@@ -1,7 +1,7 @@
 {% extends "room.html" %}
 {% block content %}
 <div class="filters" role="group" aria-label="Filter events">
-  {% for family, name in [("all", "All"), ("limit", "Limit alerts"), ("communication", "Communication"), ("sensor", "Sensor"), ("alarm", "Alarm"), ("profile", "Profile")] %}
+  {% for family, name in [("all", "All"), ("limit", "Limit alerts"), ("communication", "Communication"), ("sensor", "Sensor"), ("alarm", "Alarm"), ("profile", "Profile"), ("online", "Online access")] %}
   <button class="chipbtn" type="button" data-family="{{ family }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ name }}</button>
   {% endfor %}
   <p class="count" id="event-count">Loading events.</p>

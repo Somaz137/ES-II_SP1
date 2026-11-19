@@ -108,7 +108,7 @@ const RoomChart = (() => {
       }
       for (const [value, word] of [[high, "upper"], [low, "lower"]]) {
         if (value != null) text(svg, m.l + plotW + 6, y(value) + 4, value.toFixed(opts.digits),
-          {style: `fill:${COLOR.line}`, "font-weight": 600, "aria-label": word + " limit"});
+          {class: "lim-label", "font-weight": 600, "aria-label": word + " limit"});
       }
       for (const tick of timeTicks(start, end)) {
         const anchor = x(tick.at) < m.l + 20 ? "start" : x(tick.at) > m.l + plotW - 20 ? "end" : "middle";
@@ -145,7 +145,7 @@ const RoomChart = (() => {
     if (opts.alertLabel) {
       // Small multiples label at the left so the label never covers the newest readings.
       text(svg, small ? m.l + 6 : m.l + plotW - 12, m.t + 14, opts.alertLabel,
-        {"text-anchor": small ? "start" : "end", style: `fill:${COLOR.red}`, "font-weight": 600});
+        {"text-anchor": small ? "start" : "end", class: "alert-label", "font-weight": 600});
     } else if (opts.noteLabel) {
       text(svg, m.l + 4, m.t + 14, opts.noteLabel, {"text-anchor": "start"});
     }

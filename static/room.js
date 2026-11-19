@@ -2,6 +2,8 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const PAGE = document.body.dataset.page;
+// Online without sign-in: controls stay visible but disabled, with words.
+const LOCKED = "locked" in document.body.dataset;
 const PATIENT = ["temp_c", "humidity_pct", "pressure_hpa"];
 const SYSTEM = ["air_quality", "dust_ugm3"];
 const SHOWN = [...PATIENT, ...SYSTEM];
@@ -335,9 +337,11 @@ function renderOverviewChart(v) {
   $("overview-chart-summary").textContent = summary;
 }
 
-const FAMILY = {limit: "Limit alert", communication: "Communication", sensor: "Sensor", alarm: "Alarm", profile: "Profile"};
-const FAMILY_TONE = {limit: "red", communication: "amber", sensor: "none", alarm: "red", profile: "none"};
+const FAMILY = {limit: "Limit alert", communication: "Communication", sensor: "Sensor", alarm: "Alarm", profile: "Profile",
+  online: "Online access"};
+const FAMILY_TONE = {limit: "red", communication: "amber", sensor: "none", alarm: "red", profile: "none", online: "none"};
 function family(event) {
+  if (event.kind.startsWith("online")) return "online";
   if (event.kind.startsWith("limit")) return "limit";
   if (event.kind.startsWith("alarm")) return "alarm";
   if (event.kind.startsWith("profile")) return "profile";
@@ -503,7 +507,8 @@ function renderEvents(v) {
       button.className = "btn btn-sm btn-amber";
       button.setAttribute("form", "ack");
       button.dataset.control = "";
-      button.textContent = "Acknowledge";
+      button.textContent = LOCKED ? "Sign in to acknowledge" : "Acknowledge";
+      button.disabled = LOCKED;
       wrap.append(button);
     }
     s.append(wrap);
@@ -649,10 +654,41 @@ function apiUrl() {
   if (PAGE === "trends") return "/api/room?limit=20&window=" + trendWindow;
   return "/api/room?limit=20";
 }
+// ---------- online access ----------
+const ONLINE_WORDS = {
+  off: ["Online access: off", "none", "The dashboard is served on this computer only. Start online access with dashboard.py --online."],
+  starting: ["Online access: starting", "amber", "Waiting for cloudflared to report the link."],
+  active: ["View-only link active", "green", "This link changes each time online access starts. Viewing is open to anyone with the link; controls need sign-in."],
+  failed: ["Online access failed", "red", "The dashboard still works on this computer. Monitoring and the local alarm are not affected."],
+};
+function renderOnline(online) {
+  if (!online) return;
+  const [words, tone, help] = ONLINE_WORDS[online.state] || ONLINE_WORDS.off;
+  $("online-foot").textContent = online.state === "active" ? "Online: view-only link active" : words;
+  if (!$("online-state")) return;
+  $("online-state").textContent = online.state === "failed" && online.reason ? words + ": " + online.reason : words;
+  setTone($("online-dot"), tone);
+  $("online-help").textContent = help;
+  $("online-link-field").hidden = !online.url;
+  if ($("online-link").value !== (online.url || "")) $("online-link").value = online.url || "";
+}
+function wireCopyLink() {
+  const button = $("copy-link");
+  if (!button) return;
+  button.addEventListener("click", async () => {
+    const field = $("online-link");
+    try { await navigator.clipboard.writeText(field.value); }
+    catch { field.select(); document.execCommand("copy"); }
+    button.textContent = "Link copied";
+    setTimeout(() => { button.textContent = "Copy link"; }, 2000);
+  });
+}
+
 function render() {
   if (!latest) return;
   const v = latest;
   renderTop(v);
+  renderOnline(v.online);
   renderAttention(v, false);
   if (PAGE === "index") { renderTiles(v); renderOverviewChart(v); renderRecent(v); }
   else if (PAGE === "trends") renderTrends(v);
@@ -740,6 +776,7 @@ function wire() {
     });
   }
   if (PAGE === "limits") wireLimitsForm();
+  if (PAGE === "system") wireCopyLink();
   // Charts are drawn at their container's pixel size; redraw when that size changes.
   const widths = new WeakMap();
   let resizeTimer = null;
