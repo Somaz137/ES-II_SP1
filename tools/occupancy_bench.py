@@ -25,6 +25,11 @@ def capture_frame(index):
         capture.release()
 
 
+def frame_line(i, hog_seen, yolox_seen, mean):
+    """One bench line. The mean pixel value (0-255) shows a dark or unusable frame."""
+    return f"frame {i}: HOG {'yes' if hog_seen else 'no'} YOLOX {'yes' if yolox_seen else 'no'} (mean {mean:.0f})"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--camera", type=int, required=True, help="camera index, e.g. 0 for /dev/video0")
@@ -54,7 +59,7 @@ def main():
             yolox_ms.append((time.perf_counter() - yolox_started) * 1000)
             hog_hits += hog_seen
             yolox_hits += yolox_seen
-            print(f"frame {i}: HOG {'yes' if hog_seen else 'no'} YOLOX {'yes' if yolox_seen else 'no'}", flush=True)
+            print(frame_line(i, hog_seen, yolox_seen, float(frame.mean())), flush=True)
         frame = None
         if i < args.frames:
             time.sleep(max(0.0, 1.0 - (time.monotonic() - started)))
