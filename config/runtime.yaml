@@ -16,3 +16,13 @@ camera_interval_s: 60
 readings_retention_days: 7
 # Wait for the board to confirm an alarm command before the alarm shows as unreachable.
 alarm_confirm_timeout_s: 2
+# Online access (dashboard.py --online). The online origin listens on 127.0.0.1 only;
+# cloudflared forwards the public link to it. It must not be the local port 5000.
+online_port: 5001
+# The cloudflared program: a name on PATH or a full path.
+cloudflared_path: cloudflared
+# Sign-in lifetime for online controls, in hours.
+online_session_hours: 8
+# Quick tunnel when null. For a named tunnel, set its name and its fixed https:// address.
+cloudflared_tunnel: null
+online_public_url: null

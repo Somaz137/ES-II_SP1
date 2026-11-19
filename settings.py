@@ -77,6 +77,49 @@ def load_runtime_settings(path: str | Path) -> dict:
     return {**RUNTIME_DEFAULTS, **data}
 
 
+# Optional online-access keys (dashboard.py --online). The local dashboard does not need them.
+ONLINE_DEFAULTS = {
+    "online_port": 5001,
+    "cloudflared_path": "cloudflared",
+    "online_session_hours": 8,
+    "cloudflared_tunnel": None,
+    "online_public_url": None,
+}
+LOCAL_DASHBOARD_PORT = 5000
+
+
+def load_online_settings(path: str | Path) -> dict:
+    """The online-access keys of the runtime file, with defaults for absent keys."""
+    import yaml
+
+    with Path(path).open(encoding="utf-8") as source:
+        try:
+            data = yaml.safe_load(source)
+        except yaml.YAMLError as error:
+            raise ValueError(f"Invalid runtime YAML: {path}") from error
+    validate_runtime_settings(data)
+    return {key: data.get(key, default) for key, default in ONLINE_DEFAULTS.items()}
+
+
+def validate_online_settings(data: dict) -> None:
+    merged = {**ONLINE_DEFAULTS, **{key: data[key] for key in ONLINE_DEFAULTS if key in data}}
+    port = merged["online_port"]
+    if (isinstance(port, bool) or not isinstance(port, int) or not 1024 <= port <= 65535
+            or port == LOCAL_DASHBOARD_PORT):
+        raise ValueError("online_port must be a whole number from 1024 to 65535, not 5000.")
+    binary = merged["cloudflared_path"]
+    if not isinstance(binary, str) or not binary.strip():
+        raise ValueError("cloudflared_path must be the cloudflared program name or path.")
+    _positive("online_session_hours", merged["online_session_hours"])
+    name, url = merged["cloudflared_tunnel"], merged["online_public_url"]
+    if name is not None and (not isinstance(name, str) or not name.strip()):
+        raise ValueError("cloudflared_tunnel must be null or a named tunnel.")
+    if url is not None and (not isinstance(url, str) or not url.startswith("https://")):
+        raise ValueError("online_public_url must be null or an https:// address.")
+    if name is not None and url is None:
+        raise ValueError("A named cloudflared_tunnel needs online_public_url.")
+
+
 def _positive(key, value):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{key} must be finite and positive.")
@@ -115,6 +158,7 @@ def validate_runtime_settings(data: object) -> None:
                          "the board's reply is read at a later poll.")
     if merged["readings_retention_days"] < 1:
         raise ValueError("readings_retention_days must be at least 1 for the 24-hour trend.")
+    validate_online_settings(data)
 
 
 # System setup for air quality and dust. Equal to config/system.yaml; a test keeps them equal.
