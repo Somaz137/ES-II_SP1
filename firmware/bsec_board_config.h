@@ -1,11 +1,10 @@
 #pragma once
 
 // Target: ESP32-S3 with 16 MB quad flash and 8 MB embedded PSRAM (N16R8-type module),
-// read from the connected board by esptool on 17 November 2026. The #error text below
-// still names the N8R2 that the documents assumed before; the check is unaffected.
+// read from the connected board by esptool on 17 November 2026.
 // The chip check cannot identify the physical development board or its memory.
 #if !defined(ARDUINO_ARCH_ESP32) || !defined(CONFIG_IDF_TARGET_ESP32S3)
-#error "Select an ESP32-S3 board (esp32:esp32:esp32s3). This firmware targets the ESP32-S3 N8R2."
+#error "Select an ESP32-S3 board (esp32:esp32:esp32s3). This firmware targets the ESP32-S3 (developed on an N16R8-type module)."
 #endif
 
 // Board pins decided by the user on 15 November 2026.

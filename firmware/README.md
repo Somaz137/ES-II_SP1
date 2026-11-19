@@ -19,8 +19,8 @@ It does not establish a working hardware integration.
 | Sensor supply | 3.3 V, confirmed by the user |
 | BSEC sampling | Low-power mode, one acquisition every three seconds |
 
-`bsec_board_config.h` rejects any chip other than the ESP32-S3 with the message "Select an ESP32-S3 board (esp32:esp32:esp32s3). This firmware targets the ESP32-S3 N8R2."
-The message still names the N8R2. The physical board is an N16R8-type module. The check itself is unaffected.
+`bsec_board_config.h` rejects any chip other than the ESP32-S3 with the message "Select an ESP32-S3 board (esp32:esp32:esp32s3). This firmware targets the ESP32-S3 (developed on an N16R8-type module)."
+The message changed on 17 November 2026. Before, it named the N8R2. The check itself is unchanged.
 It checks the selected chip type, not the physical board or its memory.
 
 The user confirmed a 3.3 V sensor supply on 8 November 2026.
