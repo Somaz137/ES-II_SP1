@@ -24,3 +24,16 @@ Thumbs.db
 # Logs
 *.log
 
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+/room.profile.yaml
+/room-demo.profile.yaml
+
+# Online sign-in password hash and session key (dashboard.py --set-password)
+/config/online_secret.yaml
+/config/online_secret.yaml.tmp
+
+# cloudflared output from dashboard.py --online (settings: cloudflared_log)
+/logs/

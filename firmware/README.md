@@ -1,22 +1,27 @@
-# DOIT ESP32 DevKit V1 BSEC firmware
+# ESP32-S3 BSEC firmware
 
-**Linux checks recorded:** See the [8 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-08.md).
-The user completed Python test execution, firmware formatting, compilation, and the listed virtual-serial scenarios.
-Physical ESP32 and BME680 operation remains unverified.
-The successful Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408.
-This record supersedes earlier pending-test statements in historical preparation notes and design checklists.
+**Target:** an ESP32-S3 (QFN56, revision v0.2) with 16 MB quad flash and 8 MB embedded PSRAM, an N16R8-type module. esptool read these facts from the connected board on 17 November 2026. The documents assumed an N8R2 module until then. The board was selected on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
+**Status:** the board was flashed on 17 November 2026. The serial link and the alarm protocol were checked without sensors. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md). The exact development board model is not identified. Sensor, LED and buzzer behaviour is unverified.
+The 8 November build for the DOIT board is history. See the [8 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-08.md).
 
-
-This source prepares BSEC low-power acquisition every three seconds.
+This source prepares BSEC low-power acquisition every three seconds, experimental Sharp dust acquisition and a local LED and buzzer alarm.
 It does not establish a working hardware integration.
-No firmware build, test, installation or flashing occurred on Windows.
 
-## Before compilation on Linux
+## Board configuration
 
-1. Use the DOIT ESP32 DevKit V1 with the classic ESP32 chip.
-2. Select **DOIT ESP32 DEVKIT V1** in Arduino IDE 2.3.10.
-3. Check the installed firmware libraries and ESP32 core version.
-4. Select the actual USB serial port.
+| Setting | Value |
+|---|---|
+| Board | ESP32-S3 with 16 MB flash and 8 MB embedded PSRAM (N16R8-type module) |
+| Arduino board identifier | `esp32:esp32:esp32s3` |
+| Board options | `FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. Flash mode stays the default (QIO). PSRAM is disabled because the firmware does not use it. |
+| USB port | CH343 USB-UART bridge (USB 1a86:55d3), `/dev/ttyACM0` on Linux |
+| Serial speed | 115200 baud |
+| Sensor supply | 3.3 V, confirmed by the user |
+| BSEC sampling | Low-power mode, one acquisition every three seconds |
+
+`bsec_board_config.h` rejects any chip other than the ESP32-S3 with the message "Select an ESP32-S3 board (esp32:esp32:esp32s3). This firmware targets the ESP32-S3 (developed on an N16R8-type module)."
+The message changed on 17 November 2026. Before, it named the N8R2. The check itself is unchanged.
+It checks the selected chip type, not the physical board or its memory.
 
 The user confirmed a 3.3 V sensor supply on 8 November 2026.
 ROOM_BME680_SUPPLY_MV therefore defaults to 3300 in bsec_board_config.h.
@@ -24,75 +29,103 @@ The header rejects supply values other than 1800 and 3300.
 Breakout VIN and the BME680 supply can differ.
 Check this setting again if you change the sensor breakout.
 
-## Board configuration
+## Wiring (ESP32-S3)
 
-| Setting | Value |
-|---|---|
-| Arduino board | DOIT ESP32 DEVKIT V1 |
-| Arduino board identifier | esp32:esp32:esp32doit-devkit-v1 |
-| Sensor SDA | GPIO21 |
-| Sensor SCL | GPIO22 |
-| Serial speed | 115200 baud |
-| Sensor supply | 3.3 V, confirmed by the user |
-| BSEC sampling | Low-power mode, one acquisition every three seconds |
+The user decided these pins. They are not checked against the physical board. All are named constants in bsec_board_config.h.
 
-Connect sensor SDA to GPIO21 and sensor SCL to GPIO22.
-Connect the sensor ground to the board ground.
-Use the breakout documentation to identify its power terminal.
-The header stores the pins and serial speed as named constants.
-The sketch uses those constants during startup.
-The header rejects compilation for C3, S2, S3, and other chip types.
-It checks the selected chip type, not the physical board.
-Select the DOIT board explicitly in the IDE.
-Recompile the sketch for this board before uploading.
+| Function | GPIO | Constant | Note |
+|---|---|---|---|
+| BME680 SDA | GPIO8 | ROOM_I2C_SDA_PIN | |
+| BME680 SCL | GPIO9 | ROOM_I2C_SCL_PIN | |
+| Dust analog input (Vo through 2:1 divider) | GPIO4 | ROOM_DUST_ADC_PIN | ADC1 channel 3 |
+| Dust LED drive (NPN base through 1 kohm) | GPIO5 | ROOM_DUST_LED_PIN | HIGH turns the sensor LED on |
+| Alarm LED (series resistor to ground) | GPIO6 | ROOM_ALARM_LED_PIN | HIGH lights the LED |
+| Buzzer module signal (3-pin module) | GPIO7 | ROOM_BUZZER_PIN | Polarity: ROOM_BUZZER_ACTIVE_HIGH |
 
-Bosch BSEC2 includes a binary for the classic ESP32 chip.
-Bosch BME68x reads the sensor and is required by BSEC2.
-Wire comes with the Espressif ESP32 Arduino core.
-Python requirements.txt does not install these firmware libraries.
-The user compiled this source with their installed ESP32 board package and both Bosch libraries.
-Compilation succeeded. Firmware upload and physical checks remain pending.
+Connect all grounds together. Use the breakout documentation to identify the BME680 power terminal.
+The dust circuit is in [SHARP_DUST_INTEGRATION.md](../docs/SHARP_DUST_INTEGRATION.md).
 
-Python receives the same JSON records at the same serial speed.
-Its parser, fault rules, and gas readiness rules need no change for this board.
-Select the actual device path when you start the laptop monitor.
-Opening the port can reset the board. Check this behavior on Linux.
+`ROOM_BUZZER_ACTIVE_HIGH` defaults to `true`: HIGH sounds the buzzer. The module's trigger level is not verified. Many 3-pin modules trigger on LOW. If the buzzer sounds right after power-on (level 0), the polarity is wrong: set the constant to `false` and rebuild.
 
-The source includes the matching Bosch three-second, four-day-history configuration.
-Four days describes baseline history, not a required warm-up wait.
+## Choosing CDC On Boot
 
-## Dependency references
+- `CDCOnBoot=default`: `Serial` is UART0. Use it when the USB cable goes into a port served by a USB-UART bridge chip (often labelled UART or COM). On Linux the port is usually `/dev/ttyUSB<n>` or `/dev/ttyACM<n>`, depending on the bridge chip.
+- `CDCOnBoot=cdc`: `Serial` is the native USB port of the ESP32-S3 (hardware CDC). Use it when the cable goes into the port wired to GPIO19/GPIO20 (often labelled USB). On Linux the port is usually `/dev/ttyACM<n>`.
+- This board's USB port goes through a CH343 bridge (USB 1a86:55d3). It carries UART0, so use `CDCOnBoot=default`. Linux names it `/dev/ttyACM0`. The flash on 17 November 2026 used this setting.
+- The source is the same for both. Only the build option differs.
 
-| Component | Recorded version | Verification |
-|---|---|---|
-| Bosch BSEC2 wrapper | 1.10.2610, algorithm 2.6.1.0 | User installed it. Complete firmware compiled. |
-| Bosch BME68x wrapper | 1.3.40408 | User installed it. Complete firmware compiled. |
-| ESP32 board core | 3.3.12 | User reported it installed. Complete firmware compiled. |
-| Arduino IDE | Course version 2.3.10 | Preserve this requirement. |
+## Build commands
 
-This change uses the existing Python dependencies.
-The sketch no longer uses the Adafruit BME680 library.
-This change does not authorize removing an installed library.
-Bosch distributes algorithm binaries and configuration under its own license.
-Use the upstream distribution rather than copying those files into this repository.
+Run from any directory. The Arduino sketch folder must be named after the main file. This repository's folder is `firmware/`, so copy `firmware/*.ino` and `firmware/*.h` into a folder named `room_environment_safety_control_bme680` first, or rename a copy of the folder.
 
-## Source organization
+UART0 through the CH343 bridge (`CDCOnBoot=default`). This build and upload ran on 17 November 2026:
 
-- room_environment_safety_control_bme680.ino handles BSEC setup, callbacks, and errors.
-- bsec_board_config.h contains the chip check, pins, serial speed, supply selection, and reporting intervals.
-- bsec_serial_format.h converts scalar values and status fields to JSON.
-- tests/test_bsec_serial_format.cpp checks the formatter without a sensor or Arduino library.
+```bash
+arduino-cli compile --config-file /home/bridge/.local/share/room-arduino/arduino-cli.yaml \
+  --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default" \
+  --warnings all --build-path <BUILD_DIR> <SKETCH_DIR>/room_environment_safety_control_bme680
+
+arduino-cli upload --config-file /home/bridge/.local/share/room-arduino/arduino-cli.yaml \
+  -p /dev/ttyACM0 \
+  --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default" \
+  --build-path <BUILD_DIR> <SKETCH_DIR>/room_environment_safety_control_bme680
+```
+
+The 15 November builds used `FlashSize=8M,PSRAM=enabled,PartitionScheme=default_8MB` for the assumed N8R2 module. Do not use them for this board.
+
+In Arduino IDE, select **ESP32S3 Dev Module** and set Flash Size "16MB (128Mb)", PSRAM "Disabled", Partition Scheme "16M Flash (3MB APP/9.9MB FATFS)" and USB CDC On Boot "Disabled" (`default`). The flash size and partition labels come from `arduino-cli board details`. The IDE itself was not checked.
+
+## Hardware checklist
+
+The board was flashed on 17 November 2026 with nothing wired to it. The serial link and the alarm replies were checked. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md). Items marked partly done say what is still open. All other items are still to do.
+
+Before wiring the board:
+
+1. Identify the exact ESP32-S3 board and get its pinout and schematic.
+2. Check that GPIO4 to GPIO9 are broken out and free on this board. Check that GPIO6 and GPIO7 are not used by an on-board RGB LED, button or other part.
+3. Check that no wire goes to a strapping pin (GPIO0, GPIO3, GPIO45, GPIO46). Check that nothing pulls these pins at reset.
+4. Done on 17 November 2026: the laptop uses the CH343 USB-UART bridge (USB 1a86:55d3), Linux port `/dev/ttyACM0`, `CDCOnBoot=default`.
+5. Check the alarm LED series resistor value and that the LED current is within the GPIO limit.
+6. Read the buzzer module's markings or documentation for its trigger level and supply voltage. Set `ROOM_BUZZER_ACTIVE_HIGH` to match. Check that the module's signal input is safe at 3.3 V.
+7. Check the BME680 breakout supply (3.3 V) and its I2C address pin (0x76 or 0x77).
+8. Measure the dust divider with a meter. Check that the ADC pin never sees more than about 3.1 V.
+9. Decide how a disconnected dust sensor is detected. With no sensor attached, the dust input read about 870 to 930 mV and was accepted as a fresh dust record, most likely because the ADC pin floats. Candidates: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. Not decided.
+
+After flashing:
+
+1. Partly done on 17 November 2026: the first firmware line after reset was `{"type":"alarm","state":0}`. Still open: check that the LED and buzzer are off.
+2. Partly done on 17 November 2026: `ALARM,0`, `ALARM,1`, `ALARM,2` and `ALARM,0` each got the matching reply in about 10 ms, and `ALARM,9` got none. Still open: check the LED and the buzzer, and whether the buzzer needs a tone instead of a steady level.
+3. Check BME680 readings every three seconds, their units and the address in use.
+4. Check the dust LED pulse width (0.32 ms), the sampling point (0.28 ms) and the 10 ms period on an oscilloscope. Check the accepted and rejected sample counts.
+5. Check whether opening the serial port resets the board.
+6. With native USB: check what happens to readings when the laptop stops reading the port.
+
+## Local alarm
+
+The host sends `ALARM,0` (LED and buzzer off), `ALARM,1` (LED only) or `ALARM,2` (LED and buzzer). See the [local alarm design](../docs/superpowers/specs/2026-11-15-local-alarm-design.md) and the [port design](../docs/superpowers/specs/2026-11-15-esp32-s3-port-design.md).
+
+- `setup()` sets both outputs to level 0 before `Serial.begin`, the dust task and the BME680 start-up.
+- `setup()` prints `{"type":"alarm","state":0}` once after `Serial.begin`. With native USB this line can be lost if the laptop has not opened the port yet. The host repeats its command at every fault check.
+- `loop()` reads at most 64 bytes per pass with `pumpAlarmInput`. It never waits for input. It runs even when the BME680 failed to start.
+- Each valid command sets the outputs and prints one reply. Malformed lines get no reply.
+- The buzzer gets a steady level. There is no tone and no beep pattern.
+- When the USB link is down the host cannot command the alarm. A board-side fallback is an open decision.
 
 ## Serial behavior
 
-The sketch uses 115200 baud and I2C SDA21/SCL22.
+The sketch uses 115200 baud and I2C SDA GPIO8/SCL GPIO9.
 It tries address 0x76 and then 0x77.
 BSEC controls acquisition timing through BSEC_SAMPLE_RATE_LP.
 The loop calls BSEC frequently without a three-second delay.
 Only a new callback produces a reading record.
+Only the loop task writes `Serial`. The dust task never writes it. Lines therefore never interleave.
+
+With `CDCOnBoot=cdc`, a write can wait up to about 100 ms per block when the laptop holds the port open but does not read. This is core behaviour (`HWCDC.cpp`). It is not checked on the board.
 
 Each reading includes temp_c, humidity_pct, pressure_hpa, and gas_ohms.
-The bsec object includes stabilization_status, run_in_status, and iaq_accuracy.
+The bsec object includes stabilization_status, run_in_status, iaq_accuracy and iaq.
+`iaq` is Bosch's `BSEC_OUTPUT_IAQ` index with two decimals, added on 15 November 2026. It is null when the signal is not finite or outside 0 to 500. The host still accepts records without it.
+The firmware keeps `BSEC_OUTPUT_IAQ`, not `BSEC_OUTPUT_STATIC_IAQ`. The installed library describes the static output only as "Unscaled indoor-air-quality estimate". That does not settle which suits a fixed room device.
 Missing status fields appear as null.
 Python treats incomplete status information as unknown.
 The example in [bsec_reading.json](../tests/fixtures/bsec_reading.json) describes the format.
@@ -104,7 +137,10 @@ Continuous failure reports errors at most once every three seconds.
 Two missing sample periods trigger reporting when BSEC returns without measurements.
 Python still applies its separate 120-second fault rules.
 Initialization failures continue reporting until intervention or restart.
-Automatic sensor reinitialization and calibration-state storage remain future work.
+Automatic sensor reinitialization and calibration-state storage remain future work. Without stored state the index calibrates again after each board start.
+
+Python receives the same JSON records at the same serial speed.
+Its parser, fault rules and gas readiness rules need no change for this board.
 
 ## Pressure contract
 
@@ -114,21 +150,45 @@ Generic BSEC output documentation describes pressure in Pa.
 Check this version-sensitive behavior before using another wrapper release.
 Check real pressure units independently before accepting hardware results.
 
+## Dependency references
+
+| Component | Recorded version | Verification |
+|---|---|---|
+| Bosch BSEC2 wrapper | 1.10.2610, algorithm 2.6.1.0 | Installed. The build uses its precompiled `esp32s3` library. |
+| Bosch BME68x wrapper | 1.3.40408 | Installed. Complete firmware compiled for the ESP32-S3. |
+| ESP32 board core | 3.3.12 | Installed. Complete firmware compiled for the ESP32-S3. |
+| arduino-cli | 1.5.1 | Used for the 15 November builds. |
+| Arduino IDE | Course version 2.3.10 | Preserve this requirement. |
+
+Python requirements.txt does not install these firmware libraries.
+The sketch does not use the Adafruit BME680 library.
+Bosch distributes algorithm binaries and configuration under its own license.
+Use the upstream distribution rather than copying those files into this repository.
+The source includes the matching Bosch three-second, four-day-history configuration.
+Four days describes baseline history, not a required warm-up wait.
+
+## Source organization
+
+- room_environment_safety_control_bme680.ino handles BSEC setup, callbacks, errors and the alarm outputs.
+- bsec_board_config.h contains the chip check, all board pins, the buzzer polarity, serial speed, supply selection, reporting intervals and the alarm read bound.
+- bsec_serial_format.h converts scalar values and status fields to JSON.
+- sharp_dust.h runs experimental Sharp dust acquisition on GPIO5 (LED drive) and GPIO4 (analog input) and reports raw voltage records.
+- sharp_dust_limits.h holds the pure dust sample rule: timing window, ADC limit 2750 mV and the 2:1 divider.
+- alarm_command.h is the local alarm command core: line parser with a fixed 32-byte buffer, level to LED and buzzer, polarity helper, bounded serial pump and reply formatter. Pure C++11, no Arduino dependency, no dynamic allocation.
+- tests/test_bsec_serial_format.cpp, tests/test_alarm_command.cpp and tests/test_sharp_dust_limits.cpp run without a board. Build and run each on Linux, for example `g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_alarm_command.cpp -o /tmp/test_alarm_command && /tmp/test_alarm_command`. All three passed with no warnings on 15 November 2026.
+
 ## Verification status
 
-- Completed: user reported the portable formatter test passed using C++11.
-- Completed: user supplied Linux Python-suite output with 301 collected cases and no reported failures.
-- Completed: Arduino Verify compiled for DOIT ESP32 DEVKIT V1 with the 3300 supply setting.
-- Pending checks follow. Virtual-serial results do not establish physical sensor operation.
-- Check that a C3 target fails with the board-selection message.
-- Check that an invalid supply value fails with the supply-selection message.
-- Check three-second fresh output and correct measurement units.
-- Check that startup, missing-data and read failures continue recognized error reporting.
-- Check reported warm-up transitions without a host countdown.
-- Check whether opening the laptop serial port resets this board.
-- Check callback status extraction, missing fields, and timestamp matching.
-- Check the six-second measurement watchdog and three-second error reporting interval.
-- Check reporting behavior across the millisecond counter rollover.
+- Completed: the three host tests above, with g++ 11.4.0.
+- Completed: compilation for the ESP32-S3 with `CDCOnBoot=default` and `CDCOnBoot=cdc`, `--warnings all`, no warnings (15 November, 8 MB options).
+- Completed on 17 November 2026: compilation with the 16 MB options above, no warnings, and upload to the board with every hash verified.
+- Completed on 17 November 2026, without sensors: clean boot, `bsec_initialization_failed` (`sensor_code` -2) every 3 s with no BME680, matching alarm replies, and a 60 s `monitor.py` run with the alarm confirmed at level 0.
+- Completed: a build for `esp32:esp32:esp32doit-devkit-v1` fails with the chip-check message.
+- Pending: the rest of the hardware checklist, including the LED and buzzer outputs, BME680 readings and the `iaq` field, and dust readings.
+- Open: a disconnected dust sensor cannot currently be told apart from a working one (checklist item 9).
+- Pending: check that an invalid supply value fails with the supply-selection message.
+- Pending: check startup, missing-data and read-failure error reporting on the board.
+- Pending: check the six-second measurement watchdog, the three-second error interval and the millisecond counter rollover.
 
 No dashboard, occupancy logic, environmental thresholds, or state persistence exists in this sketch.
 
@@ -137,3 +197,7 @@ No dashboard, occupancy logic, environmental thresholds, or state persistence ex
 - [BSEC2 API source](https://github.com/boschsensortec/Bosch-BSEC2-Library/tree/1.10.2610)
 - [BME68x wrapper source](https://github.com/boschsensortec/Bosch-BME68x-Library/tree/v1.3.40408)
 - [Adafruit BSEC guide](https://learn.adafruit.com/adafruit-bme680-humidity-temperature-barometic-pressure-voc-gas/bsec-air-quality-library)
+
+## Sharp dust sensor extension
+
+The experimental GP2Y1010AU0F path adds independent dust voltage and status. See [wiring, plan, calibration and verification](../docs/SHARP_DUST_INTEGRATION.md). It compiles for the ESP32-S3. Hardware timing remains pending.

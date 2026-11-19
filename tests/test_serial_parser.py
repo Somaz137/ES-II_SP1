@@ -114,3 +114,20 @@ def test_caller_must_supply_decoded_serial_text(line):
     with pytest.raises(TypeError, match="decoded"):
         parse_serial_line(line)
 
+
+
+@pytest.mark.parametrize("level", [0, 1, 2])
+def test_alarm_reply_is_its_own_record_type(level):
+    result = parse_serial_line(json.dumps({"type": "alarm", "state": level}))
+    assert result.kind == "alarm_state"
+    assert result.alarm_level == level
+    assert result.measurements is None and result.message is None
+
+
+@pytest.mark.parametrize("payload", [
+    {"type": "alarm"}, {"type": "alarm", "state": 3}, {"type": "alarm", "state": -1},
+    {"type": "alarm", "state": True}, {"type": "alarm", "state": "2"}, {"type": "alarm", "state": 2.0},
+])
+def test_malformed_alarm_reply_is_ignored(payload):
+    result = parse_serial_line(json.dumps(payload))
+    assert result.kind == "ignored" and result.alarm_level is None

@@ -1,0 +1,18 @@
+{% extends "room.html" %}
+{% block content %}
+<div class="filters" role="group" aria-label="Filter events">
+  {% for family, name in [("all", "All"), ("limit", "Limit alerts"), ("communication", "Communication"), ("sensor", "Sensor"), ("alarm", "Alarm"), ("profile", "Profile"), ("online", "Online access")] %}
+  <button class="chipbtn" type="button" data-family="{{ family }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ name }}</button>
+  {% endfor %}
+  <p class="count" id="event-count">Loading events.</p>
+</div>
+<section class="card card-table" aria-label="Events">
+  <div class="table-scroll" tabindex="0" role="region" aria-label="Event list">
+  <table class="table events-table">
+    <thead><tr><th scope="col">Time</th><th scope="col">Type</th><th scope="col">Event</th><th scope="col">State</th></tr></thead>
+    <tbody id="event-body"><tr><td colspan="4" class="muted">Loading events.</td></tr></tbody>
+  </table>
+  </div>
+</section>
+<button class="btn more" type="button" id="older" hidden>Show older events</button>
+{% endblock %}

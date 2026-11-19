@@ -1,0 +1,60 @@
+{% extends "room.html" %}
+{% block content %}
+<section class="card" aria-labelledby="path-title">
+  <h2 id="path-title">Signal path</h2>
+  <div class="table-scroll" tabindex="0" role="region" aria-labelledby="path-title">
+  <table class="table path-table">
+    <thead><tr><th scope="col">Part</th><th scope="col">State</th><th scope="col">Last update</th><th scope="col">Detail</th></tr></thead>
+    <tbody>
+      {% for key, name in [("monitor", "Monitor program"), ("serial", "ESP32 link"), ("bme680", "BME680 sensor"), ("dust", "Dust sensor"), ("occupancy", "Camera"), ("profile", "Patient limits file"), ("alarm", "Local alarm")] %}
+      <tr id="path-{{ key }}"><th scope="row" class="part">{{ name }}</th><td><span class="chip" data-tone="none" data-cell="state">Unknown</span></td><td class="when" data-cell="when">—</td><td class="det" data-cell="detail">Waiting for the first monitor update</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+<div class="sys-cols">
+  <section class="card" aria-labelledby="online-title">
+    <h2 id="online-title">Online access</h2>
+    {% set tone = {"active": "green", "starting": "amber", "failed": "red"}.get(tunnel.state, "none") %}
+    <p class="state-line"><span class="dot" id="online-dot" data-tone="{{ tone }}" aria-hidden="true"></span><span id="online-state">{{ tunnel.line }}</span></p>
+    <div class="link-field" id="online-link-field"{% if not tunnel.url %} hidden{% endif %}>
+      <label for="online-link">View-only link</label>
+      <div class="link-row"><input id="online-link" type="text" readonly value="{{ tunnel.url or '' }}"><button class="btn" type="button" id="copy-link">Copy link</button></div>
+    </div>
+    <p class="help" id="online-help">{{ tunnel.help }}</p>
+    {% if tunnel_controls %}
+    <div class="online-actions">
+      <form id="online-retry" action="/online/retry" method="post"{% if tunnel.state not in ("failed", "off") %} hidden{% endif %}>
+        <button class="btn" data-control>{{ "Start online access" if tunnel.state == "off" else "Retry online access" }}</button>
+      </form>
+      <form id="online-stop" action="/online/stop" method="post"{% if tunnel.state not in ("starting", "active") %} hidden{% endif %}>
+        <button class="btn" data-control>Stop online access</button>
+      </form>
+    </div>
+    {% endif %}
+  </section>
+  <section class="card" aria-labelledby="raw-title">
+    <h2 id="raw-title">Raw sensor signals</h2>
+    <dl class="dl dl-right">
+      <dt>Gas resistance</dt><dd id="gas_ohms">—</dd>
+      <dt>Dust sensor voltage</dt><dd id="dust_mv">—</dd>
+      <dt>Dust baseline</dt><dd id="dust-baseline">—</dd>
+      <dt>Bosch accuracy</dt><dd id="bosch-accuracy">—</dd>
+    </dl>
+    <p class="help">The unprocessed signals behind the air quality and dust estimates.</p>
+  </section>
+  <section class="card" aria-labelledby="timing-title">
+    <h2 id="timing-title">Timing</h2>
+    <dl class="dl dl-right" id="timing">
+      <dt>Dashboard refresh</dt><dd data-timing="dashboard_refresh_s">—</dd>
+      <dt>Reading counts as current for</dt><dd data-timing="reading_gap_limit_s">—</dd>
+      <dt>Monitor overdue after</dt><dd data-timing="status_stale_after_s">—</dd>
+      <dt>Fault check every</dt><dd data-timing="fault_check_interval_s">—</dd>
+      <dt>Camera check every</dt><dd data-timing="camera_interval_s">—</dd>
+      <dt>Alarm confirmation wait</dt><dd data-timing="alarm_confirm_timeout_s">—</dd>
+      <dt>Readings kept</dt><dd data-timing="readings_retention_days">—</dd>
+    </dl>
+  </section>
+</div>
+{% endblock %}

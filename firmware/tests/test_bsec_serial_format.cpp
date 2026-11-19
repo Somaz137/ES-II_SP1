@@ -5,13 +5,30 @@
 #include <limits>
 
 int main() {
-  RoomSample sample = {24.0, 45.0, 1005.0, 12000.0, 1, 0, 2};
+  RoomSample sample = {24.0, 45.0, 1005.0, 12000.0, 1, 0, 2, 57.254};
   char output[320];
   assert(formatRoomReading(output, sizeof(output), sample));
   assert(std::strcmp(output,
       "{\"type\":\"reading\",\"temp_c\":24.00,\"humidity_pct\":45.00,"
       "\"pressure_hpa\":1005.00,\"gas_ohms\":12000.00,\"bsec\":{"
-      "\"stabilization_status\":1,\"run_in_status\":0,\"iaq_accuracy\":2}}") == 0);
+      "\"stabilization_status\":1,\"run_in_status\":0,\"iaq_accuracy\":2,"
+      "\"iaq\":57.25}}") == 0);
+
+  // The index is null when BSEC gave no usable signal or it is off its 0-500 scale.
+  const double badIndex[] = {std::numeric_limits<double>::quiet_NaN(),
+                             std::numeric_limits<double>::infinity(), -0.5, 500.5};
+  for (double value : badIndex) {
+    RoomSample noIndex = sample;
+    noIndex.iaq = value;
+    assert(formatRoomReading(output, sizeof(output), noIndex));
+    assert(std::strstr(output, "\"iaq_accuracy\":2,\"iaq\":null}}") != nullptr);
+  }
+  sample.iaq = 500.0;
+  assert(formatRoomReading(output, sizeof(output), sample));
+  assert(std::strstr(output, "\"iaq\":500.00}}") != nullptr);
+  sample.iaq = 0.0;
+  assert(formatRoomReading(output, sizeof(output), sample));
+  assert(std::strstr(output, "\"iaq\":0.00}}") != nullptr);
 
   sample.run_in = -1;
   assert(formatRoomReading(output, sizeof(output), sample));

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% set title = (pages | selectattr(0, "equalto", page) | first)[2] %}
+<title>{{ title }} · Room Environment Safety Control</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='room.css') }}">
+<script defer src="{{ url_for('static', filename='chart.js') }}"></script>
+<script defer src="{{ url_for('static', filename='room.js') }}"></script>
+</head>
+<body data-page="{{ page }}"{% if locked %} data-locked{% endif %}>
+<a class="skip" href="#content">Skip to page content</a>
+<div class="frame">
+  <aside class="side" aria-label="Room Safety">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Room Safety</div>
+    <nav class="nav" aria-label="Pages">
+      {% for endpoint, path, name in pages %}
+      <a href="{{ path }}"{% if page == endpoint %} aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          {%- if endpoint == "index" %}<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+          {%- elif endpoint == "trends" %}<path d="M3 17l5-5 4 4 8-8"/>
+          {%- elif endpoint == "events" %}<path d="M4 6h16M4 12h16M4 18h10"/>
+          {%- elif endpoint == "limits" %}<line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.5"/><circle cx="15" cy="16" r="2.5"/>
+          {%- else %}<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>{% endif %}
+        </svg>{% if endpoint == "limits" %}<span class="nav-full">{{ name }}</span><span class="nav-short">Limits</span>{% else %}<span>{{ name }}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </nav>
+    <div class="side-foot">
+      {% if demo %}<span class="tag">Simulation</span>{% endif %}
+      <span class="online" id="online-foot">{% include "online_foot.html" %}</span>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="top">
+      <h1>{{ title }}</h1>
+      <div class="top-status">
+        <span class="st st-room" id="profile-label">Room 01{% if label %} · {{ label }}{% endif %}</span>
+        <span class="st"><span class="dot" id="occupancy-dot" data-tone="none" aria-hidden="true"></span><span id="occupancy">Occupancy unknown</span></span>
+        <span class="st"><span class="dot" id="connection-dot" data-tone="none" aria-hidden="true"></span><span id="connection">Waiting for monitor</span></span>
+        <span class="st"><span class="dot" id="alarm-dot" data-tone="none" aria-hidden="true"></span><span id="alarm">Alarm state unknown</span></span>
+      </div>
+      {% if online %}
+      {% if signed_in %}
+      <form class="top-auth" action="/signout" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span class="st">Signed in</span><span class="top-sep" aria-hidden="true">·</span><button class="btn-link">Sign out</button>
+      </form>
+      {% else %}
+      <a class="btn top-auth" href="/signin?next={{ request.path }}">Sign in</a>
+      {% endif %}
+      {% endif %}
+    </header>
+    <section id="attention" class="att {{ 'att-full' if page == 'index' else 'att-compact' }}" aria-label="Needs attention">
+      <div class="att-row" id="att-alert" data-tone="red" hidden>
+        <span class="att-lab">Alerting</span>
+        <div class="att-txt"><p class="att-main" id="att-alert-text"></p><p class="att-sub" id="att-alert-sub"></p></div>
+        <form id="silence" action="/silence" method="post" hidden>
+          <input type="hidden" name="token"><input type="hidden" name="next" value="{{ request.path }}">
+          {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endif %}
+          <button class="btn btn-red" data-control{% if locked %} disabled{% endif %}>{{ "Sign in to silence alarm" if locked else "Silence alarm" }}</button>
+        </form>
+      </div>
+      <div class="att-row" id="att-ack" data-tone="amber" hidden>
+        <span class="att-lab">To acknowledge</span>
+        <div class="att-txt"><p class="att-main" id="att-ack-text"></p></div>
+        <form id="ack" action="/acknowledge" method="post" hidden>
+          <input type="hidden" name="alert_id"><input type="hidden" name="next" value="{{ request.path }}">
+          {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endif %}
+          <button class="btn btn-amber" data-control{% if locked %} disabled{% endif %}>{{ "Sign in to acknowledge" if locked else "Acknowledge" }}</button>
+        </form>
+      </div>
+      <div class="att-row" id="att-pending" data-tone="amber" hidden>
+        <span class="att-lab">Pending</span>
+        <div class="att-txt"><p class="att-main" id="att-pending-text"></p><p class="att-sub" id="att-pending-sub"></p></div>
+      </div>
+      <div class="att-row" id="att-calm" data-tone="calm">
+        <span class="att-lab" id="att-calm-lab">Status</span>
+        <div class="att-txt"><p class="att-main" id="att-calm-text">Waiting for the first monitor update.</p><p class="att-sub" id="att-calm-sub"></p></div>
+      </div>
+      <p class="visually-hidden" id="att-live" aria-live="polite"></p>
+    </section>
+    <main class="content content-{{ page }}" id="content" tabindex="-1">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+</body>
+</html>

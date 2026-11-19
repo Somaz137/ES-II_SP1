@@ -8,8 +8,9 @@ from measurements import MEASUREMENT_FIELDS, validate_measurements
 from gas_readiness import GasReadiness, parse_gas_readiness
 
 MessageKind = Literal[
-    "valid_reading", "sensor_error", "incomplete_reading", "ignored"
+    "valid_reading", "sensor_error", "incomplete_reading", "alarm_state", "ignored"
 ]
+ALARM_LEVELS = (0, 1, 2)
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class ParsedSerialMessage:
     measurements: dict[str, int | float] | None = None
     message: str | None = None
     gas: GasReadiness = field(default_factory=GasReadiness)
+    alarm_level: int | None = None
 
 
 def parse_serial_line(line: str) -> ParsedSerialMessage:
@@ -30,6 +32,8 @@ def parse_serial_line(line: str) -> ParsedSerialMessage:
     they carry no partial values to commit. The standard decoder can accept
     NaN/Infinity, but measurement validation rejects them as incomplete.
     Error records remain recognized even without usable diagnostic text.
+    Alarm records with state 0, 1 or 2 are alarm_state; other alarm records
+    are ignored.
 
     This function does not read ports, update timers, or store measurements.
     """
@@ -52,6 +56,13 @@ def parse_serial_line(line: str) -> ParsedSerialMessage:
             kind="sensor_error", message=message,
             gas=parse_gas_readiness(payload.get("bsec")),
         )
+
+    if record_type == "alarm":
+        # The board's reply after applying an ALARM command. Not a reading.
+        level = payload.get("state")
+        if type(level) is int and level in ALARM_LEVELS:
+            return ParsedSerialMessage(kind="alarm_state", alarm_level=level)
+        return ParsedSerialMessage(kind="ignored")
 
     if record_type != "reading":
         return ParsedSerialMessage(kind="ignored")

@@ -1,7 +1,7 @@
 """Combine monitoring facts and route decoded messages through the parser and trackers."""
 
 from dataclasses import dataclass, field, replace
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from communication_fault import (
     CommunicationFaultState,
@@ -25,6 +25,14 @@ from sensor_fault import (
     record_valid_measurement,
 )
 from serial_parser import parse_serial_line
+from dust import DustState, parse_dust, record_dust
+
+
+class AlarmReply(NamedTuple):
+    """The level the board last reported applying, and its host receipt time."""
+
+    level: int
+    received_at: float
 
 
 @dataclass(frozen=True)
@@ -35,6 +43,8 @@ class MonitoringState:
     sensor: SensorFaultState
     reading: ReadingState = field(default_factory=ReadingState)
     gas: GasReadiness = field(default_factory=GasReadiness)
+    dust: DustState = field(default_factory=DustState)
+    alarm_reply: AlarmReply | None = None
 
 
 def create_monitoring_state(
@@ -44,6 +54,7 @@ def create_monitoring_state(
 ) -> MonitoringState:
     """Start normal communication timing while measurements remain empty."""
     return MonitoringState(
+        dust=DustState(started_at=started_at),
         communication=create_communication_state(started_at, communication_timeout_s),
         sensor=create_sensor_state(started_at, sensor_error_timeout_s),
     )
@@ -111,9 +122,20 @@ def process_serial_line(
     performs no port access, scheduling or notification. Reported BSEC status
     is retained separately, without a host warm-up timer.
     """
+    dust_message = parse_dust(line)
+    if dust_message is not None:
+        state = evaluate_monitoring_faults(state, now)
+        communication = record_communication_message(state.communication, now)
+        return replace(state, communication=communication,
+                       dust=record_dust(state.dust, dust_message, now))
     parsed = parse_serial_line(line)
     if parsed.kind == "ignored":
         return evaluate_monitoring_faults(state, now)
+    if parsed.kind == "alarm_state":
+        # Not communication contact: the host solicits these replies, so they
+        # must not hide a stopped measurement stream. No reading or sensor effect.
+        state = evaluate_monitoring_faults(state, now)
+        return replace(state, alarm_reply=AlarmReply(parsed.alarm_level, now))
 
     # Detect preceding silence before the message restores communication.
     communication = evaluate_communication_fault(state.communication, now)

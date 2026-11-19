@@ -3,3 +3,31 @@ fault_check_interval_s: 5
 # Transport implementation settings; neither is an alert duration.
 serial_retry_interval_s: 5
 serial_poll_interval_s: 0.05
+# Optional. Absent keys use the defaults in settings.RUNTIME_DEFAULTS.
+# Reading age and gap between BME680 readings that restart sustained timers.
+reading_gap_limit_s: 6
+# Monitor status age that the dashboard shows as overdue (must exceed fault check plus poll).
+status_stale_after_s: 15
+# Dashboard page refresh; must not exceed the staleness limit.
+dashboard_refresh_s: 10
+# Camera check interval; an observation expires 5 seconds after it.
+camera_interval_s: 60
+# Raw reading retention in days (at least 1). Events are never pruned.
+readings_retention_days: 7
+# Wait for the board to confirm an alarm command before the alarm shows as unreachable.
+alarm_confirm_timeout_s: 2
+# Online access (dashboard.py --online). The online origin listens on 127.0.0.1 only;
+# cloudflared forwards the public link to it. It must not be the local port 5000.
+online_port: 5001
+# The cloudflared program: a name on PATH or a full path.
+cloudflared_path: cloudflared
+# Sign-in lifetime for online controls, in hours.
+online_session_hours: 8
+# Quick tunnel when null. For a named tunnel, set its name and its fixed https:// address.
+cloudflared_tunnel: null
+online_public_url: null
+# Waits in seconds before each new cloudflared attempt; one more attempt than waits.
+# The same waits apply when a working tunnel stops (it then gets a new link).
+online_retry_waits_s: [5, 10, 20, 40, 60]
+# cloudflared's own output (kept to about 512 KB in two files); relative to the project folder.
+cloudflared_log: logs/cloudflared.log

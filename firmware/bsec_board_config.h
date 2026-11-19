@@ -1,13 +1,26 @@
 #pragma once
 
-// Target: DOIT ESP32 DEVKIT V1 with the classic ESP32 chip.
-// The chip check cannot identify the physical development board.
-#if !defined(ARDUINO_ARCH_ESP32) || !defined(CONFIG_IDF_TARGET_ESP32)
-#error "Select DOIT ESP32 DEVKIT V1 with the classic ESP32 chip."
+// Target: ESP32-S3 with 16 MB quad flash and 8 MB embedded PSRAM (N16R8-type module),
+// read from the connected board by esptool on 17 November 2026.
+// The chip check cannot identify the physical development board or its memory.
+#if !defined(ARDUINO_ARCH_ESP32) || !defined(CONFIG_IDF_TARGET_ESP32S3)
+#error "Select an ESP32-S3 board (esp32:esp32:esp32s3). This firmware targets the ESP32-S3 (developed on an N16R8-type module)."
 #endif
 
-constexpr int ROOM_I2C_SDA_PIN = 21;
-constexpr int ROOM_I2C_SCL_PIN = 22;
+// Board pins decided by the user on 15 November 2026.
+// Not yet checked against the physical board: see firmware/README.md.
+constexpr int ROOM_I2C_SDA_PIN = 8;
+constexpr int ROOM_I2C_SCL_PIN = 9;
+constexpr int ROOM_DUST_ADC_PIN = 4;    // ADC1 channel 3.
+constexpr int ROOM_DUST_LED_PIN = 5;    // HIGH turns on the external NPN sink.
+constexpr int ROOM_ALARM_LED_PIN = 6;   // HIGH lights the LED (series resistor to ground).
+constexpr int ROOM_BUZZER_PIN = 7;      // Signal input of the 3-pin buzzer module.
+
+// Buzzer module trigger level. UNVERIFIED: the module may be active high or
+// active low. Check it on the real part before relying on the alarm.
+// true: HIGH sounds. A wrong value inverts the buzzer, so it sounds at level 0.
+constexpr bool ROOM_BUZZER_ACTIVE_HIGH = true;
+
 constexpr unsigned long ROOM_SERIAL_BAUD = 115200;
 
 // User confirmed a 3.3 V sensor supply on 8 November 2026.
@@ -21,3 +34,7 @@ constexpr unsigned long ROOM_SERIAL_BAUD = 115200;
 
 constexpr unsigned long ROOM_LP_INTERVAL_MS = 3000;
 constexpr unsigned long ROOM_NO_MEASUREMENT_MS = 2 * ROOM_LP_INTERVAL_MS;
+
+// Serial bytes read for alarm commands in one loop pass. A command is 8 or 9
+// bytes. The rest stays in the driver's receive buffer for the next pass.
+constexpr unsigned ROOM_ALARM_MAX_BYTES_PER_PASS = 64;

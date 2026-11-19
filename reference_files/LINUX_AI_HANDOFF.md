@@ -7,7 +7,32 @@ The successful Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bo
 This record supersedes earlier pending-test statements in historical preparation notes and design checklists.
 
 
-Updated: 8 November 2026.
+Updated: 19 November 2026 (online access note in the current state section); 17 November 2026 (board identity, first flash and open dust point in the current state section); 15 November 2026 (current state section and the ESP32-S3 port note); other sections 8 November 2026.
+
+
+## Current state - 15 November 2026
+
+This section supersedes the branch, state and milestone statements below where they differ.
+
+- Work continues on branch `feature/sharp-dust-integration`, three commits above `main`. Completion work builds on this branch. Do not restart from `main`.
+- The branch adds SQLite storage, patient limits with sustained-breach timing and occupancy gating, OpenCV HOG occupancy, a simulator (`monitor.py --demo`), a local Flask dashboard with dashboard acknowledgment, and the Sharp dust path. See the [room software design](../docs/superpowers/specs/2026-11-15-room-software-design.md).
+- Verified only in software: 317 passed on this branch; the demo ran. See the [15 November verification record](LINUX_VERIFICATION_2026-11-15.md). No firmware compilation with `sharp_dust.h`, flashing, hardware or camera check has taken place.
+- The `env/` environment was created with `python3 -m venv --without-pip env` because `python3.10-venv` is not installed. Use `env/bin/python`.
+- Board: ESP32-S3 supersedes the DOIT ESP32 DevKit V1. esptool identified it on 17 November 2026 as an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not the N8R2 assumed before. Its USB port is a CH343 bridge, `/dev/ttyACM0`. Pins: I2C SDA GPIO8, SCL GPIO9, dust analog GPIO4, dust LED drive GPIO5, alarm LED GPIO6, buzzer GPIO7.
+- ESP32-S3 port (branch `feature/esp32-s3-port`): the chip check requires the ESP32-S3. All pins and the buzzer polarity (`ROOM_BUZZER_ACTIVE_HIGH`, default true, unverified) are in `firmware/bsec_board_config.h`. The sketch drives the local alarm. The sketch compiles with arduino-cli 1.5.1, ESP32 core 3.3.12, BSEC2 1.10.2610 and BME68x 1.3.40408 for `CDCOnBoot=default` and `CDCOnBoot=cdc`. Compilation only. No board is connected or flashed. See the [port design](../docs/superpowers/specs/2026-11-15-esp32-s3-port-design.md) and the hardware checklist in [firmware/README.md](../firmware/README.md).
+- First flash, 17 November 2026: the firmware from `feature/dashboard-pages` (4f84c19) was flashed with `esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. The serial link and the alarm protocol were checked with no sensors attached. LED, buzzer, BME680 and dust readings are not checked. See the [17 November verification record](LINUX_VERIFICATION_2026-11-17.md).
+- Open point: the floating dust input. With no dust sensor attached, the dust input reads about 870 to 930 mV and is accepted as a fresh dust record, most likely because the ADC pin floats. A disconnected dust sensor cannot currently be told apart from a working one. Candidate fixes: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. Not decided; the user will choose when wiring.
+- Online access, 19 November 2026: Opt-in view-only online access is implemented: a Cloudflare quick tunnel to a second, view-only origin, with a password for controls. One real tunnel run on 19 November 2026 loaded the pages and refused control requests without sign-in. A signed-in control request through the real tunnel has not been tried. See the [online access design](../docs/superpowers/specs/2026-11-19-online-access-design.md).
+- Other decisions, not implemented: local buzzer and LED alarm with a dashboard "Silence alarm" control, 7-day raw-reading retention, dashboard redesign for a caregiver at a desk screen. See the [implementation plan](ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md).
+
+Next milestones, in order:
+
+1. Identify the ESP32-S3 board model. Run the rest of the hardware checklist in `firmware/README.md`. Done on 17 November 2026: the USB port is known (CH343, `/dev/ttyACM0`, `CDCOnBoot=default`) and the board is flashed.
+2. Check the BME680, the dust timing and USB behavior on the physical board. Decide how to detect a disconnected dust sensor.
+3. Check camera occupancy with seated, lying and occluded people.
+4. Check the buzzer and LED alarm on the board. The host side, the "Silence alarm" control and the sketch wiring exist.
+5. Implement 7-day reading retention. Redesign the dashboard. State limit, value and duration in alert text.
+6. Demonstrate the complete system with hardware.
 
 
 ## Moderate Python merge
@@ -25,6 +50,8 @@ See [PYTHON_FILE_GUIDE.md](PYTHON_FILE_GUIDE.md) for the current file list.
 
 
 ## DOIT board selection - 8 November 2026
+
+**Superseded on 15 November 2026** by the ESP32-S3 decision in the current state section. Kept as history.
 
 The user selected DOIT ESP32 DevKit V1 with the classic ESP32 chip.
 The user confirmed a 3.3 V sensor supply.
@@ -58,7 +85,7 @@ The user returned to Linux and completed the checks in the linked verification r
 - PRs #1 through #10 are merged into main as of 8 November 2026. They contain the rename, technical settings, both fault trackers and serial parser/validator.
 - Merge result before this handoff correction: ca30bbc856b11e7141086893fb605f5418870afb.
 - The setup shell script is absent. The user executed the Python suite on Linux. The supplied output shows 301 collected cases with no reported failures.
-- Continue from main. The former feature branches are historical; preserve local work before switching.
+- Continue on `feature/sharp-dust-integration` (updated 15 November 2026). The former feature branches are historical; preserve local work before switching.
 - Current merged milestone: terminal serial monitoring, scheduled faults and BSEC source. Listed virtual-serial checks and firmware compilation completed on Linux. Physical hardware operation is not established.
 - Previous gas feature: codex/bsec-status adds Python metadata consumption.
 - PR #6 added retained readings/routing; #7 added gas metadata; #8 added firmware source; #9 added the terminal runtime. There are eleven Python test files, plus separate firmware C++ tests.
@@ -117,6 +144,8 @@ git status --short
 git branch --show-current
 git fetch origin
 ```
+
+**15 November 2026:** Do not switch to main. Continue on `feature/sharp-dust-integration`. The commands below are the earlier procedure.
 
 PRs #1 through #9 are merged. With a clean working tree, continue from main:
 
@@ -208,14 +237,14 @@ Record the actual interpreter, dependency versions, command, pass/fail output an
 
 ## Selected execution intervals
 
-Fault scheduling is implemented in the terminal loop source. Camera and dashboard scheduling remain planned.
+Fault scheduling is implemented in the terminal loop source. Camera and dashboard scheduling are implemented on this branch as code constants.
 
 | Operation | Selected interval | Current control/status |
 |---|---|---|
 | BME680 acquisition | 3 seconds | Selected BSEC LP mode in new source; hardware timing unverified |
-| Camera occupancy processing | 60 seconds | Latest learner choice; supersedes the earlier 5-second proposal; Python scheduling not implemented |
+| Camera occupancy processing | 60 seconds | Implemented on this branch as a code constant; not checked with a camera |
 | Fault evaluation | 5 seconds | Implemented in new terminal loop source; listed virtual-serial checks completed; physical checks pending |
-| Dashboard refresh | 10 seconds | Selected for future dashboard |
+| Dashboard refresh | 10 seconds | Implemented on this branch as a code constant; checked with simulated data |
 
 The future Python-side technical settings should load at startup. The camera processing interval does not select a capture frame rate or buffering policy; those remain open. Occupancy may reflect the previous observation until the next one-minute processing check. When five-second fault evaluation is integrated, timeout detection occurs on the next check, potentially almost five seconds after the duration expires plus scheduling/processing delay.
 
@@ -230,7 +259,7 @@ For the current prototype, the new BSEC firmware selects the approved three-seco
 ## Confirmed behavior to preserve
 
 - config/alerts.yaml holds communication_timeout_s: 120 and sensor_error_timeout_s: 120.
-- Technical settings load once at startup initially. Patient-profile updates will apply while monitoring continues; that later feature is not implemented.
+- Technical settings load once at startup initially. Patient-profile updates apply while monitoring continues; implemented on this branch through the YAML profile file.
 - Track last recognized ESP32 message, last valid measurement, and beginning of the current sensor-error episode separately.
 - Recognized sensor-error messages reset communication timing, but do not make measurements fresh.
 - No recognized communication for 120 seconds raises a communication alert while the application keeps running. Before the first message, start the usual timeout at program startup.
@@ -241,7 +270,7 @@ For the current prototype, the new BSEC firmware selects the approved three-seco
 - Sensor-error time pauses on communication.timed_out, preserving elapsed active time and excluding paused time. Another sensor-error message resumes the remaining wait; a valid measurement resets it. Acknowledgment alone never resumes timing.
 - The dashboard must show when the last successful measurement arrived. Stale values must not appear freshly measured.
 
-The configuration functions, both pure fault trackers, serial classification and measurement validation exist. Committed-measurement state and terminal serial integration now exist in source. UI/history remain absent. Communication calls return immutable snapshots: retain each returned state, evaluate periodically even during serial silence, and supply finite nondecreasing times from one clock domain. `timed_out` can clear on recovery while `alert_active` remains latched until acknowledgment. Equality at the timeout boundary triggers; a message received at/after that point first preserves the elapsed fault. Acknowledgment with no outstanding alert cannot postpone detection.
+The configuration functions, both pure fault trackers, serial classification and measurement validation exist. Committed-measurement state and terminal serial integration now exist in source. The dashboard and SQLite history exist on this branch. Communication calls return immutable snapshots: retain each returned state, evaluate periodically even during serial silence, and supply finite nondecreasing times from one clock domain. `timed_out` can clear on recovery while `alert_active` remains latched until acknowledgment. Equality at the timeout boundary triggers; a message received at/after that point first preserves the elapsed fault. Acknowledgment with no outstanding alert cannot postpone detection.
 
 Sensor pauses start at the supplied timeout-status transition, not retroactively at the last message. Time before that pause still counts. Existing sensor alerts remain until a valid reading; no new sensor alert is raised while paused. If no waiting time remains when an error resumes, alert immediately; if the returned message is valid, reset/clear instead. The runtime loop updates communication, synchronizes its actual timeout status with the sensor tracker, processes recognized sensor records, and publishes the final resulting snapshots rather than transient intermediate states. Real polling and monotonic clock selection are now prepared in the terminal runtime.
 
@@ -249,7 +278,7 @@ Serial parsing now returns valid_reading, sensor_error, incomplete_reading or ig
 
 ## Remaining milestones after configuration verification
 
-These are an ordered roadmap, not approval to invent unresolved choices.
+These are an ordered roadmap, not approval to invent unresolved choices. As of 15 November 2026, the camera, patient-profile, persistence and dashboard rows are implemented in software; their remaining work is physical checks, retention and the redesign. The notifications row is decided as a local ESP32 alarm. See the current state section above.
 
 | Stage | Next work | Decisions/evidence needed before implementing |
 |---|---|---|

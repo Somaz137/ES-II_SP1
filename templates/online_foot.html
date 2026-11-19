@@ -1,0 +1,4 @@
+{%- if tunnel.state == "active" %}Online: view-only link active
+{%- elif tunnel.state == "starting" %}Online access: starting
+{%- elif tunnel.state == "failed" %}Online access failed
+{%- else %}Online access: off{% endif -%}
