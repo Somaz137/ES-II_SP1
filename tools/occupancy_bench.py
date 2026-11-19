@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Compare HOG and YOLOX person detection on live webcam frames.
 
-Usage: env/bin/python -I tools/occupancy_bench.py --camera 0 [--frames 12]
+Usage: env/bin/python -I tools/occupancy_bench.py --camera 0 [--frames 12] [--confidence 0.5]
 
 Each second it captures one frame (open, read, release, as occupancy.py does),
-runs both detectors and prints one line. No frame is written, sent or kept.
+runs both detectors and prints one line with the mean pixel value and the
+highest YOLOX person score before the threshold. No frame is written, sent or kept.
 """
 import argparse
 import sys
@@ -25,19 +26,29 @@ def capture_frame(index):
         capture.release()
 
 
-def frame_line(i, hog_seen, yolox_seen, mean):
-    """One bench line. The mean pixel value (0-255) shows a dark or unusable frame."""
-    return f"frame {i}: HOG {'yes' if hog_seen else 'no'} YOLOX {'yes' if yolox_seen else 'no'} (mean {mean:.0f})"
+def frame_line(i, hog_seen, yolox_seen, mean, top):
+    """One bench line: the mean pixel value (0-255) shows a dark frame, top shows how close YOLOX came."""
+    return (f"frame {i}: HOG {'yes' if hog_seen else 'no'} YOLOX {'yes' if yolox_seen else 'no'}"
+            f" (mean {mean:.0f}, top {top:.2f})")
 
 
-def main():
+def totals_line(hog_hits, yolox_hits, frames, confidence):
+    return f"HOG {hog_hits}/{frames}, YOLOX {yolox_hits}/{frames} at confidence {confidence:.2f}"
+
+
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--camera", type=int, required=True, help="camera index, e.g. 0 for /dev/video0")
     parser.add_argument("--frames", type=int, default=12)
-    args = parser.parse_args()
+    parser.add_argument("--confidence", type=float, default=0.5, help="YOLOX threshold for the yes/no column")
+    return parser.parse_args(argv)
+
+
+def main():
+    args = parse_args()
 
     try:
-        yolox = PersonDetector()
+        yolox = PersonDetector(confidence=args.confidence)
     except ModelError as error:
         print(error, file=sys.stderr)
         return 1
@@ -57,14 +68,15 @@ def main():
             yolox_started = time.perf_counter()
             yolox_seen = yolox.detect(frame)
             yolox_ms.append((time.perf_counter() - yolox_started) * 1000)
+            top = yolox.top_score(frame)  # a second inference, for diagnostics; not timed
             hog_hits += hog_seen
             yolox_hits += yolox_seen
-            print(frame_line(i, hog_seen, yolox_seen, float(frame.mean())), flush=True)
+            print(frame_line(i, hog_seen, yolox_seen, float(frame.mean()), top), flush=True)
         frame = None
         if i < args.frames:
             time.sleep(max(0.0, 1.0 - (time.monotonic() - started)))
 
-    print(f"HOG {hog_hits}/{args.frames}, YOLOX {yolox_hits}/{args.frames}")
+    print(totals_line(hog_hits, yolox_hits, args.frames, args.confidence))
     if yolox_ms:
         print(f"YOLOX {sum(yolox_ms) / len(yolox_ms):.0f} ms per frame (mean of {len(yolox_ms)}, fastest {min(yolox_ms):.0f} ms)")
     return 0

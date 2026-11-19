@@ -51,13 +51,18 @@ def _anchors(input_size):
     return numpy.concatenate(grids).astype(numpy.float32), numpy.concatenate(strides).astype(numpy.float32)
 
 
+def _person_scores(raw_output):
+    """Rows (N, 85) of a raw YOLOX output and the person score of each row: objectness x class-0 score."""
+    dets = numpy.asarray(raw_output, numpy.float32).reshape(-1, 85)
+    return dets, dets[:, 4] * dets[:, 5 + PERSON]
+
+
 def person_boxes(raw_output, confidence: float, frame_shape, input_size) -> list:
     """Decode a raw YOLOX output and return person boxes [x, y, w, h] in frame pixels, after NMS.
 
     The person score is objectness x the class-0 score (YOLOX class scores are independent sigmoids).
     """
-    dets = numpy.asarray(raw_output, numpy.float32).reshape(-1, 85)
-    scores = dets[:, 4] * dets[:, 5 + PERSON]
+    dets, scores = _person_scores(raw_output)
     keep = scores >= confidence
     if not keep.any():
         return []
@@ -82,6 +87,15 @@ class PersonDetector:
 
     def detect(self, frame) -> bool:
         """True when at least one person is in the BGR frame. The frame is not kept."""
+        return bool(person_boxes(self._forward(frame), self.confidence, frame.shape, INPUT_SIZE))
+
+    def top_score(self, frame) -> float:
+        """Highest person score in the BGR frame, before the threshold (0.0 with no candidate). For diagnostics."""
+        scores = _person_scores(self._forward(frame))[1]
+        return float(scores.max()) if scores.size else 0.0
+
+    def _forward(self, frame):
+        """Letterbox the BGR frame as the zoo does, run the net and return its raw output. The frame is not kept."""
         height, width = INPUT_SIZE
         ratio = min(height / frame.shape[0], width / frame.shape[1])
         new_w, new_h = int(frame.shape[1] * ratio), int(frame.shape[0] * ratio)
@@ -89,4 +103,4 @@ class PersonDetector:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         padded[:new_h, :new_w] = cv2.resize(rgb, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
         self.net.setInput(numpy.transpose(padded, (2, 0, 1))[numpy.newaxis])
-        return bool(person_boxes(self.net.forward(), self.confidence, frame.shape, INPUT_SIZE))
+        return self.net.forward()

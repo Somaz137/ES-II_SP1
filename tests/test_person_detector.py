@@ -97,3 +97,22 @@ def test_detector_keeps_no_frame():
 def test_detector_without_net_checks_model_first(tmp_path):
     with pytest.raises(ModelError):
         PersonDetector(path=tmp_path / "x.onnx")
+
+
+def test_top_score_reports_highest_person_score_before_threshold():
+    frame = numpy.zeros((480, 640, 3), numpy.uint8)
+    detector = PersonDetector(net=StubNet(raw_output(PERSON_03, DOG_095)))
+    assert detector.top_score(frame) == pytest.approx(0.3)
+    assert detector.detect(frame) is False
+
+
+def test_top_score_is_zero_without_candidates():
+    frame = numpy.zeros((480, 640, 3), numpy.uint8)
+    assert PersonDetector(net=StubNet(raw_output())).top_score(frame) == 0.0
+    assert PersonDetector(net=StubNet(numpy.zeros((1, 0, 85), numpy.float32))).top_score(frame) == 0.0
+
+
+def test_confidence_sets_the_detect_threshold():
+    frame = numpy.zeros((480, 640, 3), numpy.uint8)
+    assert PersonDetector(confidence=0.25, net=StubNet(raw_output(PERSON_03))).detect(frame) is True
+    assert PersonDetector(confidence=0.5, net=StubNet(raw_output(PERSON_03))).detect(frame) is False
