@@ -639,7 +639,8 @@ function renderSystem(v) {
   const gas = status?.last_reading?.gas_ohms;
   $("gas_ohms").textContent = gas == null ? "—" : (gas / 1000).toFixed(1) + NB + "kΩ" + retained;
   const mv = status?.dust?.sensor_mv;
-  $("dust_mv").textContent = mv == null ? "—" : Math.round(mv) + NB + "mV" + (current ? "" : " (retained)");
+  $("dust_mv").textContent = mv == null ? "—" : Math.round(mv) + NB + "mV" +
+    (current && status.dust.status === "fresh" ? "" : " (retained)");
   const base = status?.dust_ugm3?.baseline_mv;
   $("dust-baseline").textContent = base == null ? (status ? "not established yet" : "—") : Math.round(base) + NB + "mV";
   const acc = status?.air_quality?.accuracy;

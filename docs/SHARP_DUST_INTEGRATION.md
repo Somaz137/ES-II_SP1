@@ -35,7 +35,7 @@ Check that the supplied resistor is 150 ohm and capacitor is 220 uF, rated at le
 
 Sharp specifies a 10 ms cycle, a 0.32 ms LED pulse and sampling 0.28 ms after LED turn-on. A FreeRTOS task performs acquisition; the main loop alone writes serial output. No added third-party library is required. Existing dependency pins are unchanged.
 
-This firmware is experimental. Arduino ADC call latency and task preemption can violate the pulse window. Detected overruns are discarded; fewer than 100 accepted samples per report or more rejected than accepted samples produces dust_error. The software timestamps do not prove the actual ADC aperture. Verify waveform and ADC sampling on the installed ESP32 core before accepting readings. If the ADC cannot meet the timing, acquisition needs a hardware-timed redesign, not relaxed limits.
+This firmware is experimental. Arduino ADC call latency and task preemption can violate the pulse window. Detected overruns are discarded; fewer than 100 accepted samples per report or more rejected than accepted samples produces dust_error. When more than half of all samples in that window read 0 mV with good timing, the message is `dust_input_at_zero` (a missing sensor at about 0 V); otherwise it is `dust_acquisition_unavailable`. Added on 20 November 2026; compiled, not checked on hardware. The software timestamps do not prove the actual ADC aperture. Verify waveform and ADC sampling on the installed ESP32 core before accepting readings. If the ADC cannot meet the timing, acquisition needs a hardware-timed redesign, not relaxed limits.
 
 The sensor has no digital identity or self-test. A plausible analog voltage cannot prove it is connected or healthy. A disconnected or failed sensor can look plausible. The host detects missing/invalid reports, not every physical fault.
 
@@ -47,7 +47,7 @@ Reviewed against ESP32 core 3.3.12 (`cores/esp32/esp32-hal-adc.c`) on 15 Novembe
 - The core applies `analogSetPinAttenuation` only to a pin that is already an ADC channel. The firmware now reads the pin once before setting it. Before this change the call had no effect; the default gave the same attenuation.
 - The firmware accepts ADC samples from 1 mV to 2750 mV (`firmware/sharp_dust_limits.h`). With the 2:1 divider that is at most 5500 mV at the sensor, the largest value `dust.py` accepts. Before this change the firmware accepted ADC samples below 3000 mV, so it could report up to 5999.x mV, which `dust.py` rejected as invalid. A C++ host test and `tests/test_dust.py` check the match.
 - 2750 mV is below the end of the 12 dB range on the ESP32-S3 (about 3.1 V). That range end was not re-read from Espressif documentation in this step.
-- A zero reading means a failed read in the core. It is rejected.
+- A zero reading means a failed read in the core. It is rejected. Zero readings with good timing are also counted apart for the `dust_input_at_zero` report.
 
 Open points:
 
@@ -66,7 +66,7 @@ Estimated ug/m3 = max(0, sensor_mv - baseline_mv) * 1000 / sensitivity. It is ne
 - A dust error, a stale report, communication loss or a gap of more than `reading_gap_limit_s` between records clears the history. A monitor restart also starts again; the history is in memory only.
 - A low outlier lowers the baseline, and raises later estimates, until it leaves the window.
 - Word levels: `low` up to 50, `raised` up to 150, `high` above. These are project display defaults, not health standards and not official category names.
-- Not-connected floor: `disconnected_below_mv` in `config/system.yaml`, default 100 mV (sensor side). Required: the file must contain it. It must be above 0 and at most 5500; other values are refused at load. A dust voltage below it is not counted as a reading. After `sensor_error_timeout_s` (120 s) with no reading at or above the floor, the dust status is `not_connected` and the dust fault is on. Not yet checked on the bench.
+- Not-connected floor: `disconnected_below_mv` in `config/system.yaml`, default 100 mV (sensor side). Required: the file must contain it. It must be above 0 and at most 5500; other values are refused at load. A dust voltage below it, a 0 mV reading, or the board's `dust_input_at_zero` report all count as "no reading". After `sensor_error_timeout_s` (120 s) with no reading at or above the floor, the dust status is `not_connected` and the dust fault is on. Not yet checked on the bench.
 - Limit: `upper_limit` and `hold_s` in `config/system.yaml`, off as shipped. The project supplies no dust limit. The demo uses 100 ug/m3 for 30 s as a demonstration value.
 
 The old `--dust-baseline-mv` and `--dust-sensitivity` options are removed. The estimate is not size-selective PM2.5, an official index, or a medical verdict. Verify against a reference instrument if concentration matters. A retained value is never shown as a current estimate.

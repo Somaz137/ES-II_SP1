@@ -89,7 +89,7 @@ Before wiring the board:
 6. Read the buzzer module's markings or documentation for its trigger level and supply voltage. Set `ROOM_BUZZER_ACTIVE_HIGH` to match. Check that the module's signal input is safe at 3.3 V.
 7. Check the BME680 breakout supply (3.3 V) and its I2C address pin (0x76 or 0x77).
 8. Measure the dust divider with a meter. Check that the ADC pin never sees more than about 3.1 V.
-9. Dust disconnect: the host applies a floor rule (decided and implemented on the host on 20 November 2026). A dust voltage below `dust.disconnected_below_mv` (default 100 mV, sensor side) is not counted as a reading. After `sensor_error_timeout_s` (120 s) with no reading at or above the floor, the dust status is `not_connected` and the dust fault is on. Not yet checked on the bench: with the 2:1 divider wired and no sensor, confirm that the input reads below 100 mV (on 17 November, with nothing wired, the floating input read about 870 to 930 mV) and that a connected sensor reads above it.
+9. Dust disconnect: the host applies a floor rule (decided and implemented on the host on 20 November 2026). A dust voltage below `dust.disconnected_below_mv` (default 100 mV, sensor side), a 0 mV reading, or the board's `dust_input_at_zero` report all count as "no reading". After `sensor_error_timeout_s` (120 s) with no reading at or above the floor, the dust status is `not_connected` and the dust fault is on. Not yet checked on the bench: with the 2:1 divider wired and no sensor, confirm that the input reads below 100 mV (on 17 November, with nothing wired, the floating input read about 870 to 930 mV) and that a connected sensor reads above it.
 
 After flashing:
 
@@ -121,6 +121,12 @@ BSEC controls acquisition timing through BSEC_SAMPLE_RATE_LP.
 The loop calls BSEC frequently without a three-second delay.
 Only a new callback produces a reading record.
 Only the loop task writes `Serial`. The dust task never writes it. Lines therefore never interleave.
+
+Every 3 s the loop prints one dust line:
+
+- `{"type":"dust","sensor_mv":…,"samples":…,"rejected_samples":…}`: the mean sensor-side voltage of the accepted samples.
+- `{"type":"dust_error","message":"dust_input_at_zero"}`: the window failed (fewer than 100 accepted samples, or more rejected than accepted) and more than half of all its samples read 0 mV with good timing. A missing sensor at about 0 V gives this line. The host counts it as below the floor. Added on 20 November 2026; compiled, not checked on hardware.
+- `{"type":"dust_error","message":"dust_acquisition_unavailable"}`: any other failed window, or the dust task did not start.
 
 With `CDCOnBoot=cdc`, a write can wait up to about 100 ms per block when the laptop holds the port open but does not read. This is core behaviour (`HWCDC.cpp`). It is not checked on the board.
 
@@ -177,13 +183,14 @@ Four days describes baseline history, not a required warm-up wait.
 - sharp_dust.h runs experimental Sharp dust acquisition on GPIO5 (LED drive) and GPIO4 (analog input) and reports raw voltage records.
 - sharp_dust_limits.h holds the pure dust sample rule: timing window, ADC limit 2750 mV and the 2:1 divider.
 - alarm_command.h is the local alarm command core: line parser with a fixed 32-byte buffer, level to LED and buzzer, link-lost check and LED blink, polarity helper, bounded serial pump and reply formatter. Pure C++11, no Arduino dependency, no dynamic allocation.
-- tests/test_bsec_serial_format.cpp, tests/test_alarm_command.cpp and tests/test_sharp_dust_limits.cpp run without a board. Build and run each on Linux, for example `g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_alarm_command.cpp -o /tmp/test_alarm_command && /tmp/test_alarm_command`. All three passed with no warnings on 15 November 2026.
+- tests/test_bsec_serial_format.cpp, tests/test_alarm_command.cpp and tests/test_sharp_dust_limits.cpp run without a board. Build and run each on Linux, for example `g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_alarm_command.cpp -o /tmp/test_alarm_command && /tmp/test_alarm_command`. All three passed with no warnings on 15 November 2026 and again on 20 November 2026.
 
 ## Verification status
 
 - Completed: the three host tests above, with g++ 11.4.0.
 - Completed: compilation for the ESP32-S3 with `CDCOnBoot=default` and `CDCOnBoot=cdc`, `--warnings all`, no warnings (15 November, 8 MB options).
 - Completed on 17 November 2026: compilation with the 16 MB options above, no warnings, and upload to the board with every hash verified.
+- Completed on 20 November 2026: the three host tests above with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391518 bytes flash, 28752 bytes global RAM). No upload.
 - Completed on 17 November 2026, without sensors: clean boot, `bsec_initialization_failed` (`sensor_code` -2) every 3 s with no BME680, matching alarm replies, and a 60 s `monitor.py` run with the alarm confirmed at level 0.
 - Completed: a build for `esp32:esp32:esp32doit-devkit-v1` fails with the chip-check message.
 - Pending: the rest of the hardware checklist, including the LED and buzzer outputs, BME680 readings and the `iaq` field, and dust readings.

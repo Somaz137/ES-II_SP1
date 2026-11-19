@@ -192,7 +192,7 @@ Decision of 15 November 2026. It replaces the earlier rule that gas resistance a
 
 - Air quality is Bosch's BSEC index (0 to 500), labelled "Bosch estimate", with a word band. It shows as calibrating, with no value, while Bosch's accuracy is 0 or 1.
 - Dust is an estimated concentration in µg/m³ with a word level, labelled "estimate". It shows "establishing baseline", with no value, until the baseline exists.
-- `dust.disconnected_below_mv` (default 100 mV) is a required key in `config/system.yaml`. A dust voltage below it is not a reading, and with only such records for the sensor timeout the dust sensor shows as not connected.
+- `dust.disconnected_below_mv` (default 100 mV) is a required key in `config/system.yaml`. A dust voltage below it, a 0 mV reading, or the board's `dust_input_at_zero` report all count as "no reading". After 120 s (the sensor timeout) with no reading at or above it, the page says not connected.
 - Their limits are system setup in `config/system.yaml`, not dashboard controls. Each has an upper limit and a hold time. The shipped file leaves both off; the project supplies no values. The word bands and levels there are display defaults, not health standards. The Bosch bands and the Sharp sensitivity are not checked against a datasheet on this machine.
 - Their alerts follow the patient-limit rule (sustained, occupied, current reading), sound the buzzer and can be silenced. A calibrating index or a missing baseline pauses that check, with a stated reason.
 - `monitor.py --demo` uses demonstration limits (air quality 150 for 30 s, dust 100 µg/m³ for 30 s) so the simulator shows both alerts. They are not recommendations.
@@ -248,7 +248,7 @@ Firmware configuration commands and calibration-state storage remain future work
 6. Check the five-page dashboard with the real board and sensors. It is checked only with the simulator and screenshots.
 7. Decide whether to save the BSEC calibration state across power loss, and check the Bosch word bands and the Sharp sensitivity against the datasheets.
 8. Demonstrate the complete system with actual hardware.
-9. Dust disconnect: the host now applies a floor rule. A dust voltage below `dust.disconnected_below_mv` (100 mV) is not a reading, and with no reading at or above it for the sensor timeout (120 s) the dust status is "not connected" and the dust fault is raised. Bench check pending: with the 2:1 divider wired and no sensor, confirm that the input reads below 100 mV (on 17 November, with nothing wired, the floating input read about 870 to 930 mV) and that a connected sensor reads above it.
+9. Dust disconnect: the host now applies a floor rule. A dust voltage below `dust.disconnected_below_mv` (100 mV), a 0 mV reading, or the board's `dust_input_at_zero` report all count as "no reading". With no reading at or above the floor for the sensor timeout (120 s) the dust status is "not connected" and the dust fault is raised. Bench check pending: with the 2:1 divider wired and no sensor, confirm that the input reads below 100 mV (on 17 November, with nothing wired, the floating input read about 870 to 930 mV) and that a connected sensor reads above it.
 10. Online access: send a signed-in control request (save limits, silence, acknowledge) through a real tunnel. Online access is implemented. One real tunnel run on 19 November 2026 loaded the pages and refused control requests without sign-in.
 
 Follow the course requirements and approved project decisions.
