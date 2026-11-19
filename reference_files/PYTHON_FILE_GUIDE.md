@@ -31,7 +31,9 @@ The air-quality and dust-estimate step added `air_quality.py`, `tests/test_air_q
 | `alarm.py` | Decides the local alarm level (0 off, 1 LED, 2 LED and buzzer), applies silence to the limit alerts shown, and tracks whether the board confirmed the level. Has no I/O. |
 | `occupancy.py` | Checks one camera frame every 60 seconds with OpenCV's default people detector. Saves no frames. |
 | `simulated_input.py` | Produces simulated BME680 records with a Bosch index (calibrating at start, then a scripted episode) and dust records with a scripted episode for `--demo` and echoes alarm commands like the board would. Tests can make it silent or failing. It is not a hardware driver. |
-| `dashboard.py` | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits, acknowledgment requests, and alarm silence requests. Reports alarm health. |
+| `dashboard.py` | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits, acknowledgment requests, and alarm silence requests. Reports alarm health. With `--online` also serves the view-only online origin (sign-in, CSRF, protective headers) and starts the tunnel; `--set-password` writes the online password hash. |
+| `online_auth.py` | Writes and reads the git-ignored online password file (werkzeug hash and session key), limits failed sign-ins in memory, and makes and compares CSRF tokens. |
+| `online_tunnel.py` | Starts `cloudflared` without a shell, reads the quick-tunnel link from its output, reports off, starting, active or failed, restarts it at most twice, and stops it on exit. |
 
 The state means the program's current stored information.
 The serial parser identifies the message type.
@@ -75,6 +77,10 @@ Closing the dashboard does not stop monitoring.
 | `tests/test_system_limits.py` | Checks the air-quality and dust-estimate blocks, their sustained alerts, pauses and reasons, the buzzer and silence, stored series, the simulator episode, the profile label and the profile-change event. |
 | `tests/test_room_software.py` | Checks the simulated alert and recovery, occupancy and profile-change timer restarts, invalid-profile handling, and event history for contact loss and acknowledgment. Checks active and pending alert details, limit-monitoring reasons, alert-end reasons, the acknowledgment event, trends, event paging, retention, the camera interval, and the legacy profile check. |
 | `tests/test_dashboard.py` | Checks the dashboard page, profile saving and rejection, the cross-origin check, and acknowledgment requests. Checks the `/api/room` response, system health, event paging, form error messages, and incomplete acknowledgment status. Checks the silence request, its rejections, and the alarm health entry. |
+| `tests/test_online_settings.py` | Checks the online settings defaults and their validation. |
+| `tests/test_online_auth.py` | Checks that the password file holds a hash, not the password; the rate limit; and CSRF token comparison. |
+| `tests/test_online_tunnel.py` | Checks link parsing from sample cloudflared output, state changes with a fake process, the missing program, bounded restarts and stop. |
+| `tests/test_online_dashboard.py` | Checks that the online origin allows reading, refuses controls without sign-in or with a bad CSRF token, sends its headers, locks controls with words, rate-limits sign-in and shows no secret; and that the local origin is unchanged. |
 | `tests/test_alarm.py` | Checks alarm levels, command timing, confirmation, timeout, failed sends, reconnect, silence, and events. |
 | `tests/test_alarm_link.py` | Checks the simulated board and the alarm through the session and the monitor loop. Shows that failing, silent and raising transports change no reading, fault check, limit alert, event, or published status. |
 
@@ -86,6 +92,8 @@ On 15 November `tests/test_runtime_settings.py` gained 48 cases for the timing s
 The three newer test files contain 41 cases. The full suite contains 401 cases.
 On 15 November the local alarm added 60 cases: 12 in `tests/test_alarm.py`, 9 in `tests/test_alarm_link.py`, and 39 in existing files (runtime settings 9, serial parser 9, message router 3, serial transport 6, dashboard 12). The full suite contains 461 cases.
 On 15 November the air-quality and dust-estimate step added 76 cases: 37 in `tests/test_air_quality.py`, 28 in `tests/test_system_limits.py`, 5 in `tests/test_dust.py` and 6 in `tests/test_dashboard.py`. The full suite reported 538 passed, with and without `-W error`.
+
+On 19 November online access added 73 cases: 14 in `tests/test_online_settings.py`, 12 in `tests/test_online_auth.py`, 12 in `tests/test_online_tunnel.py` and 35 in `tests/test_online_dashboard.py`. The full suite reported 634 passed, with and without `-W error`.
 
 ## Other important files
 

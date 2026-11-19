@@ -106,6 +106,17 @@ Open http://127.0.0.1:5000. The demo uses its own SQLite database. It simulates 
 On a fresh demo database the temperature crosses the example limit at 18 seconds. A caregiver alert starts at about 27 seconds. The temperature returns to range at about 60 seconds.
 The example values apply only to the simulator. They are not patient limits.
 
+## Online access (opt-in, view-only)
+
+Monitoring, alerts and the local alarm never depend on the internet. Online access starts only on request. Install `cloudflared` separately, then set the online password once (it is stored as a hash in the git-ignored `config/online_secret.yaml`):
+
+```text
+python dashboard.py --set-password
+python dashboard.py --online
+```
+
+`--online` also serves a view-only origin on 127.0.0.1:5001 and starts a Cloudflare quick tunnel to it. The random `trycloudflare.com` link changes on each start and appears on the System page (with Copy link) on this computer. Anyone with the link can view. Saving limits, silencing and acknowledging online need the password; on this computer they need no sign-in. Without a password or without `cloudflared`, the local dashboard still runs and the System page says why online access is off or failed. Stop online access by stopping `dashboard.py`. Port, program path and sign-in lifetime are in `config/runtime.yaml`. Design: [online access](docs/superpowers/specs/2026-11-19-online-access-design.md).
+
 ## Patient limits and occupancy
 
 The patient profile is a YAML file beside the database, for example `room.profile.yaml`.
