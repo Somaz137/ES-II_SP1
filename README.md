@@ -24,7 +24,7 @@ Read the [8 November verification record](reference_files/LINUX_VERIFICATION_202
 | Firmware dust sample rule | `firmware/tests/test_sharp_dust_limits.cpp` built the same way with no warnings and passed (15 November). |
 | Local alarm demo | With `--demo`, the simulated board confirmed level 2 during the limit alert, level 1 after "Silence alarm", and level 0 after the alert ended (15 November). No LED or buzzer was driven. |
 | Software demo | Monitor and dashboard ran together. The simulated limit alert started and ended as expected (15 November). |
-| Complete firmware compilation | The current sketch, with dust code and alarm, compiled for the ESP32-S3 N8R2 with `CDCOnBoot=default` and `CDCOnBoot=cdc`, no warnings (15 November). Compilation only; nothing was flashed. |
+| Complete firmware compilation | The current sketch, with dust code and alarm, compiled for the ESP32-S3 with the 8 MB options then assumed (N8R2), `CDCOnBoot=default` and `CDCOnBoot=cdc`, no warnings (15 November). Compilation only. |
 | Missing communication | Monitor raised the communication alert and retained previous measurements (8 November). |
 | Communication recovery | Fresh readings resumed. The outstanding communication alert remained active (8 November). |
 | Repeated sensor errors | Communication stayed active while the sensor alert became active (8 November). |
@@ -51,7 +51,8 @@ Do not repeat completed checks without a change, failure, or specific unresolved
 
 ## Selected hardware
 
-The board is an ESP32-S3 with an N8R2 module (8 MB flash, 2 MB PSRAM). The user selected it on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
+The board is an ESP32-S3 (QFN56, revision v0.2) with 16 MB quad flash and 8 MB embedded PSRAM, an N16R8-type module. esptool read these facts from the connected board on 17 November 2026. The documents assumed an N8R2 module (8 MB flash, 2 MB PSRAM) until then. The user selected the ESP32-S3 on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
+The board's USB port goes through a CH343 USB-UART bridge (USB 1a86:55d3). Linux names it `/dev/ttyACM0`.
 Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7.
 The firmware uses these pins. They are not checked against the physical board. The exact development board model is not identified.
 The user confirmed a 3.3 V sensor supply.
@@ -208,7 +209,7 @@ Firmware configuration commands and calibration-state storage remain future work
 
 ## Decisions (15 November 2026)
 
-- Board: ESP32-S3 with an N8R2 module. Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. Implemented and compiled on 15 November; not checked on hardware.
+- Board: ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. Implemented and compiled on 15 November; not checked on hardware.
 - Completion work builds on this branch. The dust sensor stays.
 - Primary dashboard viewer: a caregiver at a desk screen.
 - Notification: a local ESP32 buzzer and LED. Host side and sketch wiring implemented on 15 November; not checked on hardware. The buzzer sounds for limit alerts only (patient limits and the air-quality and dust system limits). System faults light the LED and show on the dashboard without sound.

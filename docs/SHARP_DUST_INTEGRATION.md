@@ -13,7 +13,7 @@
 
 ## Wiring design: ESP32-S3
 
-The user selected an ESP32-S3 with an N8R2 module on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1. The dust LED drive is GPIO5 (in place of GPIO25). The dust analog input is GPIO4, ADC1 channel 3 (in place of GPIO34). The BME680 I2C pins are SDA GPIO8 and SCL GPIO9. The firmware uses these pins through `firmware/bsec_board_config.h`. They are not checked against the physical board. The circuit itself is unchanged.
+The user selected an ESP32-S3 with an N8R2 module on 15 November 2026. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. It supersedes the DOIT ESP32 DevKit V1. The dust LED drive is GPIO5 (in place of GPIO25). The dust analog input is GPIO4, ADC1 channel 3 (in place of GPIO34). The BME680 I2C pins are SDA GPIO8 and SCL GPIO9. The firmware uses these pins through `firmware/bsec_board_config.h`. They are not checked against the physical board. The circuit itself is unchanged.
 
 Verify connector numbering against Sharp's drawing. Cable colours are not a pinout.
 Do not connect the sensor's analog output or LED pin directly to ESP32 GPIO.

@@ -8,7 +8,9 @@ This record supersedes earlier pending-test statements in historical preparation
 
 **Software checks recorded on 15 November 2026:** See the [15 November verification record](LINUX_VERIFICATION_2026-11-15.md). Branch `feature/sharp-dust-integration` reported 317 passed. The software demo ran. No hardware was used.
 
-**Board change, 15 November 2026:** The ESP32-S3 (N8R2 module) supersedes the DOIT ESP32 DevKit V1. See [Decisions - 15 November 2026](#decisions---15-november-2026). Ported and compiled on branch `feature/esp32-s3-port` (15 November 2026). Not flashed.
+**Board change, 15 November 2026:** The ESP32-S3 (N8R2 module) supersedes the DOIT ESP32 DevKit V1. See [Decisions - 15 November 2026](#decisions---15-november-2026). Ported and compiled on branch `feature/esp32-s3-port` (15 November 2026).
+
+**Board identity and first flash, 17 November 2026:** esptool shows the connected board is an N16R8-type module (16 MB quad flash, 8 MB embedded PSRAM, CH343 USB-UART bridge), not an N8R2. The firmware was flashed with `esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. The serial link and the alarm protocol were checked without sensors. See the [17 November verification record](LINUX_VERIFICATION_2026-11-17.md).
 
 
 **Updated:** 15 November 2026 (status table and decisions); earlier sections 8 November 2026  
@@ -25,7 +27,7 @@ This file owns current progress and decisions. The [manual reference](ROOM_ENVIR
 The user made these decisions on 15 November 2026. They are decided, not implemented, except where an entry says so.
 
 - Completion work builds on branch `feature/sharp-dust-integration`. The Sharp dust sensor stays.
-- Board: ESP32-S3 with an N8R2 module (8 MB flash, 2 MB PSRAM). This supersedes the DOIT ESP32 DevKit V1. Implemented: `firmware/bsec_board_config.h` requires the ESP32-S3 chip. The exact development board model is not identified.
+- Board: ESP32-S3 with an N8R2 module (8 MB flash, 2 MB PSRAM). Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. This supersedes the DOIT ESP32 DevKit V1. Implemented: `firmware/bsec_board_config.h` requires the ESP32-S3 chip. The exact development board model is not identified.
 - ESP32-S3 pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, buzzer module GPIO7. Implemented in `firmware/bsec_board_config.h`. Not checked against the physical board.
 - Toolchain: arduino-cli 1.5.1 with ESP32 core 3.3.12, BSEC2 1.10.2610 and BME68x 1.3.40408. The sketch compiles for the ESP32-S3 with `CDCOnBoot=default` and `CDCOnBoot=cdc`. No board has been connected or flashed. See the [15 November verification record](LINUX_VERIFICATION_2026-11-15.md).
 - Dashboard primary viewer: a caregiver at a desk screen.
@@ -264,7 +266,7 @@ Use the pinned pytest dependency for hardware-free rule tests. Cover short spike
 
 ## Next information needed
 
-1. Exact BME680 breakout model, exact ESP32-S3 development board model and hardware availability. The ESP32-S3 N8R2 is selected; firmware compilation for it completed on 15 November 2026.
+1. Exact BME680 breakout model, exact ESP32-S3 development board model and hardware availability. The ESP32-S3 is selected. esptool identified it on 17 November 2026 as an N16R8-type module (16 MB flash, 8 MB PSRAM), not the N8R2 assumed before. The development board model is still not identified.
 2. Whether Modules 4.2/4.3 can be supplied.
 3. No repeat environment report is needed unless that environment changes. See the Linux verification record.
 4. Technical YAML loading is decided: startup-only initially. Patient-profile live updates are selected as a future feature; their validation and effect on environmental breach timers still need agreement.

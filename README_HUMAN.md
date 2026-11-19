@@ -26,7 +26,7 @@ The dashboard shows measurements, occupancy, faults, and alerts.
 The project supplies no patient limits. The demo example limit applies only to the simulator.
 
 The prototype uses one room, one ESP32-S3 board, one BME680, one Sharp dust sensor, and one camera.
-The board is an ESP32-S3 with an N8R2 module (8 MB flash, 2 MB PSRAM). The user selected it on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
+The board is an ESP32-S3 with 16 MB flash and 8 MB embedded PSRAM, an N16R8-type module. esptool read these facts from the connected board on 17 November 2026. The documents assumed an N8R2 module until then. The user selected the ESP32-S3 on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
 The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7.
 The firmware uses these pins. They are not checked against the physical board. The exact development board model is not identified.
 The user confirmed a 3.3 V sensor supply.
@@ -344,7 +344,7 @@ The test filenames remain unchanged so their original test cases are easy to tra
 
 These decisions are not implemented, except where an entry says so.
 
-- The board is an ESP32-S3 with an N8R2 module. The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. The firmware uses them and compiles (15 November). They are not checked on hardware.
+- The board is an ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. The firmware uses them and compiles (15 November). They are not checked on hardware.
 - Completion work builds on the current branch. The dust sensor stays.
 - The primary dashboard viewer is a caregiver at a desk screen.
 - The notification channel is a local alarm on the ESP32: a buzzer and an LED. The host side, the "Silence alarm" control and the sketch wiring were implemented on 15 November.
