@@ -99,6 +99,7 @@ After flashing:
 4. Check the dust LED pulse width (0.32 ms), the sampling point (0.28 ms) and the 10 ms period on an oscilloscope. Check the accepted and rejected sample counts.
 5. Check whether opening the serial port resets the board.
 6. With native USB: check what happens to readings when the laptop stops reading the port.
+7. Link-lost fallback: stop `monitor.py`. Check that the LED blinks (1 s on, 1 s off) after about 30 s and that the buzzer keeps its last state. Start `monitor.py` again and check that its next command stops the blink.
 
 ## Local alarm
 
@@ -109,7 +110,8 @@ The host sends `ALARM,0` (LED and buzzer off), `ALARM,1` (LED only) or `ALARM,2`
 - `loop()` reads at most 64 bytes per pass with `pumpAlarmInput`. It never waits for input. It runs even when the BME680 failed to start.
 - Each valid command sets the outputs and prints one reply. Malformed lines get no reply.
 - The buzzer gets a steady level. There is no tone and no beep pattern.
-- When the USB link is down the host cannot command the alarm. A board-side fallback is an open decision.
+- Link-lost fallback: when no valid command arrives for 30 s (`ROOM_ALARM_LINK_TIMEOUT_MS`), the LED blinks, 1 s on and 1 s off (`ROOM_ALARM_BLINK_HALF_PERIOD_MS`). The buzzer keeps its last commanded state. The timer starts at boot, and only a valid `ALARM` command resets it; malformed lines do not. The next valid command ends the blink. The board prints no line for this. The host normally sends a command every 5 s (`fault_check_interval_s`). Implemented and compiled on 20 November 2026; not checked on hardware.
+- `refreshAlarmOutputs()` is the only function that writes the LED and buzzer pins. `setup()`, each valid command and each `loop()` pass call it. It computes the outputs with `alarmOutputsAt` and writes the pins only when they change.
 
 ## Serial behavior
 
@@ -170,11 +172,11 @@ Four days describes baseline history, not a required warm-up wait.
 ## Source organization
 
 - room_environment_safety_control_bme680.ino handles BSEC setup, callbacks, errors and the alarm outputs.
-- bsec_board_config.h contains the chip check, all board pins, the buzzer polarity, serial speed, supply selection, reporting intervals and the alarm read bound.
+- bsec_board_config.h contains the chip check, all board pins, the buzzer polarity, serial speed, supply selection, reporting intervals, the alarm read bound and the alarm link timeout and blink period.
 - bsec_serial_format.h converts scalar values and status fields to JSON.
 - sharp_dust.h runs experimental Sharp dust acquisition on GPIO5 (LED drive) and GPIO4 (analog input) and reports raw voltage records.
 - sharp_dust_limits.h holds the pure dust sample rule: timing window, ADC limit 2750 mV and the 2:1 divider.
-- alarm_command.h is the local alarm command core: line parser with a fixed 32-byte buffer, level to LED and buzzer, polarity helper, bounded serial pump and reply formatter. Pure C++11, no Arduino dependency, no dynamic allocation.
+- alarm_command.h is the local alarm command core: line parser with a fixed 32-byte buffer, level to LED and buzzer, link-lost check and LED blink, polarity helper, bounded serial pump and reply formatter. Pure C++11, no Arduino dependency, no dynamic allocation.
 - tests/test_bsec_serial_format.cpp, tests/test_alarm_command.cpp and tests/test_sharp_dust_limits.cpp run without a board. Build and run each on Linux, for example `g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_alarm_command.cpp -o /tmp/test_alarm_command && /tmp/test_alarm_command`. All three passed with no warnings on 15 November 2026.
 
 ## Verification status

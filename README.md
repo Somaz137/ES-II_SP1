@@ -156,6 +156,8 @@ The host sends on every change and again at each fault check, so a board reset i
 
 The sketch reads commands without blocking, at most 64 bytes per loop pass, drives GPIO6 (LED) and GPIO7 (buzzer module) with a steady level, and replies after each command and once at start-up. The buzzer polarity is one constant, `ROOM_BUZZER_ACTIVE_HIGH`, default active high, not verified. In the demo the simulated board echoes each command. No LED or buzzer has been driven.
 
+Link-lost fallback: when the board gets no valid `ALARM` command for 30 s, the LED blinks, 1 s on and 1 s off. The buzzer keeps its last commanded state. Only a valid command resets the timer, and the next one ends the blink. The host normally sends a command every 5 s. Implemented and compiled on 20 November 2026; not checked on hardware.
+
 ## Behavior to preserve
 
 The monitor loads technical settings at startup.
@@ -190,6 +192,7 @@ Decision of 15 November 2026. It replaces the earlier rule that gas resistance a
 
 - Air quality is Bosch's BSEC index (0 to 500), labelled "Bosch estimate", with a word band. It shows as calibrating, with no value, while Bosch's accuracy is 0 or 1.
 - Dust is an estimated concentration in µg/m³ with a word level, labelled "estimate". It shows "establishing baseline", with no value, until the baseline exists.
+- `dust.disconnected_below_mv` (default 100 mV) is a required key in `config/system.yaml`. A dust voltage below it is not a reading, and with only such records for the sensor timeout the dust sensor shows as not connected.
 - Their limits are system setup in `config/system.yaml`, not dashboard controls. Each has an upper limit and a hold time. The shipped file leaves both off; the project supplies no values. The word bands and levels there are display defaults, not health standards. The Bosch bands and the Sharp sensitivity are not checked against a datasheet on this machine.
 - Their alerts follow the patient-limit rule (sustained, occupied, current reading), sound the buzzer and can be silenced. A calibrating index or a missing baseline pauses that check, with a stated reason.
 - `monitor.py --demo` uses demonstration limits (air quality 150 for 30 s, dust 100 µg/m³ for 30 s) so the simulator shows both alerts. They are not recommendations.
@@ -219,7 +222,7 @@ Firmware configuration commands and calibration-state storage remain future work
 - In serial mode without `--camera`, occupancy is always unknown, so patient-limit alerts never start.
 - Readings older than 7 days are deleted hourly. Events are never deleted. The event list shows the latest 50 events and pages to older ones.
 - The independent notification path is a local LED and buzzer on the ESP32, commanded by the host over USB. The sketch drives GPIO6 and GPIO7. Pins and buzzer polarity are not checked on hardware.
-- When the USB link is down the host cannot command the LED or buzzer. The dashboard then shows the alarm as unreachable. A firmware fallback is an open decision.
+- When the USB link is down the host cannot command the LED or buzzer. The dashboard then shows the alarm as unreachable. After 30 s without a valid command the board blinks the LED and keeps the buzzer in its last state (implemented and compiled, not checked on hardware).
 - The dust estimate uses a typical sensitivity and an automatic baseline. It is not PM2.5, an official index, or a calibrated concentration. It is not checked against a reference instrument.
 - The air-quality index is Bosch's estimate. It is not a gas concentration and is not checked against a reference.
 
@@ -241,11 +244,11 @@ Firmware configuration commands and calibration-state storage remain future work
 2. Obtain the hardware and complete physical BME680, dust, and USB checks.
 3. Check camera capture and the occupancy detector with seated, lying, and occluded people.
 4. Agree on real patient limits for any demonstration.
-5. Check the local alarm on the real board: GPIO6 and GPIO7 free, buzzer polarity and whether it needs a tone, LED resistor, replies. The host side, the sketch wiring and the "Silence alarm" control exist.
+5. Check the local alarm on the real board: GPIO6 and GPIO7 free, buzzer polarity and whether it needs a tone, LED resistor, replies, and the link-lost LED blink. The host side, the sketch wiring and the "Silence alarm" control exist.
 6. Check the five-page dashboard with the real board and sensors. It is checked only with the simulator and screenshots.
 7. Decide whether to save the BSEC calibration state across power loss, and check the Bosch word bands and the Sharp sensitivity against the datasheets.
 8. Demonstrate the complete system with actual hardware.
-9. Open: the floating dust input. With no dust sensor attached, the dust input reads about 870 to 930 mV and is accepted as a fresh dust record, most likely because the ADC pin floats. A disconnected dust sensor cannot currently be told apart from a working one. Candidate fixes: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. The user will choose when wiring.
+9. Dust disconnect: the host now applies a floor rule. A dust voltage below `dust.disconnected_below_mv` (100 mV) is not a reading, and with no reading at or above it for the sensor timeout (120 s) the dust status is "not connected" and the dust fault is raised. Bench check pending: with the 2:1 divider wired and no sensor, confirm that the input reads below 100 mV (on 17 November, with nothing wired, the floating input read about 870 to 930 mV) and that a connected sensor reads above it.
 10. Online access: send a signed-in control request (save limits, silence, acknowledge) through a real tunnel. Online access is implemented. One real tunnel run on 19 November 2026 loaded the pages and refused control requests without sign-in.
 
 Follow the course requirements and approved project decisions.

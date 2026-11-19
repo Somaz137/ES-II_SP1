@@ -38,3 +38,8 @@ constexpr unsigned long ROOM_NO_MEASUREMENT_MS = 2 * ROOM_LP_INTERVAL_MS;
 // Serial bytes read for alarm commands in one loop pass. A command is 8 or 9
 // bytes. The rest stays in the driver's receive buffer for the next pass.
 constexpr unsigned ROOM_ALARM_MAX_BYTES_PER_PASS = 64;
+
+// With no valid alarm command for this long, the alarm LED blinks (on and off
+// for ROOM_ALARM_BLINK_HALF_PERIOD_MS each). The buzzer keeps its last state.
+constexpr unsigned long ROOM_ALARM_LINK_TIMEOUT_MS = 30000;
+constexpr unsigned long ROOM_ALARM_BLINK_HALF_PERIOD_MS = 1000;

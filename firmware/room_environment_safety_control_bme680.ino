@@ -113,12 +113,25 @@ void receiveRoomSample(const bme68xData data, const bsecOutputs outputs,
 }
 
 AlarmLineReader roomAlarmReader;
+int roomAlarmLevel = 0;
+uint32_t roomLastCommandMs = 0;
+AlarmOutputs roomWrittenOutputs = {false, false};
+bool roomOutputsWritten = false;  // False until the first pin write.
 
-void writeAlarmOutputs(int level) {
-  const AlarmOutputs outputs = alarmOutputs(level);
+// The only place the alarm pins are written. Writes only when the outputs
+// change, and always on the first call.
+void refreshAlarmOutputs() {
+  const uint32_t now = millis();
+  const bool lost = alarmLinkLost(now, roomLastCommandMs, ROOM_ALARM_LINK_TIMEOUT_MS);
+  const AlarmOutputs outputs =
+      alarmOutputsAt(roomAlarmLevel, lost, now, ROOM_ALARM_BLINK_HALF_PERIOD_MS);
+  if (roomOutputsWritten && outputs.led == roomWrittenOutputs.led &&
+      outputs.buzzer == roomWrittenOutputs.buzzer) return;
   digitalWrite(ROOM_ALARM_LED_PIN, outputs.led ? HIGH : LOW);
   digitalWrite(ROOM_BUZZER_PIN,
                alarmDriveLevel(outputs.buzzer, ROOM_BUZZER_ACTIVE_HIGH) ? HIGH : LOW);
+  roomWrittenOutputs = outputs;
+  roomOutputsWritten = true;
 }
 
 void sendAlarmReply(int level) {
@@ -126,16 +139,20 @@ void sendAlarmReply(int level) {
   if (formatAlarmReply(reply, sizeof(reply), level)) Serial.println(reply);
 }
 
+// Called only for a valid command, so only a valid command resets the link timer.
 void applyAlarmLevel(int level) {
-  writeAlarmOutputs(level);
+  roomAlarmLevel = level;
+  roomLastCommandMs = millis();
+  refreshAlarmOutputs();
   sendAlarmReply(level);
 }
 
 void setup() {
+  roomLastCommandMs = millis();
   // Alarm outputs off before anything slow runs.
   pinMode(ROOM_ALARM_LED_PIN, OUTPUT);
   pinMode(ROOM_BUZZER_PIN, OUTPUT);
-  writeAlarmOutputs(0);
+  refreshAlarmOutputs();
   Serial.begin(ROOM_SERIAL_BAUD);
   // Tell the host the board restarted at level 0.
   sendAlarmReply(0);
@@ -171,6 +188,7 @@ void setup() {
 void loop() {
   // Bounded and non-blocking. Runs even when the BME680 failed to start.
   pumpAlarmInput(Serial, roomAlarmReader, ROOM_ALARM_MAX_BYTES_PER_PASS, applyAlarmLevel);
+  refreshAlarmOutputs();
   reportDust();
   delay(1);
   if (!roomConfigured) {

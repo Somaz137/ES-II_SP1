@@ -2,12 +2,15 @@
 
 // Local alarm command core. Pure C++11: no Arduino dependency and no dynamic
 // allocation. The sketch feeds it from Serial and drives the alarm LED and the
-// buzzer module (pins in bsec_board_config.h) from alarmOutputs.
+// buzzer module (pins in bsec_board_config.h) from alarmOutputsAt.
 //
 // Host to board: "ALARM,<0|1|2>\n". Board to host: {"type":"alarm","state":<n>}.
 // Level 0: LED off, buzzer off. 1: LED on, buzzer off. 2: LED on, buzzer on.
+// With no valid command for the link timeout, the LED blinks and the buzzer
+// keeps the last level's state.
 
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 
 enum {
@@ -40,6 +43,21 @@ inline AlarmOutputs alarmOutputs(int level) {
   AlarmOutputs outputs;
   outputs.led = level == 1 || level == 2;
   outputs.buzzer = level == 2;
+  return outputs;
+}
+
+// True when no valid command arrived for timeoutMs. Unsigned subtraction keeps
+// the result right across the millis() wrap.
+inline bool alarmLinkLost(uint32_t nowMs, uint32_t lastCommandMs, uint32_t timeoutMs) {
+  return static_cast<uint32_t>(nowMs - lastCommandMs) >= timeoutMs;
+}
+
+// Outputs at time nowMs. With the link lost the LED blinks (on for the first
+// halfPeriodMs, off for the next); the buzzer always keeps the level's state.
+inline AlarmOutputs alarmOutputsAt(int level, bool linkLost, uint32_t nowMs,
+                                   uint32_t halfPeriodMs) {
+  AlarmOutputs outputs = alarmOutputs(level);
+  if (linkLost) outputs.led = (nowMs / halfPeriodMs) % 2 == 0;
   return outputs;
 }
 
