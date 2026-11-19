@@ -1,5 +1,5 @@
 // Room Environment Safety Control: experimental BSEC LP acquisition.
-// Target: ESP32-S3 with an N8R2 module. Local LED and buzzer alarm.
+// Target: ESP32-S3 with 16 MB flash and 8 MB PSRAM (N16R8-type module). Local LED and buzzer alarm.
 // Compiled with ESP32 core 3.3.12, BSEC2 1.10.2610 and BME68x 1.3.40408.
 // Hardware operation remains unverified.
 // Board pins, serial speed and confirmed supply: bsec_board_config.h.

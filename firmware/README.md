@@ -1,7 +1,7 @@
 # ESP32-S3 BSEC firmware
 
-**Target:** an ESP32-S3 with an N8R2 module (8 MB quad flash, 2 MB quad PSRAM). The user selected it on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
-**Status:** the sketch compiles for the ESP32-S3 with both serial settings below. See the [15 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-15.md). Nothing has been flashed. No ESP32-S3 has been connected. The exact development board model is not identified. All hardware behaviour is unverified.
+**Target:** an ESP32-S3 (QFN56, revision v0.2) with 16 MB quad flash and 8 MB embedded PSRAM, an N16R8-type module. esptool read these facts from the connected board on 17 November 2026. The documents assumed an N8R2 module until then. The board was selected on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
+**Status:** the board was flashed on 17 November 2026. The serial link and the alarm protocol were checked without sensors. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md). The exact development board model is not identified. Sensor, LED and buzzer behaviour is unverified.
 The 8 November build for the DOIT board is history. See the [8 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-08.md).
 
 This source prepares BSEC low-power acquisition every three seconds, experimental Sharp dust acquisition and a local LED and buzzer alarm.
@@ -11,14 +11,16 @@ It does not establish a working hardware integration.
 
 | Setting | Value |
 |---|---|
-| Board | ESP32-S3 with an N8R2 module |
+| Board | ESP32-S3 with 16 MB flash and 8 MB embedded PSRAM (N16R8-type module) |
 | Arduino board identifier | `esp32:esp32:esp32s3` |
-| Board options | `FlashSize=8M,PSRAM=enabled,PartitionScheme=default_8MB,CDCOnBoot=<default\|cdc>`. Flash mode stays the default (QIO). |
+| Board options | `FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. Flash mode stays the default (QIO). PSRAM is disabled because the firmware does not use it. |
+| USB port | CH343 USB-UART bridge (USB 1a86:55d3), `/dev/ttyACM0` on Linux |
 | Serial speed | 115200 baud |
 | Sensor supply | 3.3 V, confirmed by the user |
 | BSEC sampling | Low-power mode, one acquisition every three seconds |
 
 `bsec_board_config.h` rejects any chip other than the ESP32-S3 with the message "Select an ESP32-S3 board (esp32:esp32:esp32s3). This firmware targets the ESP32-S3 N8R2."
+The message still names the N8R2. The physical board is an N16R8-type module. The check itself is unaffected.
 It checks the selected chip type, not the physical board or its memory.
 
 The user confirmed a 3.3 V sensor supply on 8 November 2026.
@@ -49,38 +51,29 @@ The dust circuit is in [SHARP_DUST_INTEGRATION.md](../docs/SHARP_DUST_INTEGRATIO
 
 - `CDCOnBoot=default`: `Serial` is UART0. Use it when the USB cable goes into a port served by a USB-UART bridge chip (often labelled UART or COM). On Linux the port is usually `/dev/ttyUSB<n>` or `/dev/ttyACM<n>`, depending on the bridge chip.
 - `CDCOnBoot=cdc`: `Serial` is the native USB port of the ESP32-S3 (hardware CDC). Use it when the cable goes into the port wired to GPIO19/GPIO20 (often labelled USB). On Linux the port is usually `/dev/ttyACM<n>`.
-- Many boards have both ports. Which one this board has, and which one the laptop uses, is not known yet. Check the board's labels and documentation.
+- This board's USB port goes through a CH343 bridge (USB 1a86:55d3). It carries UART0, so use `CDCOnBoot=default`. Linux names it `/dev/ttyACM0`. The flash on 17 November 2026 used this setting.
 - The source is the same for both. Only the build option differs.
 
 ## Build commands
 
 Run from any directory. The Arduino sketch folder must be named after the main file. This repository's folder is `firmware/`, so copy `firmware/*.ino` and `firmware/*.h` into a folder named `room_environment_safety_control_bme680` first, or rename a copy of the folder.
 
-UART0 (`CDCOnBoot=default`):
+UART0 through the CH343 bridge (`CDCOnBoot=default`). This build and upload ran on 17 November 2026:
 
 ```bash
 arduino-cli compile --config-file /home/bridge/.local/share/room-arduino/arduino-cli.yaml \
-  --fqbn "esp32:esp32:esp32s3:FlashSize=8M,PSRAM=enabled,PartitionScheme=default_8MB,CDCOnBoot=default" \
+  --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default" \
   --warnings all --build-path <BUILD_DIR> <SKETCH_DIR>/room_environment_safety_control_bme680
-```
 
-Native USB (`CDCOnBoot=cdc`):
-
-```bash
-arduino-cli compile --config-file /home/bridge/.local/share/room-arduino/arduino-cli.yaml \
-  --fqbn "esp32:esp32:esp32s3:FlashSize=8M,PSRAM=enabled,PartitionScheme=default_8MB,CDCOnBoot=cdc" \
-  --warnings all --build-path <BUILD_DIR> <SKETCH_DIR>/room_environment_safety_control_bme680
-```
-
-Upload template. Not run. Use the same FQBN as the build. Replace `<PORT>` with the board's real port after the checks below.
-
-```bash
 arduino-cli upload --config-file /home/bridge/.local/share/room-arduino/arduino-cli.yaml \
-  --fqbn "esp32:esp32:esp32s3:FlashSize=8M,PSRAM=enabled,PartitionScheme=default_8MB,CDCOnBoot=<default|cdc>" \
-  --port <PORT> --input-dir <BUILD_DIR>
+  -p /dev/ttyACM0 \
+  --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default" \
+  --build-path <BUILD_DIR> <SKETCH_DIR>/room_environment_safety_control_bme680
 ```
 
-In Arduino IDE, select **ESP32S3 Dev Module** and set Flash Size "8MB (64Mb)", PSRAM "QSPI PSRAM", Partition Scheme "8M with spiffs (3MB APP/1.5MB SPIFFS)" and USB CDC On Boot "Disabled" (`default`) or "Enabled" (`cdc`). These labels come from the core's `boards.txt`. They were not checked in the IDE.
+The 15 November builds used `FlashSize=8M,PSRAM=enabled,PartitionScheme=default_8MB` for the assumed N8R2 module. Do not use them for this board.
+
+In Arduino IDE, select **ESP32S3 Dev Module** and set Flash Size "16MB (128Mb)", PSRAM "Disabled", Partition Scheme "16M Flash (3MB APP/9.9MB FATFS)" and USB CDC On Boot "Disabled" (`default`). The flash size and partition labels come from `arduino-cli board details`. The IDE itself was not checked.
 
 ## Hardware checklist
 
