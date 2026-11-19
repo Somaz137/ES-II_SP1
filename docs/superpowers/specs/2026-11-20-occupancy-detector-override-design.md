@@ -63,7 +63,7 @@ The rule takes the check results with their times. It returns the automatic stat
 - **Entry.** The room becomes `occupied` when a person was `seen` in at least 75 % of the checks in the last `occupancy_confirm_s` (default 120 s). At a 10 s interval, that is 9 of 12 checks. The window must be full: a run that is shorter than 120 s does not count.
 - **Hold.** While the room is occupied, it stays `occupied` until no check has seen a person for `occupancy_hold_s` (default 900 s).
 - **No person.** After the hold ends, the state is `not_seen`. The camera works but has not confirmed a person.
-- **Camera failure.** A `failed` check counts as `not_seen` for the entry and the hold. When no check has succeeded for 3 intervals, the camera is "not working". PENDING USER DECISION: what a camera failure does while the room is occupied. See "Open question" at the end.
+- **Camera failure.** A `failed` check counts as `not_seen` for the entry and the hold. When no check has succeeded for 3 intervals, the camera is "not working". User decision (20 November 2026): while the room is occupied, a camera failure does not end occupancy. The room stays `occupied` until the 15-minute hold, counted from the last sighting, ends. Limit alerts keep running. The page says, for example, "Camera not working. Occupancy held from the last sighting at 14:02." After the hold, the state is `unknown`. When the room is not occupied, a camera failure gives `unknown` after 3 intervals.
 - **While confirming.** The status shows the progress, for example "Person seen in 7 of 12 checks".
 
 `occupied` is the only state that allows limit alerts. All other states pause them, as `unknown` does today. The session rule `occupancy != "occupied"` stays.
@@ -115,10 +115,3 @@ The rule takes the check results with their times. It returns the automatic stat
 - The exact YOLOX pre- and post-processing (input size, letterbox, output decoding). Follow the zoo's `demo.py`.
 - The pinned download URL and its SHA-256.
 - The exact wording of the page text, following `DESIGN.md` and the product principles.
-
-## Open question (for the user)
-
-What does a camera failure do while the room is occupied?
-
-- (a) The room stays `occupied` until the 15-minute hold ends. Limit alerts keep running. The page says "Camera not working. Occupancy held from the last sighting at 14:02." After the hold, the state is `unknown`.
-- (b) The state becomes `unknown` after 30 s and limit alerts pause. If the camera comes back within 15 minutes, the room is `occupied` again without the 2-minute confirmation.
