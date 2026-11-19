@@ -9,6 +9,7 @@ This branch adds the room software: SQLite storage, patient limits, sustained-br
 These parts exist in software. They are verified only by automated tests and the simulator.
 On 17 November 2026 the ESP32-S3 was flashed. The serial link and the alarm protocol were checked with no sensors attached. No BME680, dust sensor, LED, buzzer, or camera check has taken place.
 The local alarm is implemented on the host and in the sketch. It is checked with the simulator, host C++ tests, a compilation for the ESP32-S3, and the board's serial replies to `ALARM` commands (17 November). No LED or buzzer has been driven. The dashboard redesign is implemented on this branch as five pages: Overview, Trends, Events, Patient limits and System. It is checked with the simulator and screenshots, not on hardware. 7-day reading retention is implemented.
+Opt-in view-only online access is implemented (19 November): a Cloudflare quick tunnel to a second, view-only origin, with a password for controls. One real tunnel run on 19 November 2026 loaded the pages and refused control requests without sign-in. A signed-in control request through the real tunnel has not been tried.
 The [local alarm design](docs/superpowers/specs/2026-11-15-local-alarm-design.md) defines the alarm levels, the serial command, silence and reachability.
 The [dashboard data contract](docs/superpowers/specs/2026-11-15-dashboard-data-contract-design.md) defines the dashboard response, alert text, events, timing settings, and retention.
 
@@ -28,6 +29,7 @@ Read the [8 November verification record](reference_files/LINUX_VERIFICATION_202
 | Complete firmware compilation | The current sketch, with dust code and alarm, compiled for the ESP32-S3 with the 8 MB options then assumed (N8R2), `CDCOnBoot=default` and `CDCOnBoot=cdc`, no warnings (15 November). Compilation only. |
 | First flash, ESP32-S3 | Compiled with no warnings and uploaded with every hash verified. Clean boot. With no BME680, `bsec_initialization_failed` every 3 s (17 November). |
 | Alarm protocol on the board | `ALARM,0`, `ALARM,1`, `ALARM,2`, `ALARM,0` each got the matching reply in about 10 ms. `ALARM,9` got none. `monitor.py` ran 60 s with the alarm confirmed at level 0. Serial replies only; nothing was wired to the LED or buzzer pins (17 November). |
+| Online access, real tunnel | Pages loaded through a real quick tunnel. Control requests without sign-in were refused. No signed-in control request was sent through the tunnel (19 November). |
 | Missing communication | Monitor raised the communication alert and retained previous measurements (8 November). |
 | Communication recovery | Fresh readings resumed. The outstanding communication alert remained active (8 November). |
 | Repeated sensor errors | Communication stayed active while the sensor alert became active (8 November). |
@@ -244,6 +246,7 @@ Firmware configuration commands and calibration-state storage remain future work
 7. Decide whether to save the BSEC calibration state across power loss, and check the Bosch word bands and the Sharp sensitivity against the datasheets.
 8. Demonstrate the complete system with actual hardware.
 9. Open: the floating dust input. With no dust sensor attached, the dust input reads about 870 to 930 mV and is accepted as a fresh dust record, most likely because the ADC pin floats. A disconnected dust sensor cannot currently be told apart from a working one. Candidate fixes: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. The user will choose when wiring.
+10. Online access: send a signed-in control request (save limits, silence, acknowledge) through a real tunnel. Online access is implemented. One real tunnel run on 19 November 2026 loaded the pages and refused control requests without sign-in.
 
 Follow the course requirements and approved project decisions.
 Preserve the existing environment and required dependencies.

@@ -13,7 +13,9 @@ This record supersedes earlier pending-test statements in historical preparation
 **Board identity and first flash, 17 November 2026:** esptool shows the connected board is an N16R8-type module (16 MB quad flash, 8 MB embedded PSRAM, CH343 USB-UART bridge), not an N8R2. The firmware was flashed with `esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. The serial link and the alarm protocol were checked without sensors. See the [17 November verification record](LINUX_VERIFICATION_2026-11-17.md).
 
 
-**Updated:** 17 November 2026 (board identity, first flash, status table and open dust point); 15 November 2026 (status table and decisions); earlier sections 8 November 2026  
+**Online access, 19 November 2026:** Opt-in view-only online access is implemented: a Cloudflare quick tunnel to a second, view-only origin, with a password for controls. One real tunnel run on 19 November 2026 loaded the pages and refused control requests without sign-in. A signed-in control request through the real tunnel has not been tried. See the [online access design](../docs/superpowers/specs/2026-11-19-online-access-design.md).
+
+**Updated:** 19 November 2026 (online access note); 17 November 2026 (board identity, first flash, status table and open dust point); 15 November 2026 (status table and decisions); earlier sections 8 November 2026  
 **Project:** Idea 8, Room Environment Safety Monitor.  
 **Platform:** Ubuntu 22.04 laptop + ESP32 over USB serial.
 
