@@ -8,7 +8,7 @@ The selected board changed to an ESP32-S3 on 15 November 2026. See [Selected har
 This branch adds the room software: SQLite storage, patient limits, sustained-breach alerts, camera occupancy, a local dashboard, and a Sharp dust sensor path.
 These parts exist in software. They are verified only by automated tests and the simulator.
 On 17 November 2026 the ESP32-S3 was flashed. The serial link and the alarm protocol were checked with no sensors attached. No BME680, dust sensor, LED, buzzer, or camera check has taken place.
-The local alarm is implemented on the host and in the sketch. It is checked with the simulator, host C++ tests, a compilation for the ESP32-S3, and the board's serial replies to `ALARM` commands (17 November). No LED or buzzer has been driven. The dashboard redesign is decided but not implemented. 7-day reading retention is implemented.
+The local alarm is implemented on the host and in the sketch. It is checked with the simulator, host C++ tests, a compilation for the ESP32-S3, and the board's serial replies to `ALARM` commands (17 November). No LED or buzzer has been driven. The dashboard redesign is implemented on this branch as five pages: Overview, Trends, Events, Patient limits and System. It is checked with the simulator and screenshots, not on hardware. 7-day reading retention is implemented.
 The [local alarm design](docs/superpowers/specs/2026-11-15-local-alarm-design.md) defines the alarm levels, the serial command, silence and reachability.
 The [dashboard data contract](docs/superpowers/specs/2026-11-15-dashboard-data-contract-design.md) defines the dashboard response, alert text, events, timing settings, and retention.
 
@@ -88,7 +88,7 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | dust.py | Classifies Sharp dust records and reports dust status. Tracks the clean-air baseline and calculates the dust estimate. |
 | dashboard.py | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits, acknowledgment requests and alarm silence requests. |
 | alarm.py | Decides the local alarm level (0 off, 1 LED, 2 LED and buzzer), silence, and whether the board confirmed the level. No I/O. |
-| templates/, static/ | Dashboard page, script, and style. |
+| templates/, static/ | Dashboard pages (shared layout and five pages), script, charts, and style. |
 | `settings.py` | Loads both YAML settings files and checks their values. |
 | config/runtime.yaml | Stores host polling, retry, and fault-check intervals, the reading gap, dashboard staleness and refresh, camera interval, reading retention, and the alarm confirmation timeout. |
 | config/alerts.yaml | Stores the communication and sensor-error timeouts. |
@@ -219,7 +219,7 @@ Firmware configuration commands and calibration-state storage remain future work
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
 - Buzzer part: a 3-pin buzzer module driven from one GPIO (GPIO7 on the ESP32-S3). The alarm LED uses GPIO6.
 - Raw readings will be kept for 7 days. Event history is kept regardless. Implemented on 15 November.
-- The dashboard will be redesigned. The current page is a first draft.
+- The dashboard will be redesigned. The current page is a first draft. Implemented on this branch: five pages (Overview, Trends, Events, Patient limits, System), checked with the simulator and screenshots, not on hardware.
 - Air quality is shown as Bosch's index and dust as an estimated concentration, both with words; their limits are system setup; the profile has a short label. Implemented on 15 November with tests and the simulator only. This replaces the earlier raw-signals-only rule.
 
 ## Remaining work
@@ -229,7 +229,7 @@ Firmware configuration commands and calibration-state storage remain future work
 3. Check camera capture and the occupancy detector with seated, lying, and occluded people.
 4. Agree on real patient limits for any demonstration.
 5. Check the local alarm on the real board: GPIO6 and GPIO7 free, buzzer polarity and whether it needs a tone, LED resistor, replies. The host side, the sketch wiring and the "Silence alarm" control exist.
-6. Redesign the dashboard.
+6. Check the five-page dashboard with the real board and sensors. It is checked only with the simulator and screenshots.
 7. Decide whether to save the BSEC calibration state across power loss, and check the Bosch word bands and the Sharp sensitivity against the datasheets.
 8. Demonstrate the complete system with actual hardware.
 9. Open: the floating dust input. With no dust sensor attached, the dust input reads about 870 to 930 mV and is accepted as a fresh dust record, most likely because the ADC pin floats. A disconnected dust sensor cannot currently be told apart from a working one. Candidate fixes: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. The user will choose when wiring.

@@ -17,7 +17,7 @@ It contains no instructions for an AI assistant.
 
 **Current status:** The repository contains the monitor, SQLite storage, patient-limit rules, camera occupancy, a local dashboard, and a Sharp dust path.
 These parts exist in software. Automated tests and a simulator verify them. On 17 November 2026 the monitor ran for 60 s against the flashed board with no sensors attached. No part has run with sensors or a real camera.
-The local alarm is implemented on the host and in the sketch. It is checked with the simulator, host C++ tests, a compilation for the ESP32-S3, and the board's serial replies to `ALARM` commands (17 November). No LED or buzzer has been driven. The dashboard redesign is decided but not implemented. 7-day reading retention is implemented.
+The local alarm is implemented on the host and in the sketch. It is checked with the simulator, host C++ tests, a compilation for the ESP32-S3, and the board's serial replies to `ALARM` commands (17 November). No LED or buzzer has been driven. The dashboard redesign is implemented on this branch as five pages: Overview, Trends, Events, Patient limits and System. It is checked with the simulator and screenshots, not on hardware. 7-day reading retention is implemented.
 
 ## What the project does
 
@@ -47,7 +47,7 @@ The project does not yet define those control functions.
 | ESP32-S3 | Reads the sensors, drives the local alarm and sends records through USB serial | Flashed on 17 November 2026. Serial link and alarm replies checked without sensors. LED, buzzer and sensor inputs not checked. |
 | Laptop | Runs the monitor, rules, storage, and dashboard | Implemented in software. Verified by tests and the simulator. |
 | Camera | Supplies frames for occupancy detection | OpenCV people detector implemented. Not checked with a camera. |
-| Dashboard | Shows room status, trends, events, limits and the local alarm state, and accepts communication acknowledgments and alarm silence requests | Local first draft implemented. Checked only with simulated data. A redesign is decided. |
+| Dashboard | Shows room status, trends, events, limits and the local alarm state, and accepts communication acknowledgments and alarm silence requests | Five pages implemented: Overview, Trends, Events, Patient limits and System. Checked with the simulator and screenshots, not on hardware. |
 | Local alarm | Buzzer and LED on the ESP32 | Host side and sketch implemented. Checked with the simulator, host C++ tests and a compilation. Alarm LED GPIO6, buzzer GPIO7, buzzer polarity and pins not checked on the board. |
 
 The laptop performs the main project logic.
@@ -353,7 +353,7 @@ These decisions are not implemented, except where an entry says so.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
 - The buzzer is a 3-pin buzzer module driven from one GPIO.
 - Raw readings will be kept for 7 days. Event history is kept regardless. Implemented on 15 November.
-- The dashboard will be redesigned. The current page is a first draft.
+- The dashboard will be redesigned. The current page is a first draft. Implemented on this branch: five pages (Overview, Trends, Events, Patient limits, System), checked with the simulator and screenshots, not on hardware.
 - Air quality is Bosch's BSEC index and dust is an estimated concentration, both with words and an "estimate" label. Their limits are system setup. The profile has a short label. This replaces the raw-signals-only rule. Implemented on 15 November; tests and simulator only.
 
 ## What remains
@@ -366,7 +366,7 @@ These decisions are not implemented, except where an entry says so.
 6. Check dust timing with an oscilloscope and measure a clean-air baseline.
 7. Check the camera and the occupancy detector with seated, lying, and occluded people.
 8. Check the local alarm on the real board: the LED, the buzzer polarity, and that GPIO6 and GPIO7 are free.
-9. Redesign the dashboard.
+9. Check the five-page dashboard with the real board and sensors. It is checked only with the simulator and screenshots.
 10. Demonstrate normal operation, faults, and recovery with actual hardware.
 11. Decide how to detect a disconnected dust sensor. With no dust sensor attached, the dust input reads about 870 to 930 mV and is accepted as a fresh dust record, most likely because the ADC pin floats. A disconnected dust sensor cannot currently be told apart from a working one. Candidate fixes: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. The user will choose when wiring.
 
