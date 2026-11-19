@@ -182,8 +182,9 @@ Four days describes baseline history, not a required warm-up wait.
 - bsec_serial_format.h converts scalar values and status fields to JSON.
 - sharp_dust.h runs experimental Sharp dust acquisition on GPIO5 (LED drive) and GPIO4 (analog input) and reports raw voltage records.
 - sharp_dust_limits.h holds the pure dust sample rule: timing window, ADC limit 2750 mV and the 2:1 divider.
-- alarm_command.h is the local alarm command core: line parser with a fixed 32-byte buffer, level to LED and buzzer, link-lost check and LED blink, polarity helper, bounded serial pump and reply formatter. Pure C++11, no Arduino dependency, no dynamic allocation.
-- tests/test_bsec_serial_format.cpp, tests/test_alarm_command.cpp and tests/test_sharp_dust_limits.cpp run without a board. Build and run each on Linux, for example `g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_alarm_command.cpp -o /tmp/test_alarm_command && /tmp/test_alarm_command`. All three passed with no warnings on 15 November 2026 and again on 20 November 2026.
+- host_command.h reads host lines (`ALARM,<0|1|2>`, `BSEC_STATE,<hex>` of up to 238 bytes, `BSEC_STATE,NONE`) into a fixed 512-byte buffer, formats a BSEC state as hex and holds the state-save rule (accuracy 3, then once per period). Pure C++11, no Arduino dependency, no dynamic allocation.
+- alarm_command.h is the local alarm command core: line parser on top of host_command.h, level to LED and buzzer, link-lost check and LED blink, polarity helper, bounded serial pump and reply formatter. Pure C++11, no Arduino dependency, no dynamic allocation.
+- tests/test_bsec_serial_format.cpp, tests/test_alarm_command.cpp, tests/test_sharp_dust_limits.cpp and tests/test_host_command.cpp run without a board. Build and run each on Linux, for example `g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_alarm_command.cpp -o /tmp/test_alarm_command && /tmp/test_alarm_command`. The first three passed with no warnings on 15 November 2026 and again on 20 November 2026; all four passed with no warnings on 20 November 2026 after host_command.h was added.
 
 ## Verification status
 

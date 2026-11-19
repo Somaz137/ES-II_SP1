@@ -57,7 +57,7 @@ int main() {
   assert(feedLine(reader, "ALA\n") == ROOM_ALARM_INVALID);
   assert(feedLine(reader, "ALARM,0\n") == 0);
   // Over-long lines are discarded up to the newline; the next line works.
-  for (int i = 0; i < 100; ++i) assert(reader.feed('A') == ROOM_ALARM_NO_LINE);
+  for (int i = 0; i < ROOM_ALARM_LINE_MAX + 100; ++i) assert(reader.feed('A') == ROOM_ALARM_NO_LINE);
   assert(feedLine(reader, "ALARM,2\n") == ROOM_ALARM_INVALID);
   assert(feedLine(reader, "ALARM,2\n") == 2);
   // A line at the buffer limit is rejected and the reader recovers.
@@ -166,8 +166,15 @@ int main() {
   std::string overflowed(ROOM_ALARM_LINE_MAX + 5, 'A');
   overflowed += "ALARM,2\n";
   noise.load(overflowed.c_str());
-  assert(pumpAlarmInput(noise, linkReader, 64, recordLevel) == overflowed.size());
-  assert(appliedCount == 0);
+  // Each pass reads at most 64 bytes; no pass applies anything.
+  std::size_t pumped = 0;
+  while (noise.remaining() > 0) {
+    const std::size_t used = pumpAlarmInput(noise, linkReader, 64, recordLevel);
+    assert(used > 0 && used <= 64);
+    pumped += used;
+    assert(appliedCount == 0);
+  }
+  assert(pumped == overflowed.size());
   noise.load("ALARM,1\n");
   assert(pumpAlarmInput(noise, linkReader, 64, recordLevel) == 8);
   assert(appliedCount == 1 && applied[0] == 1);

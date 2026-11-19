@@ -13,10 +13,12 @@
 #include <cstdint>
 #include <cstdio>
 
+#include "host_command.h"
+
 enum {
   ROOM_ALARM_NO_LINE = -2,  // No complete line yet, or an empty line.
   ROOM_ALARM_INVALID = -1,  // A complete line that is not a valid command.
-  ROOM_ALARM_LINE_MAX = 31  // Longest line kept; longer lines are discarded.
+  ROOM_ALARM_LINE_MAX = ROOM_HOST_LINE_MAX  // Longest line kept; longer lines are discarded.
 };
 
 struct AlarmOutputs {
@@ -26,15 +28,8 @@ struct AlarmOutputs {
 
 // Accept exactly "ALARM,0", "ALARM,1" or "ALARM,2" (length excludes the newline).
 inline int parseAlarmCommand(const char* line, std::size_t length) {
-  static const char prefix[] = "ALARM,";
-  const std::size_t prefixLength = sizeof(prefix) - 1;
-  if (line == nullptr || length != prefixLength + 1) return ROOM_ALARM_INVALID;
-  for (std::size_t i = 0; i < prefixLength; ++i) {
-    if (line[i] != prefix[i]) return ROOM_ALARM_INVALID;
-  }
-  const char digit = line[prefixLength];
-  if (digit < '0' || digit > '2') return ROOM_ALARM_INVALID;
-  return digit - '0';
+  const HostCommand command = parseHostCommand(line, length);
+  return command.kind == ROOM_HOST_ALARM ? command.level : ROOM_ALARM_INVALID;
 }
 
 // The buzzer is on only at level 2, and the LED is on whenever the buzzer is.
@@ -61,35 +56,17 @@ inline AlarmOutputs alarmOutputsAt(int level, bool linkLost, uint32_t nowMs,
   return outputs;
 }
 
-// Collect serial bytes into a fixed buffer. feed() returns a level for a
-// valid command line, ROOM_ALARM_INVALID for any other complete line, and
-// ROOM_ALARM_NO_LINE otherwise. A trailing '\r' is ignored.
+// Collect serial bytes through a HostLineReader. feed() returns a level for a
+// valid ALARM line, ROOM_ALARM_INVALID for any other complete line (BSEC_STATE
+// lines included), and ROOM_ALARM_NO_LINE otherwise. A trailing '\r' is ignored.
 struct AlarmLineReader {
-  char buffer[ROOM_ALARM_LINE_MAX + 1];
-  std::size_t length;
-  bool overflow;
-
-  AlarmLineReader() : length(0), overflow(false) { buffer[0] = '\0'; }
+  HostLineReader host;
 
   int feed(char c) {
-    if (c == '\n') {
-      std::size_t end = length;
-      const bool discarded = overflow;
-      length = 0;
-      overflow = false;
-      if (discarded) return ROOM_ALARM_INVALID;
-      if (end > 0 && buffer[end - 1] == '\r') --end;
-      if (end == 0) return ROOM_ALARM_NO_LINE;
-      return parseAlarmCommand(buffer, end);
-    }
-    if (overflow) return ROOM_ALARM_NO_LINE;
-    if (length >= ROOM_ALARM_LINE_MAX) {
-      overflow = true;
-      length = 0;
-      return ROOM_ALARM_NO_LINE;
-    }
-    buffer[length++] = c;
-    return ROOM_ALARM_NO_LINE;
+    const HostCommand command = host.feed(c);
+    if (command.kind == ROOM_HOST_NONE) return ROOM_ALARM_NO_LINE;
+    if (command.kind == ROOM_HOST_ALARM) return command.level;
+    return ROOM_ALARM_INVALID;
   }
 };
 
