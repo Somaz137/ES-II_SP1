@@ -8,7 +8,7 @@ from status_output import status_record
 def output(state, now):
     return status_record(state, now, SimpleNamespace(connected=True, last_error=None), monotonic_origin=0, utc_origin=0)
 
-@pytest.mark.parametrize("value", [None, True, "900", -1, 0, 5501, float("nan"), float("inf")])
+@pytest.mark.parametrize("value", [None, True, "900", -1, -0.1, 5501, float("nan"), float("inf")])
 def test_invalid(value):
     assert parse_dust(json.dumps({"type":"dust", "sensor_mv":value}))[0] is None
 
@@ -160,3 +160,62 @@ def test_alternating_around_floor_never_faults():
         state = process_serial_line(state, json.dumps({"type": "dust", "sensor_mv": value}), t)
         status = output(state, t)["dust"]
         assert status["status"] != "not_connected" and not status["alert_active"]
+
+
+# A sensor at about 0 V: a 0 mV record and the board's dust_input_at_zero report
+# count as below the floor; a generic dust_error does not.
+
+ZERO_ERROR = '{"type":"dust_error","message":"dust_input_at_zero"}'
+GENERIC_ERROR = '{"type":"dust_error","message":"dust_acquisition_unavailable"}'
+
+
+def test_zero_mv_parses_as_a_below_floor_reading():
+    from dust import DUST_BELOW_FLOOR, DustState, record_dust
+    assert parse_dust(json.dumps({"type": "dust", "sensor_mv": 0})) == (0.0, None)
+    state = record_dust(DustState(floor_mv=100.0), (920.0, None), 1)
+    state = record_dust(state, parse_dust(json.dumps({"type": "dust", "sensor_mv": 0})), 4)
+    assert state.received_at == 1 and state.last_voltage_mv == 920.0
+    assert state.diagnostic == DUST_BELOW_FLOOR
+
+
+def test_input_at_zero_error_is_a_below_floor_record():
+    from dust import DUST_BELOW_FLOOR, DustState, record_dust
+    state = record_dust(DustState(floor_mv=100.0), (920.0, None), 1)
+    state = record_dust(state, parse_dust(ZERO_ERROR), 4)
+    assert state.received_at == 1 and state.last_voltage_mv == 920.0
+    assert state.diagnostic == DUST_BELOW_FLOOR
+    state = record_dust(state, parse_dust(GENERIC_ERROR), 7)
+    assert state.diagnostic == "Dust acquisition failed."
+
+
+def lines_only(lines, until):
+    state = create_monitoring_state(0, 120, 120, dust_floor_mv=100.0)
+    for step, t in enumerate(range(0, until + 1, 3)):
+        state = process_serial_line(state, lines[step % len(lines)], t)
+    return state
+
+
+@pytest.mark.parametrize("lines", [
+    ['{"type":"dust","sensor_mv":0}'],
+    [ZERO_ERROR],
+    ['{"type":"dust","sensor_mv":40}', ZERO_ERROR],
+])
+def test_sensor_at_zero_volts_is_not_connected_without_flipping(lines):
+    state = lines_only(lines, 117)
+    assert output(state, 119)["dust"]["status"] == "sensor_error"
+    state = lines_only(lines, 120)
+    assert output(state, 120)["dust"]["status"] == "not_connected"
+    for step, t in enumerate(range(123, 301, 3)):
+        state = process_serial_line(state, lines[step % len(lines)], t)
+        dust = output(state, t)["dust"]
+        assert dust["status"] == "not_connected" and dust["alert_active"]
+    state = process_serial_line(state, '{"type":"dust","sensor_mv":920}', 302)
+    dust = output(state, 302)["dust"]
+    assert dust["status"] == "fresh" and not dust["alert_active"]
+
+
+def test_generic_dust_error_only_is_still_stale():
+    state = lines_only([GENERIC_ERROR], 150)
+    dust = output(state, 150)["dust"]
+    assert dust["status"] == "stale" and dust["alert_active"]
+    assert dust["diagnostic"] == "Dust acquisition failed."

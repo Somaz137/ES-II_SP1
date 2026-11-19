@@ -30,5 +30,24 @@ int main() {
     assert(printed > 0 && printed <= ROOM_DUST_MAX_SENSOR_MV);
   }
   assert(dustSensorMv(count * ROOM_DUST_MAX_ADC_MV, count) == 5500.0);
+
+  // Timing alone, so the task can tell a zero reading from a timing overrun.
+  assert(dustTimingAccepted(300, 340));
+  assert(!dustTimingAccepted(301, 320));
+  assert(!dustTimingAccepted(280, 341));
+
+  // Input at zero: the window fails and more than half of all samples read 0.
+  assert(dustInputAtZero(0, 300, 300));      // Every sample read 0.
+  assert(dustInputAtZero(99, 101, 101));     // 101 of 200: above half.
+  assert(!dustInputAtZero(99, 101, 100));    // 100 of 200: exactly half.
+  assert(!dustInputAtZero(0, 0, 0));         // No samples: the task is not running.
+  assert(!dustInputAtZero(0, 300, 0));       // All rejected for timing.
+  assert(!dustInputAtZero(99, 0, 0));        // Too few samples, none zero.
+  assert(!dustInputAtZero(150, 150, 150));   // Passing window, although half read 0.
+  assert(!dustInputAtZero(100, 100, 100));   // Passing window at both limits.
+  // No uint32_t overflow in zeroRejected * 2 or count + rejected.
+  assert(dustInputAtZero(0, 0xFFFFFFFFu, 0x80000000u));
+  assert(!dustInputAtZero(0, 0xFFFFFFFFu, 0x7FFFFFFFu));
+  assert(!dustInputAtZero(1, 0xFFFFFFFFu, 0x80000000u));  // 2^32 of 2^32: exactly half.
   return 0;
 }

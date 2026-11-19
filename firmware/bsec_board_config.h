@@ -43,3 +43,5 @@ constexpr unsigned ROOM_ALARM_MAX_BYTES_PER_PASS = 64;
 // for ROOM_ALARM_BLINK_HALF_PERIOD_MS each). The buzzer keeps its last state.
 constexpr unsigned long ROOM_ALARM_LINK_TIMEOUT_MS = 30000;
 constexpr unsigned long ROOM_ALARM_BLINK_HALF_PERIOD_MS = 1000;
+static_assert(ROOM_ALARM_BLINK_HALF_PERIOD_MS > 0,
+              "The blink half period divides the elapsed time; it must not be 0");

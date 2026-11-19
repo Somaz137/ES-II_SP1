@@ -6,7 +6,7 @@
 #include "sharp_dust_limits.h"
 
 static portMUX_TYPE dustMux = portMUX_INITIALIZER_UNLOCKED;
-static uint32_t dustSum = 0, dustCount = 0, dustRejected = 0;
+static uint32_t dustSum = 0, dustCount = 0, dustRejected = 0, dustZeroRejected = 0;
 static bool dustTaskReady = false;
 
 void dustAcquire(void*) {
@@ -26,7 +26,11 @@ void dustAcquire(void*) {
     if (dustSampleAccepted(sampleStart, pulse, mv)) {
       dustSum += mv;
       ++dustCount;
-    } else ++dustRejected;
+    } else {
+      ++dustRejected;
+      // Count reads of 0 mV with good timing apart: a missing sensor at about 0 V.
+      if (mv == 0 && dustTimingAccepted(sampleStart, pulse)) ++dustZeroRejected;
+    }
     portEXIT_CRITICAL(&dustMux);
     // Reset before delaying so missed cycles cannot produce a catch-up pulse.
     if (xTaskGetTickCount() - wake >= pdMS_TO_TICKS(10)) wake = xTaskGetTickCount();
@@ -51,11 +55,15 @@ void reportDust() {
   static unsigned long last = 0;
   if (millis() - last < 3000) return;
   last = millis();
-  uint32_t sum, count, rejected;
+  uint32_t sum, count, rejected, zeroRejected;
   portENTER_CRITICAL(&dustMux);
-  sum = dustSum; count = dustCount; rejected = dustRejected;
-  dustSum = dustCount = dustRejected = 0;
+  sum = dustSum; count = dustCount; rejected = dustRejected; zeroRejected = dustZeroRejected;
+  dustSum = dustCount = dustRejected = dustZeroRejected = 0;
   portEXIT_CRITICAL(&dustMux);
+  if (dustInputAtZero(count, rejected, zeroRejected)) {
+    Serial.println("{\"type\":\"dust_error\",\"message\":\"dust_input_at_zero\"}");
+    return;
+  }
   if (!dustTaskReady || count < 100 || rejected > count) {
     Serial.println("{\"type\":\"dust_error\",\"message\":\"dust_acquisition_unavailable\"}");
     return;

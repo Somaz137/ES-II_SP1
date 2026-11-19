@@ -5,7 +5,8 @@ import json
 import math
 
 # A sensor-side voltage below the floor means no sensor: with the 2:1 divider wired, a
-# missing sensor reads near 0 V. Such a record is not a reading.
+# missing sensor reads near 0 V. Such a record, a 0 mV record and the board's
+# dust_input_at_zero report are not readings.
 DUST_BELOW_FLOOR = "Dust reading below the not-connected floor."
 
 @dataclass(frozen=True)
@@ -25,9 +26,13 @@ def parse_dust(line):
     if not isinstance(data, dict) or data.get("type") not in ("dust", "dust_error"):
         return None
     if data["type"] == "dust_error":
+        if data.get("message") == "dust_input_at_zero":
+            # More than half the board's samples read 0 V: a missing sensor, below any floor.
+            return (0.0, None)
         return (None, "Dust acquisition failed.")
     value = data.get("sensor_mv")
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 5500:
+    # 0 is accepted: it is below any floor (the floor is above 0), so it is not a reading.
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 5500:
         return (None, "Invalid dust sensor voltage.")
     return (float(value), None)
 
