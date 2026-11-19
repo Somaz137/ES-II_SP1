@@ -1,6 +1,7 @@
 """SQLite state shared by the monitor and the local dashboard."""
 from contextlib import contextmanager
 import json
+import time
 import math
 import os
 import sqlite3
@@ -154,6 +155,12 @@ class RoomStore:
             db.executemany("INSERT OR IGNORE INTO readings VALUES (?, ?, ?)", samples)
             db.executemany("INSERT INTO events(at, kind, message) VALUES (?, ?, ?)",
                            ((now, kind, message) for kind, message in events))
+
+    def add_event(self, kind, message, now=None):
+        """Record one event outside the monitor's publish, e.g. online access and sign-in."""
+        with self.connection() as db:
+            db.execute("INSERT INTO events(at, kind, message) VALUES (?, ?, ?)",
+                       (time.time() if now is None else now, kind, message))
 
     def trends(self, now, span_s=86400, bucket_s=60):
         """Return average, minimum and maximum buckets; by default one-minute buckets for 24 hours."""

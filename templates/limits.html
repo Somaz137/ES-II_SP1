@@ -6,6 +6,8 @@
   {% if error %}<div class="form-error" role="alert"><p><strong>The limits were not saved.</strong> {{ error }}</p></div>{% endif %}
   <form method="post" action="{{ url_for('profile') }}" id="profile-form" novalidate>
     <input type="hidden" name="next" value="/limits">
+    {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endif %}
+    <fieldset class="plain"{% if locked %} disabled{% endif %}>
     <div class="field">
       <label for="label">Label</label>
       <input id="label" name="label" value="{{ fields.label }}" maxlength="{{ label_max }}" class="w-label" autocomplete="off"
@@ -36,9 +38,10 @@
       <p class="field-error" id="hold_s-error"{% if not field_errors.hold_s %} hidden{% endif %}>{{ field_errors.hold_s | join(" ") if field_errors.hold_s }}</p>
     </div>
     <div class="acts">
-      <button class="btn btn-primary" data-control>Save limits</button>
-      <a class="btn btn-text" href="/limits">Discard changes</a>
+      <button class="btn btn-primary" data-control{% if locked %} disabled{% endif %}>{{ "Sign in to save limits" if locked else "Save limits" }}</button>
+      {% if locked %}<a class="btn btn-text" href="/signin?next=/limits">Sign in</a>{% else %}<a class="btn btn-text" href="/limits">Discard changes</a>{% endif %}
     </div>
+    </fieldset>
   </form>
 </section>
 <div class="stack">

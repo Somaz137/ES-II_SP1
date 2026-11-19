@@ -1,10 +1,13 @@
 """Serve the local room dashboard from SQLite without owning sensor inputs."""
 import argparse
+from datetime import timedelta
 import math
 from pathlib import Path
 import time
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
+
+from online_auth import LoginLimiter, check_password, new_csrf_token, tokens_match
 
 from room_store import (DEFAULT_DB, DEMO_DB, EVENT_LIMIT_MAX, LABEL_MAX, METRICS, SERIES, SYSTEM_METRICS,
                         RoomStore, validate_label)
@@ -17,6 +20,17 @@ PAGES = [("index", "/", "Overview"), ("trends", "/trends", "Trends"), ("events",
 PAGE_PATHS = {path for _, path, _ in PAGES}
 # Trend window name: (span in seconds, bucket size in seconds). Readings are kept 7 days.
 TREND_WINDOWS = {"24h": (86400, 60), "7d": (7 * 86400, 600)}
+TUNNEL_OFF = {"state": "off", "url": None, "reason": None}
+# Online origin only. The pages use no inline script or style.
+ONLINE_HEADERS = {
+    "Cache-Control": "no-store",
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+                                "connect-src 'self'; form-action 'self'; frame-ancestors 'none'; "
+                                "base-uri 'none'; object-src 'none'"),
+}
 
 
 def duration_words(seconds):
@@ -164,12 +178,69 @@ def system_health(status, now):
     }
 
 
-def create_app(path=DEFAULT_DB, *, demo=False):
+def create_app(path=DEFAULT_DB, *, demo=False, online=False, secret=None, tunnel=None, session_hours=8,
+               limiter=None):
+    """The local origin (full controls), or with `online` the origin cloudflared points at.
+
+    Online, every request counts as remote: reading is open, and every POST needs a signed-in
+    session and its CSRF token. `secret` holds the password hash and the session key.
+    """
     app = Flask(__name__)
     store = RoomStore(path)
+    lifetime_s = session_hours * 3600
+    if online:
+        if not secret:
+            raise ValueError("Online access needs a password. Run dashboard.py --set-password first.")
+        app.secret_key = secret["secret_key"]
+        app.config.update(SESSION_COOKIE_NAME="room_online", SESSION_COOKIE_SECURE=True,
+                          SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict",
+                          SESSION_REFRESH_EACH_REQUEST=False,
+                          PERMANENT_SESSION_LIFETIME=timedelta(seconds=lifetime_s))
+        limiter = limiter or LoginLimiter()
+
+    def signed_in():
+        started = session.get("signed_in_at") if online else None
+        return isinstance(started, (int, float)) and 0 <= time.time() - started < lifetime_s
+
+    def csrf_token():
+        if not online:
+            return ""
+        if "csrf" not in session:
+            session["csrf"] = new_csrf_token()
+        return session["csrf"]
+
+    def tunnel_state():
+        state = tunnel.state() if tunnel is not None else dict(TUNNEL_OFF)
+        if online and not signed_in():
+            state["url"] = None  # anonymous online visitors do not need the link
+        return state
+
+    @app.context_processor
+    def online_context():
+        return {"online": online, "signed_in": signed_in(), "locked": online and not signed_in(),
+                "csrf_token": csrf_token(), "tunnel": tunnel_state()}
+
+    @app.before_request
+    def online_gate():
+        if not online or request.method != "POST":
+            return
+        if request.headers.get("Sec-Fetch-Site") == "cross-site":
+            abort(403)
+        if not tokens_match(session.get("csrf"), request.form.get("csrf_token")):
+            abort(403)
+        if request.endpoint not in {"signin_post"} and not signed_in():
+            abort(403)
+
+    @app.after_request
+    def online_headers(response):
+        if online:
+            response.headers.update(ONLINE_HEADERS)
+        return response
 
     @app.before_request
     def local_form_only():
+        if online:
+            return
         if request.host.split(':', 1)[0] not in {'localhost', '127.0.0.1'}:
             abort(403)
         if request.method == "POST":
@@ -281,7 +352,46 @@ def create_app(path=DEFAULT_DB, *, demo=False):
             profile = {**profile, "label": profile.get("label", "")}
         return jsonify(status=status, profile=profile, profile_error=profile_error, trends=trends,
                        events=events, events_has_more=more, health=system_health(status, now),
-                       timing=effective_timing(status), now=now)
+                       timing=effective_timing(status), online=tunnel_state(), now=now)
+
+    if online:
+        def render_signin(error=None, code=200):
+            target = request.values.get("next", "")
+            return render_template("signin.html", error=error,
+                                   next=target if target in PAGE_PATHS else "/"), code
+
+        @app.get("/signin")
+        def signin():
+            if signed_in():
+                return redirect(url_for("index"), code=303)
+            return render_signin()
+
+        @app.post("/signin")
+        def signin_post():
+            # CF-Connecting-IP is only a rate-limit key, never a reason to trust a request.
+            client = request.headers.get("CF-Connecting-IP") or request.remote_addr or "unknown"
+            wait = limiter.wait_s(client)
+            if wait:
+                minutes = max(1, math.ceil(wait / 60))
+                return render_signin(f"Too many failed sign-ins. Try again in {minutes} min.", 429)
+            if not check_password(secret, request.form.get("password", "")):
+                limiter.failed(client)
+                store.add_event("online_signin_failed", "Online sign-in failed")
+                return render_signin("The password is not correct.", 401)
+            limiter.succeeded(client)
+            session.clear()
+            session.permanent = True
+            session["signed_in_at"] = time.time()
+            session["csrf"] = new_csrf_token()
+            store.add_event("online_signed_in", "Signed in online")
+            target = request.form.get("next", "")
+            return redirect(target if target in PAGE_PATHS else url_for("index"), code=303)
+
+        @app.post("/signout")
+        def signout():
+            session.clear()
+            store.add_event("online_signed_out", "Signed out online")
+            return redirect(url_for("index"), code=303)
 
     @app.post("/profile")
     def profile():

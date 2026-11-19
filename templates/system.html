@@ -16,8 +16,21 @@
 <div class="sys-cols">
   <section class="card" aria-labelledby="online-title">
     <h2 id="online-title">Online access</h2>
-    <p class="state-line"><span class="dot" data-tone="none" aria-hidden="true"></span>Online access: off</p>
-    <p class="help">The dashboard is served on this computer only. Online access is not set up yet.</p>
+    {% set tone = {"active": "green", "starting": "amber", "failed": "red"}.get(tunnel.state, "none") %}
+    <p class="state-line"><span class="dot" id="online-dot" data-tone="{{ tone }}" aria-hidden="true"></span><span id="online-state">
+      {%- if tunnel.state == "active" %}View-only link active
+      {%- elif tunnel.state == "starting" %}Online access: starting
+      {%- elif tunnel.state == "failed" %}Online access failed: {{ tunnel.reason }}
+      {%- else %}Online access: off{% endif %}</span></p>
+    <div class="link-field" id="online-link-field"{% if not tunnel.url %} hidden{% endif %}>
+      <label for="online-link">View-only link</label>
+      <div class="link-row"><input id="online-link" type="text" readonly value="{{ tunnel.url or '' }}"><button class="btn" type="button" id="copy-link">Copy link</button></div>
+    </div>
+    <p class="help" id="online-help">
+      {%- if tunnel.state == "active" %}This link changes each time online access starts. Viewing is open to anyone with the link; controls need sign-in.
+      {%- elif tunnel.state == "starting" %}Waiting for cloudflared to report the link.
+      {%- elif tunnel.state == "failed" %}The dashboard still works on this computer. Monitoring and the local alarm are not affected.
+      {%- else %}The dashboard is served on this computer only. Start online access with dashboard.py --online.{% endif %}</p>
   </section>
   <section class="card" aria-labelledby="raw-title">
     <h2 id="raw-title">Raw sensor signals</h2>

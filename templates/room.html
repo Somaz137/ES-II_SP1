@@ -9,7 +9,7 @@
 <script defer src="{{ url_for('static', filename='chart.js') }}"></script>
 <script defer src="{{ url_for('static', filename='room.js') }}"></script>
 </head>
-<body data-page="{{ page }}">
+<body data-page="{{ page }}"{% if locked %} data-locked{% endif %}>
 <a class="skip" href="#content">Skip to page content</a>
 <div class="frame">
   <aside class="side" aria-label="Room Safety">
@@ -29,7 +29,7 @@
     </nav>
     <div class="side-foot">
       {% if demo %}<span class="tag">Simulation</span>{% endif %}
-      <span class="online">Online access: off</span>
+      <span class="online" id="online-foot">{% include "online_foot.html" %}</span>
     </div>
   </aside>
   <div class="main">
@@ -41,6 +41,16 @@
         <span class="st"><span class="dot" id="connection-dot" data-tone="none" aria-hidden="true"></span><span id="connection">Waiting for monitor</span></span>
         <span class="st"><span class="dot" id="alarm-dot" data-tone="none" aria-hidden="true"></span><span id="alarm">Alarm state unknown</span></span>
       </div>
+      {% if online %}
+      {% if signed_in %}
+      <form class="top-auth" action="/signout" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span class="st">Signed in</span><span class="top-sep" aria-hidden="true">·</span><button class="btn btn-text btn-sm">Sign out</button>
+      </form>
+      {% else %}
+      <a class="btn top-auth" href="/signin?next={{ request.path }}">Sign in</a>
+      {% endif %}
+      {% endif %}
     </header>
     <section id="attention" class="att {{ 'att-full' if page == 'index' else 'att-compact' }}" aria-label="Needs attention">
       <div class="att-row" id="att-alert" data-tone="red" hidden>
@@ -48,7 +58,8 @@
         <div class="att-txt"><p class="att-main" id="att-alert-text"></p><p class="att-sub" id="att-alert-sub"></p></div>
         <form id="silence" action="/silence" method="post" hidden>
           <input type="hidden" name="token"><input type="hidden" name="next" value="{{ request.path }}">
-          <button class="btn btn-red" data-control>Silence alarm</button>
+          {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endif %}
+          <button class="btn btn-red" data-control{% if locked %} disabled{% endif %}>{{ "Sign in to silence alarm" if locked else "Silence alarm" }}</button>
         </form>
       </div>
       <div class="att-row" id="att-ack" data-tone="amber" hidden>
@@ -56,7 +67,8 @@
         <div class="att-txt"><p class="att-main" id="att-ack-text"></p></div>
         <form id="ack" action="/acknowledge" method="post" hidden>
           <input type="hidden" name="alert_id"><input type="hidden" name="next" value="{{ request.path }}">
-          <button class="btn btn-amber" data-control>Acknowledge</button>
+          {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endif %}
+          <button class="btn btn-amber" data-control{% if locked %} disabled{% endif %}>{{ "Sign in to acknowledge" if locked else "Acknowledge" }}</button>
         </form>
       </div>
       <div class="att-row" id="att-pending" data-tone="amber" hidden>

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Room Environment Safety Control</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='room.css') }}">
+</head>
+<body class="signin-page">
+<main class="signin-wrap">
+  <div class="brand brand-ink"><span class="brand-mark" aria-hidden="true"></span>Room Safety</div>
+  <section class="card signin" aria-labelledby="signin-title">
+    <h1 id="signin-title">Sign in to use controls</h1>
+    <p class="help">Viewing is open with the link. Changing limits, silencing the alarm and acknowledging need the online password.</p>
+    {% if error %}<div class="form-error" role="alert"><p>{{ error }}</p></div>{% endif %}
+    <form method="post" action="/signin">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      </div>
+      <div class="acts">
+        <button class="btn btn-primary">Sign in</button>
+        <a class="btn btn-text" href="{{ next }}">Back to the dashboard</a>
+      </div>
+    </form>
+  </section>
+</main>
+</body>
+</html>
