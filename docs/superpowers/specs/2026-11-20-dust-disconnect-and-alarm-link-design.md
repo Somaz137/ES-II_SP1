@@ -18,6 +18,8 @@ Date: 20 November 2026. Status: short design, for approval. Two small changes, a
 - Tests: below, at and above the floor, the fault after 120 s, recovery, and the baseline not fed.
 - Bench check: wire the divider, unplug the sensor, and confirm the reading is below 100 mV.
 
+**Builder finding (20 November 2026):** the firmware rejects 0 mV samples, so a missing sensor at about 0 V arrived as a generic dust_error. The board now sends dust_error `dust_input_at_zero` when more than half the samples in a window read 0, and the host treats it, and a 0 mV reading, as below the floor.
+
 ## B. LED blink when the laptop link is lost (board only)
 
 **Why.** The board does not decide alerts. The laptop decides them and sends `ALARM,<level>` on every change and at every fault check (every 5 s). If the cable comes out, or the laptop sleeps or stops, the board keeps its last state, and nothing shows the failure.

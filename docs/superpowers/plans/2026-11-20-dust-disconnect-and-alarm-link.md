@@ -47,6 +47,7 @@
   - In `record_dust`, a value `< floor_mv` sets `diagnostic = DUST_BELOW_FLOOR` (a new module constant, the text "Dust reading below the not-connected floor."), and keeps `received_at` and `last_voltage_mv` unchanged.
   - In `dust_status`, when the record is stale and `diagnostic == DUST_BELOW_FLOOR`, the status is `"not_connected"` and `alert_active` is True. Before the timeout, the status is `"sensor_error"`, as for other dust errors.
   - The status dict gains `floor_mv`.
+  - Added after the final review (20 November 2026): `parse_dust` accepts `sensor_mv` 0 and maps dust_error `dust_input_at_zero` (sent by the board when more than half of a failed window read 0 mV) to a 0 mV record, so both are below the floor.
 
 - [ ] **Step 1: Write the failing tests.**
   - `test_record_below_floor_is_not_a_reading`: floor 100, record 99.0. `received_at` and `last_voltage_mv` are unchanged, and `diagnostic == DUST_BELOW_FLOOR`.
