@@ -7,11 +7,12 @@ The selected board changed to an ESP32-S3 on 15 November 2026. See [Selected har
 
 This branch adds the room software: SQLite storage, patient limits, sustained-breach alerts, camera occupancy, a local dashboard, and a Sharp dust sensor path.
 These parts exist in software. They are verified only by automated tests and the simulator.
-No physical ESP32, BME680, dust sensor, or camera check has taken place.
+On 17 November 2026 the ESP32-S3 was flashed. The serial link and the alarm protocol were checked with no sensors attached. No BME680, dust sensor, LED, buzzer, or camera check has taken place.
 The local alarm is implemented on the host and in the sketch. It is checked only with the simulator, host C++ tests and a compilation for the ESP32-S3. No LED or buzzer has been driven. The dashboard redesign is decided but not implemented. 7-day reading retention is implemented.
 The [local alarm design](docs/superpowers/specs/2026-11-15-local-alarm-design.md) defines the alarm levels, the serial command, silence and reachability.
 The [dashboard data contract](docs/superpowers/specs/2026-11-15-dashboard-data-contract-design.md) defines the dashboard response, alert text, events, timing settings, and retention.
 
+Read the [17 November verification record](reference_files/LINUX_VERIFICATION_2026-11-17.md) for the first flash and serial link check.
 Read the [15 November verification record](reference_files/LINUX_VERIFICATION_2026-11-15.md) for the current software results.
 Read the [8 November verification record](reference_files/LINUX_VERIFICATION_2026-11-08.md) for the earlier virtual-serial and compilation results.
 
@@ -25,6 +26,8 @@ Read the [8 November verification record](reference_files/LINUX_VERIFICATION_202
 | Local alarm demo | With `--demo`, the simulated board confirmed level 2 during the limit alert, level 1 after "Silence alarm", and level 0 after the alert ended (15 November). No LED or buzzer was driven. |
 | Software demo | Monitor and dashboard ran together. The simulated limit alert started and ended as expected (15 November). |
 | Complete firmware compilation | The current sketch, with dust code and alarm, compiled for the ESP32-S3 with the 8 MB options then assumed (N8R2), `CDCOnBoot=default` and `CDCOnBoot=cdc`, no warnings (15 November). Compilation only. |
+| First flash, ESP32-S3 | Compiled with no warnings and uploaded with every hash verified. Clean boot. With no BME680, `bsec_initialization_failed` every 3 s (17 November). |
+| Alarm protocol on the board | `ALARM,0`, `ALARM,1`, `ALARM,2`, `ALARM,0` each got the matching reply in about 10 ms. `ALARM,9` got none. `monitor.py` ran 60 s with the alarm confirmed at level 0. Serial replies only; nothing was wired to the LED or buzzer pins (17 November). |
 | Missing communication | Monitor raised the communication alert and retained previous measurements (8 November). |
 | Communication recovery | Fresh readings resumed. The outstanding communication alert remained active (8 November). |
 | Repeated sensor errors | Communication stayed active while the sensor alert became active (8 November). |
@@ -37,7 +40,7 @@ They do not establish physical sensor accuracy, calibration, camera detection, U
 ## Start here
 
 - [Human guide](README_HUMAN.md): project purpose and behavior.
-- Verification records: [8 November](reference_files/LINUX_VERIFICATION_2026-11-08.md) and [15 November](reference_files/LINUX_VERIFICATION_2026-11-15.md): completed checks and remaining work.
+- Verification records: [8 November](reference_files/LINUX_VERIFICATION_2026-11-08.md), [15 November](reference_files/LINUX_VERIFICATION_2026-11-15.md) and [17 November](reference_files/LINUX_VERIFICATION_2026-11-17.md): completed checks and remaining work.
 - [Room software design](docs/superpowers/specs/2026-11-15-room-software-design.md): storage, rules, occupancy, and dashboard as built.
 - [Sharp dust integration](docs/SHARP_DUST_INTEGRATION.md): dust wiring, calibration, and checks.
 - [Implementation plan](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md): decisions and milestones.
@@ -59,11 +62,11 @@ The user confirmed a 3.3 V sensor supply.
 The board header stores the pins, buzzer polarity, serial speed, supply selection, and reporting intervals.
 The chip check rejects every chip except the ESP32-S3. It cannot identify the physical development board.
 The firmware compiles with ESP32 core 3.3.12, BSEC2 1.10.2610 and BME68x 1.3.40408. The [firmware guide](firmware/README.md) has the build commands, the serial (CDC On Boot) choice and the hardware checklist.
-Nothing has been flashed to an ESP32-S3. No ESP32-S3 has been connected.
+The board was flashed on 17 November 2026 with `esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. `CDCOnBoot=default` matches the CH343 bridge. PSRAM is disabled because the firmware does not use it. The serial link and the alarm replies were checked without sensors. See the [17 November verification record](reference_files/LINUX_VERIFICATION_2026-11-17.md).
 
 The sketch uses Bosch BSEC2 and Bosch BME68x.
 The Python requirements do not install Arduino libraries.
-Upload, breakout wiring, actual pressure units, and physical readings remain unchecked.
+Breakout wiring, actual pressure units, and physical readings remain unchecked.
 
 ## Main components
 
@@ -221,7 +224,7 @@ Firmware configuration commands and calibration-state storage remain future work
 
 ## Remaining work
 
-1. Identify the ESP32-S3 board model. Run the hardware checklist in the [firmware guide](firmware/README.md) before and after the first flash.
+1. Identify the ESP32-S3 board model. Run the rest of the hardware checklist in the [firmware guide](firmware/README.md). The board was flashed and the serial link and alarm protocol were checked on 17 November 2026 without sensors.
 2. Obtain the hardware and complete physical BME680, dust, and USB checks.
 3. Check camera capture and the occupancy detector with seated, lying, and occluded people.
 4. Agree on real patient limits for any demonstration.
@@ -229,6 +232,7 @@ Firmware configuration commands and calibration-state storage remain future work
 6. Redesign the dashboard.
 7. Decide whether to save the BSEC calibration state across power loss, and check the Bosch word bands and the Sharp sensitivity against the datasheets.
 8. Demonstrate the complete system with actual hardware.
+9. Open: the floating dust input. With no dust sensor attached, the dust input reads about 870 to 930 mV and is accepted as a fresh dust record, most likely because the ADC pin floats. A disconnected dust sensor cannot currently be told apart from a working one. Candidate fixes: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. The user will choose when wiring.
 
 Follow the course requirements and approved project decisions.
 Preserve the existing environment and required dependencies.

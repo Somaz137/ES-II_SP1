@@ -93,3 +93,14 @@ The dust fields appear in terminal JSON and in the local dashboard (`dashboard.p
 ### Linux, 15 November 2026
 
 The full suite ran in the pinned Ubuntu environment: Python 3.10.12, pytest 8.2.0, PyYAML 6.0.1. It reported 317 passed with exit code 0, including the 11 dust tests. The two YAML-dependent modules were included. `monitor.py --demo` and `dashboard.py --demo` ran together with simulated dust records. No firmware compilation, flashing, oscilloscope check or physical dust measurement took place in that run. Later on 15 November the sketch that includes `firmware/sharp_dust.h` compiled for the ESP32-S3. That is compilation only. See the [15 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-15.md).
+
+### ESP32-S3 board, 17 November 2026, no sensor attached
+
+The firmware was flashed to the ESP32-S3 with nothing wired to it. The dust task ran and sent a dust record every 3 s. With no dust sensor attached, GPIO4 read about 870 to 930 mV with almost no rejected samples. The monitor accepted these as fresh dust records. The most likely cause is the floating ADC pin.
+
+Open point: a disconnected dust sensor cannot currently be told apart from a working one. Candidate fixes, not decided:
+
+- A pull-down resistor on the dust input, so that a disconnected sensor reads near 0 mV.
+- A firmware check that compares the signal with the sensor LED on and off.
+
+The user will choose when wiring the sensor. No dust reading, LED pulse or oscilloscope check took place. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md).

@@ -13,7 +13,7 @@ This record supersedes earlier pending-test statements in historical preparation
 **Board identity and first flash, 17 November 2026:** esptool shows the connected board is an N16R8-type module (16 MB quad flash, 8 MB embedded PSRAM, CH343 USB-UART bridge), not an N8R2. The firmware was flashed with `esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. The serial link and the alarm protocol were checked without sensors. See the [17 November verification record](LINUX_VERIFICATION_2026-11-17.md).
 
 
-**Updated:** 15 November 2026 (status table and decisions); earlier sections 8 November 2026  
+**Updated:** 17 November 2026 (board identity, first flash, status table and open dust point); 15 November 2026 (status table and decisions); earlier sections 8 November 2026  
 **Project:** Idea 8, Room Environment Safety Monitor.  
 **Platform:** Ubuntu 22.04 laptop + ESP32 over USB serial.
 
@@ -96,8 +96,8 @@ PRs #1 through #10 are merged into main as of 8 November 2026. The user executed
 | Requirements | Setup diagnostic reported all pinned package versions; Python suite and virtual-serial runtime executed. Camera and web features remain untested. |
 | Diagnostics | `tools/check_setup.py` exists; checks distribution metadata, not package imports; mismatches print CHECK without causing failure |
 | Arduino IDE | Manual specifies 2.3.10; installation status unknown |
-| ESP32 and port | Actual board, board-core version, and working serial connection unconfirmed |
-| BME680 | Sketch compiled with the recorded Bosch libraries and ESP32 core. Wiring, upload, and physical readings remain unverified |
+| ESP32 and port | 17 November 2026: ESP32-S3, N16R8-type module, identified by esptool. CH343 USB-UART bridge at `/dev/ttyACM0`. ESP32 core 3.3.12. Flashed; the serial link and the alarm protocol work without sensors. See the [17 November verification record](LINUX_VERIFICATION_2026-11-17.md). The development board model is not identified |
+| BME680 | Sketch compiled with the recorded Bosch libraries and ESP32 core, and uploaded on 17 November 2026. No BME680 was attached: the board reported `bsec_initialization_failed` every 3 s. Wiring and physical readings remain unverified |
 | Webcam/occupancy | `occupancy.py` on this branch: OpenCV default HOG people detector, one frame every 60 seconds, frames never saved. Detection gives occupied; no detection, failure or an observation older than 65 seconds gives unknown. No absent state. Not checked with a camera. The detector is trained on upright pedestrians and can miss seated, lying or occluded people |
 | Rules and configuration form | `room_session.py`, `room_store.py` and the dashboard form on this branch: low/high limits for temperature, humidity and pressure, one sustained duration, occupancy gating, six-second reading-gap reset, timer reset on profile change, live YAML profile reload. No patient limits are selected. Verified in tests and the simulator only |
 | SQLite and dashboard | `room_store.py` and `dashboard.py` on this branch: SQLite status, readings and events; local-only Flask dashboard with live values, 24-hour trend, alerts, latest 50 events, limits form and communication acknowledgment. No pruning. First draft; redesign decided. Checked with simulated data only |
@@ -195,6 +195,8 @@ The setup diagnostic matched all pinned package versions. Separate camera and we
 
 ### B — Confirm toolchain and serial
 
+Status, 17 November 2026: arduino-cli 1.5.1 with ESP32 core 3.3.12 built and uploaded the firmware. The port is `/dev/ttyACM0` through a CH343 bridge. The serial link was checked without sensors. Arduino IDE 2.3.10 is still unconfirmed.
+
 Confirm Arduino IDE 2.3.10, the physical ESP32 board, and actual port. The manual gives no ESP32 core version: ask before selecting one. Follow the reference's serial-access procedure only when needed and approved.
 
 ### C — Validate BME680 input
@@ -220,7 +222,7 @@ Agree on the notification channel and offline behavior. Slow delivery must not s
 Status, 15 November 2026: the channel is a local LED and buzzer on the ESP32. The host side, the silence control, the firmware command core and the sketch wiring exist. They are checked with tests, the simulator and a compilation. Tests show that a failing or silent alarm link does not delay readings, fault checks, limit alerts or the status. Remaining:
 
 1. Done in the firmware port step: the sketch reads `Serial` without blocking (at most 64 bytes per loop pass), drives the alarm LED on GPIO6 and the buzzer module on GPIO7, starts at level 0, and replies after each applied command and once at start-up. Compiled only.
-2. On the real ESP32-S3: check the GPIO6 and GPIO7 wiring, the LED series resistor, the buzzer module polarity (`ROOM_BUZZER_ACTIVE_HIGH`, default true) and whether it needs a tone or a steady level.
+2. On 17 November 2026 the board answered `ALARM,0`, `ALARM,1`, `ALARM,2` and `ALARM,0` with the matching reply, ignored `ALARM,9`, and the monitor confirmed level 0. Nothing was wired to GPIO6 or GPIO7. Still to do on the real ESP32-S3: check the GPIO6 and GPIO7 wiring, the LED series resistor, the buzzer module polarity (`ROOM_BUZZER_ACTIVE_HIGH`, default true) and whether it needs a tone or a steady level.
 3. On the real board, check that reading `Serial` does not delay BSEC sampling. By design the read is bounded and the dust task has a higher priority.
 4. Decide whether the board should light its LED by itself when it stops hearing from the host. Not implemented.
 
@@ -231,6 +233,7 @@ Air quality and dust estimate, 15 November 2026: done with tests, the simulator 
 3. Decide whether `BSEC_OUTPUT_STATIC_IAQ` suits a fixed room device better. The local library documentation does not settle it.
 4. Agree on real air-quality and dust limits and hold times if any are wanted. None are supplied.
 5. Compare the dust estimate with a reference instrument if concentration matters.
+6. Detect a disconnected dust sensor. With no dust sensor attached, the dust input reads about 870 to 930 mV and is accepted as a fresh dust record, most likely because the ADC pin floats. A disconnected dust sensor cannot currently be told apart from a working one. Candidate fixes: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. Not decided; the user will choose when wiring. See the [17 November verification record](LINUX_VERIFICATION_2026-11-17.md).
 
 ### H — Verify and demonstrate
 

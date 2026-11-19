@@ -1,9 +1,10 @@
 # Room Environment Safety Control
 
-**Linux checks recorded:** See the [8 November verification record](reference_files/LINUX_VERIFICATION_2026-11-08.md) and the [15 November verification record](reference_files/LINUX_VERIFICATION_2026-11-15.md).
+**Linux checks recorded:** See the [8 November verification record](reference_files/LINUX_VERIFICATION_2026-11-08.md), the [15 November verification record](reference_files/LINUX_VERIFICATION_2026-11-15.md) and the [17 November verification record](reference_files/LINUX_VERIFICATION_2026-11-17.md).
 On 8 November the user completed Python test execution, firmware formatting, compilation, and the listed virtual-serial scenarios.
 On 15 November the full suite on this branch reported 317 passed, and the software demo ran without errors. After the dashboard data contract it reported 401 passed. After the local alarm host side it reported 461 passed, also with `-W error`. After the ESP32-S3 port it reported 462 passed, also with `-W error`, and the sketch compiled for the ESP32-S3.
-Physical ESP32, BME680, dust sensor, and camera operation remains unverified.
+On 17 November the ESP32-S3 was flashed. The serial link and the alarm protocol were checked with no sensors attached.
+Physical BME680, dust sensor, LED, buzzer, and camera operation remains unverified.
 The 8 November Linux build used ESP32 core 3.3.12, Bosch BSEC2 1.10.2610, and Bosch BME68x 1.3.40408 for the DOIT board. It did not include the dust code.
 These records supersede earlier pending-test statements in historical preparation notes and design checklists.
 
@@ -15,7 +16,7 @@ It describes the project purpose, current code, and planned behavior.
 It contains no instructions for an AI assistant.
 
 **Current status:** The repository contains the monitor, SQLite storage, patient-limit rules, camera occupancy, a local dashboard, and a Sharp dust path.
-These parts exist in software. Automated tests and a simulator verify them. No part has run with physical hardware or a real camera.
+These parts exist in software. Automated tests and a simulator verify them. On 17 November 2026 the monitor ran for 60 s against the flashed board with no sensors attached. No part has run with sensors or a real camera.
 The local alarm is implemented on the host and in the sketch. It is checked only with the simulator, host C++ tests and a compilation for the ESP32-S3. No LED or buzzer has been driven. The dashboard redesign is decided but not implemented. 7-day reading retention is implemented.
 
 ## What the project does
@@ -31,7 +32,7 @@ The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED dri
 The firmware uses these pins. They are not checked against the physical board. The exact development board model is not identified.
 The user confirmed a 3.3 V sensor supply.
 The firmware configuration uses that value.
-The firmware compiles for the ESP32-S3. Nothing has been flashed.
+The firmware compiles for the ESP32-S3. It was flashed on 17 November 2026. The board answered the alarm commands over USB. No sensor, LED, or buzzer was attached.
 See the [firmware guide](firmware/README.md) for the remaining setup checks.
 Expansion to several rooms remains a future option.
 The name does not imply automatic control of fans, heaters, or other equipment.
@@ -43,7 +44,7 @@ The project does not yet define those control functions.
 |---|---|---|
 | BME680 | Measures temperature, humidity, pressure, and gas resistance | Experimental firmware exists. Physical operation remains unverified. |
 | Sharp GP2Y1010AU0F | Supplies a raw dust voltage | Experimental firmware exists. Compiled for the ESP32-S3. Not hardware-checked. |
-| ESP32-S3 | Reads the sensors, drives the local alarm and sends records through USB serial | Firmware compiled for the ESP32-S3 N8R2. Not flashed. |
+| ESP32-S3 | Reads the sensors, drives the local alarm and sends records through USB serial | Flashed on 17 November 2026. Serial link and alarm replies checked without sensors. LED, buzzer and sensor inputs not checked. |
 | Laptop | Runs the monitor, rules, storage, and dashboard | Implemented in software. Verified by tests and the simulator. |
 | Camera | Supplies frames for occupancy detection | OpenCV people detector implemented. Not checked with a camera. |
 | Dashboard | Shows room status, trends, events, limits and the local alarm state, and accepts communication acknowledgments and alarm silence requests | Local first draft implemented. Checked only with simulated data. A redesign is decided. |
@@ -357,16 +358,17 @@ These decisions are not implemented, except where an entry says so.
 
 ## What remains
 
-1. Identify the ESP32-S3 board model. Run the hardware checklist in the [firmware guide](firmware/README.md).
-2. Choose the USB port and the matching CDC On Boot setting.
+1. Identify the ESP32-S3 board model. Run the rest of the hardware checklist in the [firmware guide](firmware/README.md).
+2. Done on 17 November 2026: the USB port is the CH343 bridge, `/dev/ttyACM0`, with `CDCOnBoot=default`.
 3. Obtain the hardware. Check the wiring and the 3.3 V sensor supply.
-4. Upload the firmware and check real readings with the laptop monitor.
+4. Check real readings with the laptop monitor. The firmware was uploaded on 17 November 2026, and the serial link and alarm protocol were checked without sensors.
 5. Check physical USB reconnection, sensor failures, units, and actual BSEC status transitions.
 6. Check dust timing with an oscilloscope and measure a clean-air baseline.
 7. Check the camera and the occupancy detector with seated, lying, and occluded people.
 8. Check the local alarm on the real board: the LED, the buzzer polarity, and that GPIO6 and GPIO7 are free.
 9. Redesign the dashboard.
 10. Demonstrate normal operation, faults, and recovery with actual hardware.
+11. Decide how to detect a disconnected dust sensor. With no dust sensor attached, the dust input reads about 870 to 930 mV and is accepted as a fresh dust record, most likely because the ADC pin floats. A disconnected dust sensor cannot currently be told apart from a working one. Candidate fixes: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. The user will choose when wiring.
 
 The project contains a rule engine, occupancy detector, database, and dashboard in software. Its local alarm exists on the host and in the sketch. No LED or buzzer has been driven yet.
 It remains an educational prototype.
