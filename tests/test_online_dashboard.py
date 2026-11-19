@@ -13,11 +13,21 @@ CONTROLS = [("/profile", {"temp_c_low": 20, "temp_c_high": 27, "hold_s": 9}), ("
 
 
 class FakeTunnel:
-    def __init__(self, state="active", url=BASE + "/", reason=None):
-        self.value = {"state": state, "url": url, "reason": reason}
+    def __init__(self, state="active", url=BASE + "/", reason=None, **extra):
+        self.value = {"state": state, "url": url, "reason": reason, "attempt": 1, "attempts": 6,
+                      "retry_in_s": None, **extra}
+        self.calls = []
 
     def state(self):
         return dict(self.value)
+
+    def start(self):
+        self.calls.append("start")
+        self.value.update(state="starting", url=None, reason=None)
+
+    def stop(self):
+        self.calls.append("stop")
+        self.value.update(state="off", url=None, reason=None)
 
 
 @pytest.fixture
@@ -164,7 +174,8 @@ def test_anonymous_online_view_locks_controls_with_words(online):
     assert "Sign in to acknowledge" in page
     assert re.search(r"<button[^>]*data-control[^>]*disabled", page)
     assert 'href="/signin?next=/limits"' in page and "Sign out" not in page
-    assert client.get("/api/room", base_url=BASE).json["online"] == {"state": "active", "url": None, "reason": None}
+    online_state = client.get("/api/room", base_url=BASE).json["online"]
+    assert online_state["state"] == "active" and online_state["url"] is None
     assert BASE not in client.get("/system", base_url=BASE).get_data(as_text=True)
 
 
@@ -204,7 +215,13 @@ def test_local_origin_has_no_sign_in_and_keeps_controls(tmp_path):
     ({"state": "off", "url": None, "reason": None}, "Online access: off"),
     ({"state": "starting", "url": None, "reason": None}, "Online access: starting"),
     ({"state": "failed", "url": None, "reason": "cloudflared not found"},
-     "Online access failed: cloudflared not found")])
+     "Online access failed: cloudflared not found"),
+    ({"state": "starting", "url": None, "reason": "cloudflared stopped (exit code 1): 429 Too Many Requests",
+      "attempt": 3, "retry_in_s": 20}, "Online access: starting (attempt 3 of 6, retrying in 20 s)"),
+    ({"state": "starting", "url": None, "reason": "cloudflared stopped (exit code 1): 429 Too Many Requests",
+      "attempt": 3}, "Last attempt: cloudflared stopped (exit code 1): 429 Too Many Requests"),
+    ({"state": "failed", "url": None, "reason": "cloudflared stopped (exit code 1): 429 Too Many Requests"},
+     "Online access failed: cloudflared stopped (exit code 1): 429 Too Many Requests")])
 def test_local_system_page_shows_the_tunnel_state(tmp_path, state, words):
     pytest.importorskip("flask")
     from dashboard import create_app
@@ -254,13 +271,91 @@ def test_tunnel_changes_are_recorded_as_events_without_the_link(tmp_path):
     from dashboard import record_tunnel_change
 
     store = RoomStore(tmp_path / "r.sqlite3")
-    record_tunnel_change(store, {"state": "starting", "url": None, "reason": None})
-    record_tunnel_change(store, {"state": "active", "url": BASE, "reason": None})
-    record_tunnel_change(store, {"state": "failed", "url": None, "reason": "cloudflared not found"})
-    record_tunnel_change(store, {"state": "off", "url": None, "reason": None})
+    base = {"url": None, "reason": None, "attempt": 1, "attempts": 6, "retry_in_s": None}
+    reason = "cloudflared stopped (exit code 1): 429 Too Many Requests"
+    record_tunnel_change(store, {**base, "state": "starting"})
+    record_tunnel_change(store, {**base, "state": "starting", "reason": reason, "attempt": 2, "retry_in_s": 5})
+    record_tunnel_change(store, {**base, "state": "starting", "reason": reason, "attempt": 2})
+    record_tunnel_change(store, {**base, "state": "active", "url": BASE, "attempt": 2})
+    record_tunnel_change(store, {**base, "state": "failed", "reason": "cloudflared not found"})
+    record_tunnel_change(store, {**base, "state": "off"})
     events = store.events()
     assert [(e["kind"], e["message"]) for e in events] == [
         ("online_stopped", "Online access stopped"),
         ("online_failed", "Online access failed: cloudflared not found"),
-        ("online_started", "Online access started (view-only link)")]
+        ("online_started", "Online access started (view-only link)"),
+        ("online_retry", "Online access: " + reason + ". Attempt 2 of 6 in 5 s."),
+        ("online_starting", "Online access starting (cloudflared started)")]
     assert BASE not in repr(events)
+
+
+def local_controls(page):
+    return re.findall(r'<form[^>]*action="/online/(retry|stop)"[^>]*>.*?</form>', page, re.S)
+
+
+@pytest.mark.parametrize("state, shown", [("failed", "retry"), ("off", "retry"), ("starting", "stop"),
+                                          ("active", "stop")])
+def test_local_system_page_has_retry_and_stop_controls(tmp_path, state, shown):
+    pytest.importorskip("flask")
+    from dashboard import create_app
+
+    page = create_app(tmp_path / "r.sqlite3", tunnel=FakeTunnel(state)).test_client().get("/system").get_data(
+        as_text=True)
+    forms = re.findall(r'(<form[^>]*action="/online/(retry|stop)"[^>]*>)(.*?)</form>', page, re.S)
+    assert {name for _, name, _ in forms} == {"retry", "stop"}
+    for tag, name, body in forms:
+        assert "data-control" in body and 'method="post"' in tag
+        assert ("hidden" in tag) == (name != shown)
+    assert ("Start online access" if state == "off" else "Retry online access") in page
+    assert "Stop online access" in page
+
+
+def test_local_retry_and_stop_start_and_stop_the_tunnel(tmp_path):
+    pytest.importorskip("flask")
+    from dashboard import create_app
+
+    tunnel = FakeTunnel("failed", url=None, reason="cloudflared stopped (exit code 1)")
+    client = create_app(tmp_path / "r.sqlite3", tunnel=tunnel).test_client()
+    response = client.post("/online/retry")
+    assert response.status_code == 303 and response.headers["Location"].endswith("/system")
+    assert tunnel.calls == ["start"]
+    assert client.post("/online/stop").status_code == 303 and tunnel.calls == ["start", "stop"]
+
+
+def test_local_retry_refuses_cross_site_posts(tmp_path):
+    pytest.importorskip("flask")
+    from dashboard import create_app
+
+    tunnel = FakeTunnel("failed", url=None)
+    client = create_app(tmp_path / "r.sqlite3", tunnel=tunnel).test_client()
+    assert client.post("/online/retry", headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
+    assert client.post("/online/retry", headers={"Origin": "https://evil.example"}).status_code == 403
+    assert tunnel.calls == []
+
+
+def test_without_a_tunnel_there_are_no_online_controls(tmp_path):
+    pytest.importorskip("flask")
+    from dashboard import create_app
+
+    client = create_app(tmp_path / "r.sqlite3").test_client()
+    assert not local_controls(client.get("/system").get_data(as_text=True))
+    assert client.post("/online/retry").status_code == 404
+
+
+def test_online_origin_refuses_retry_and_stop_even_signed_in(tmp_path):
+    pytest.importorskip("flask")
+    from dashboard import create_app
+    from online_auth import read_secret, write_secret
+
+    write_secret(tmp_path / "secret.yaml", PASSWORD)
+    tunnel = FakeTunnel("failed", url=None)
+    client = create_app(tmp_path / "r.sqlite3", online=True, secret=read_secret(tmp_path / "secret.yaml"),
+                        tunnel=tunnel).test_client()
+    assert client.post("/online/retry", base_url=BASE).status_code == 403
+    sign_in(client)
+    page = client.get("/system", base_url=BASE).get_data(as_text=True)
+    assert not local_controls(page)
+    token = csrf(client, "/limits")
+    for path in ("/online/retry", "/online/stop"):
+        assert client.post(path, data={"csrf_token": token}, base_url=BASE).status_code == 403
+    assert tunnel.calls == []

@@ -84,7 +84,11 @@ ONLINE_DEFAULTS = {
     "online_session_hours": 8,
     "cloudflared_tunnel": None,
     "online_public_url": None,
+    "online_retry_waits_s": [5, 10, 20, 40, 60],
+    "cloudflared_log": "logs/cloudflared.log",
 }
+RETRY_WAITS_MAX = 20
+RETRY_WAIT_MAX_S = 3600
 LOCAL_DASHBOARD_PORT = 5000
 
 
@@ -118,6 +122,21 @@ def validate_online_settings(data: dict) -> None:
         raise ValueError("online_public_url must be null or an https:// address.")
     if name is not None and url is None:
         raise ValueError("A named cloudflared_tunnel needs online_public_url.")
+    waits = merged["online_retry_waits_s"]
+    message = (f"online_retry_waits_s must be a list of at most {RETRY_WAITS_MAX} waits, each more than 0 "
+               f"and at most {RETRY_WAIT_MAX_S} seconds.")
+    if not isinstance(waits, list) or len(waits) > RETRY_WAITS_MAX:
+        raise ValueError(message)
+    for wait in waits:
+        try:
+            _positive("online_retry_waits_s", wait)
+        except ValueError:
+            raise ValueError(message) from None
+        if wait > RETRY_WAIT_MAX_S:
+            raise ValueError(message)
+    log = merged["cloudflared_log"]
+    if not isinstance(log, str) or not log.strip():
+        raise ValueError("cloudflared_log must be a file path (relative paths start at the project folder).")
 
 
 def _positive(key, value):

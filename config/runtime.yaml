@@ -26,3 +26,8 @@ online_session_hours: 8
 # Quick tunnel when null. For a named tunnel, set its name and its fixed https:// address.
 cloudflared_tunnel: null
 online_public_url: null
+# Waits in seconds before each new cloudflared attempt; one more attempt than waits.
+# The same waits apply when a working tunnel stops (it then gets a new link).
+online_retry_waits_s: [5, 10, 20, 40, 60]
+# cloudflared's own output (kept to about 512 KB in two files); relative to the project folder.
+cloudflared_log: logs/cloudflared.log

@@ -248,6 +248,7 @@ input { caret-color: var(--primary); }
 .link-field label { display: block; font-size: var(--s12); font-weight: 600; color: var(--muted); margin-bottom: 6px; }
 .link-row { display: flex; gap: 8px; }
 .link-row input { flex: 1 1 auto; min-width: 0; height: 36px; border: 1px solid var(--input); border-radius: 8px; padding: 0 10px; font-size: var(--s12); background: var(--ground); color: var(--ink); }
+.online-actions { margin-top: 12px; }
 
 /* Online sign-in (online origin only) */
 .top-auth { display: inline-flex; align-items: center; gap: 6px; flex: none; white-space: nowrap; }

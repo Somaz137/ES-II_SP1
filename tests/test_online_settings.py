@@ -39,7 +39,25 @@ def test_online_keys_override_defaults(tmp_path):
     ({"cloudflared_tunnel": "room"}, "online_public_url"),
     ({"cloudflared_tunnel": "room", "online_public_url": "http://room.example.org"}, "online_public_url"),
     ({"cloudflared_tunnel": ""}, "cloudflared_tunnel"),
+    ({"online_retry_waits_s": 5}, "online_retry_waits_s"), ({"online_retry_waits_s": [5, 0]}, "online_retry_waits_s"),
+    ({"online_retry_waits_s": [5, True]}, "online_retry_waits_s"),
+    ({"online_retry_waits_s": [5, "10"]}, "online_retry_waits_s"),
+    ({"online_retry_waits_s": [5, 3601]}, "online_retry_waits_s"),
+    ({"online_retry_waits_s": [1] * 21}, "online_retry_waits_s"),
+    ({"cloudflared_log": ""}, "cloudflared_log"), ({"cloudflared_log": 3}, "cloudflared_log"),
 ])
 def test_invalid_online_settings_are_refused(extra, message):
     with pytest.raises(ValueError, match=message):
         validate_runtime_settings({**BASE_DICT, **extra})
+
+
+def test_retry_waits_default_to_six_attempts_and_may_be_empty(tmp_path):
+    assert ONLINE_DEFAULTS["online_retry_waits_s"] == [5, 10, 20, 40, 60]
+    assert ONLINE_DEFAULTS["cloudflared_log"] == "logs/cloudflared.log"
+    validate_runtime_settings({**BASE_DICT, "online_retry_waits_s": []})
+    validate_runtime_settings({**BASE_DICT, "online_retry_waits_s": [0.5, 3600]})
+
+
+def test_the_default_cloudflared_log_is_ignored_by_git():
+    ignored = (Path(__file__).resolve().parents[1] / ".gitignore").read_text().splitlines()
+    assert "/logs/" in ignored

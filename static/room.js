@@ -655,22 +655,24 @@ function apiUrl() {
   return "/api/room?limit=20";
 }
 // ---------- online access ----------
-const ONLINE_WORDS = {
-  off: ["Online access: off", "none", "The dashboard is served on this computer only. Start online access with dashboard.py --online."],
-  starting: ["Online access: starting", "amber", "Waiting for cloudflared to report the link."],
-  active: ["View-only link active", "green", "This link changes each time online access starts. Viewing is open to anyone with the link; controls need sign-in."],
-  failed: ["Online access failed", "red", "The dashboard still works on this computer. Monitoring and the local alarm are not affected."],
-};
+// The server words the state line and help (dashboard.tunnel_words); only the tone is chosen here.
+const ONLINE_TONE = { off: "none", starting: "amber", active: "green", failed: "red" };
+const ONLINE_FOOT = { off: "Online access: off", starting: "Online access: starting", active: "Online: view-only link active", failed: "Online access failed" };
 function renderOnline(online) {
   if (!online) return;
-  const [words, tone, help] = ONLINE_WORDS[online.state] || ONLINE_WORDS.off;
-  $("online-foot").textContent = online.state === "active" ? "Online: view-only link active" : words;
+  $("online-foot").textContent = ONLINE_FOOT[online.state] || ONLINE_FOOT.off;
   if (!$("online-state")) return;
-  $("online-state").textContent = online.state === "failed" && online.reason ? words + ": " + online.reason : words;
-  setTone($("online-dot"), tone);
-  $("online-help").textContent = help;
+  $("online-state").textContent = online.line;
+  setTone($("online-dot"), ONLINE_TONE[online.state] || "none");
+  $("online-help").textContent = online.help;
   $("online-link-field").hidden = !online.url;
   if ($("online-link").value !== (online.url || "")) $("online-link").value = online.url || "";
+  const retry = $("online-retry"), stop = $("online-stop");
+  if (retry) {
+    retry.hidden = !["failed", "off"].includes(online.state);
+    retry.querySelector("button").textContent = online.state === "off" ? "Start online access" : "Retry online access";
+  }
+  if (stop) stop.hidden = !["starting", "active"].includes(online.state);
 }
 function wireCopyLink() {
   const button = $("copy-link");

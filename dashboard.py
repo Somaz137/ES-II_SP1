@@ -26,7 +26,14 @@ PAGES = [("index", "/", "Overview"), ("trends", "/trends", "Trends"), ("events",
 PAGE_PATHS = {path for _, path, _ in PAGES}
 # Trend window name: (span in seconds, bucket size in seconds). Readings are kept 7 days.
 TREND_WINDOWS = {"24h": (86400, 60), "7d": (7 * 86400, 600)}
-TUNNEL_OFF = {"state": "off", "url": None, "reason": None}
+TUNNEL_OFF = {"state": "off", "url": None, "reason": None, "attempt": None, "attempts": None, "retry_in_s": None}
+TUNNEL_HELP = {
+    "off": "The dashboard is served on this computer only. Start online access with dashboard.py --online.",
+    "starting": "Waiting for cloudflared to report the link.",
+    "active": ("This link changes each time online access starts. Viewing is open to anyone with the link; "
+               "controls need sign-in."),
+    "failed": "The dashboard still works on this computer. Monitoring and the local alarm are not affected.",
+}
 # Online origin only. The pages use no inline script or style.
 ONLINE_HEADERS = {
     "Cache-Control": "no-store",
@@ -45,6 +52,24 @@ def duration_words(seconds):
     hours, minutes, secs = total // 3600, total % 3600 // 60, total % 60
     parts = [f"{hours} h"] * bool(hours) + [f"{minutes} min"] * bool(minutes) + [f"{secs} s"] * bool(secs)
     return " ".join(parts) or "0 s"
+
+
+def tunnel_words(state):
+    """(state line, help line) for the System page; the page script shows the same text."""
+    kind = state.get("state")
+    if kind == "active":
+        return "View-only link active", TUNNEL_HELP["active"]
+    if kind == "failed":
+        return f"Online access failed: {state.get('reason')}", TUNNEL_HELP["failed"]
+    if kind != "starting":
+        return "Online access: off", TUNNEL_HELP["off"]
+    attempt, attempts, retry_in = state.get("attempt"), state.get("attempts"), state.get("retry_in_s")
+    line = "Online access: starting"
+    if attempt and attempts:
+        line += f" (attempt {attempt} of {attempts}" + (
+            f", retrying in {retry_in} s)" if retry_in is not None else ")")
+    reason = state.get("reason")
+    return line, (f"Last attempt: {reason}. " + TUNNEL_HELP["failed"]) if reason else TUNNEL_HELP["starting"]
 
 
 def number_text(value):
@@ -219,12 +244,14 @@ def create_app(path=DEFAULT_DB, *, demo=False, online=False, secret=None, tunnel
         state = tunnel.state() if tunnel is not None else dict(TUNNEL_OFF)
         if online and not signed_in():
             state["url"] = None  # anonymous online visitors do not need the link
+        state["line"], state["help"] = tunnel_words(state)
         return state
 
     @app.context_processor
     def online_context():
         return {"online": online, "signed_in": signed_in(), "locked": online and not signed_in(),
-                "csrf_token": csrf_token(), "tunnel": tunnel_state()}
+                "csrf_token": csrf_token(), "tunnel": tunnel_state(),
+                "tunnel_controls": tunnel is not None and not online}
 
     @app.before_request
     def online_gate():
@@ -399,6 +426,24 @@ def create_app(path=DEFAULT_DB, *, demo=False, online=False, secret=None, tunnel
             store.add_event("online_signed_out", "Signed out online")
             return redirect(url_for("index"), code=303)
 
+    def local_tunnel():
+        """Starting and stopping the tunnel is for this computer only, never the online origin."""
+        if online:
+            abort(403)
+        if tunnel is None:
+            abort(404)
+        return tunnel
+
+    @app.post("/online/retry")
+    def online_retry():
+        local_tunnel().start()
+        return redirect(url_for("system"), code=303)
+
+    @app.post("/online/stop")
+    def online_stop():
+        local_tunnel().stop()
+        return redirect(url_for("system"), code=303)
+
     @app.post("/profile")
     def profile():
         try:
@@ -445,12 +490,19 @@ def create_app(path=DEFAULT_DB, *, demo=False, online=False, secret=None, tunnel
     return app
 
 
-RUNTIME_FILE = Path(__file__).resolve().parent / "config" / "runtime.yaml"
+PROJECT_DIR = Path(__file__).resolve().parent
+RUNTIME_FILE = PROJECT_DIR / "config" / "runtime.yaml"
 
 
 def record_tunnel_change(store, state):
-    """Online start, stop and failure as events; the link itself is not recorded."""
-    if state["state"] == "active":
+    """Online start, retry, link, stop and failure as events; the link itself is not recorded."""
+    if state["state"] == "starting":
+        if state.get("retry_in_s") is not None:
+            store.add_event("online_retry", f"Online access: {state['reason']}. Attempt {state['attempt']} of "
+                                            f"{state['attempts']} in {state['retry_in_s']:g} s.")
+        elif state.get("attempt") == 1 and not state.get("reason"):
+            store.add_event("online_starting", "Online access starting (cloudflared started)")
+    elif state["state"] == "active":
         store.add_event("online_started", "Online access started (view-only link)")
     elif state["state"] == "failed":
         store.add_event("online_failed", f"Online access failed: {state['reason']}")
@@ -460,24 +512,32 @@ def record_tunnel_change(store, state):
 
 def report_tunnel_change(state):
     words = {"starting": "starting", "active": "view-only link active", "failed": "failed", "off": "off"}
+    word = words[state["state"]]
+    if state["state"] == "starting" and state.get("attempt"):
+        word += f" (attempt {state['attempt']} of {state['attempts']}" + (
+            f", retrying in {state['retry_in_s']:g} s)" if state.get("retry_in_s") is not None else ")")
     detail = state["url"] or state["reason"] or ""
-    print(f"Online access: {words[state['state']]}" + (f" · {detail}" if detail else ""), flush=True)
+    print(f"Online access: {word}" + (f" · {detail}" if detail else ""), flush=True)
 
 
 def start_online(path, demo, secret, settings):
     """Serve the online origin on 127.0.0.1 and start cloudflared; returns the tunnel, or None."""
     from werkzeug.serving import make_server
 
-    from online_tunnel import Tunnel, tunnel_command
+    from online_tunnel import BoundedLog, Tunnel, tunnel_command
 
     store = RoomStore(path)
 
     def changed(state):
         record_tunnel_change(store, state)
         report_tunnel_change(state)
+    log_path = Path(settings["cloudflared_log"]).expanduser()
+    if not log_path.is_absolute():
+        log_path = PROJECT_DIR / log_path
     tunnel = Tunnel(tunnel_command(settings["cloudflared_path"], settings["online_port"],
                                    settings["cloudflared_tunnel"]),
-                    public_url=settings["online_public_url"], on_change=changed)
+                    public_url=settings["online_public_url"], waits=settings["online_retry_waits_s"],
+                    log=BoundedLog(log_path), on_change=changed)
     app = create_app(path, demo=demo, online=True, secret=secret, tunnel=tunnel,
                      session_hours=settings["online_session_hours"])
     try:
@@ -493,8 +553,8 @@ def start_online(path, demo, secret, settings):
         server.shutdown()
     atexit.register(stop)
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # a normal exit runs the atexit cleanup
-    print(f"Online origin on http://127.0.0.1:{settings['online_port']} (view-only; only cloudflared uses it).",
-          flush=True)
+    print(f"Online origin on http://127.0.0.1:{settings['online_port']} (view-only; only cloudflared uses it). "
+          f"cloudflared output: {log_path}", flush=True)
     tunnel.start()
     return tunnel
 
