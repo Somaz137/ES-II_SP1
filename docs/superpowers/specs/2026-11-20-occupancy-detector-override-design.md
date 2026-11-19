@@ -63,10 +63,14 @@ The rule takes the check results with their times. It returns the automatic stat
 - **Entry.** The room becomes `occupied` when a person was `seen` in at least 75 % of the checks in the last `occupancy_confirm_s` (default 120 s). At a 10 s interval, that is 9 of 12 checks. The window must be full: a run that is shorter than 120 s does not count.
 - **Hold.** While the room is occupied, it stays `occupied` until no check has seen a person for `occupancy_hold_s` (default 900 s).
 - **No person.** After the hold ends, the state is `not_seen`. The camera works but has not confirmed a person.
-- **Camera failure.** A `failed` check counts as `not_seen` for the entry and the hold. If no check has succeeded for 3 intervals, the state is `unknown` and the reason is "camera not working". This does not shorten the hold.
+- **Camera failure.** A `failed` check counts as `not_seen` for the entry and the hold. When no check has succeeded for 3 intervals, the camera is "not working". PENDING USER DECISION: what a camera failure does while the room is occupied. See "Open question" at the end.
 - **While confirming.** The status shows the progress, for example "Person seen in 7 of 12 checks".
 
-`occupied` is the only state that allows limit alerts. `not_seen` and `unknown` both pause them, as `unknown` does today. The session code checks `occupancy != "occupied"`, so it needs no change to its rule.
+`occupied` is the only state that allows limit alerts. All other states pause them, as `unknown` does today. The session rule `occupancy != "occupied"` stays.
+
+**Page text and reasons per state.** *My call (builder check, 20 November 2026):* a missed patient must be visible, following the principle "the page states what it does not know".
+- `not_seen` shows "No person seen" with the caution tone, the same tone as `unknown`. It does not show a calm "Not occupied".
+- The pause and reset texts in `room_session.py` and the reason codes split by cause: `occupancy_not_seen` ("No person seen. Limit monitoring is paused."), `occupancy_unknown` (camera not working, or no camera), and `occupancy_manual` ("Set to not occupied by hand. Limit monitoring is paused."). Update the tests that match these texts.
 
 ### 3. Manual override
 
@@ -77,6 +81,8 @@ The rule takes the check results with their times. It returns the automatic stat
   - `occupied`: the room is occupied, whatever the camera says.
   - `not_occupied`: the room is not occupied. Limit alerts pause, and active limit alerts end, the same as `unknown` today.
   - `auto`: the camera rule decides.
+- **Monitor restart.** *My call:* unlike silence and acknowledge, a stored manual setting is applied at monitor start if `set_at + occupancy_override_s` is still in the future. This way the page never shows a manual setting that the monitor ignores. An expired setting is ignored.
+- The request also records where it came from: `set_from` is `local` or `online`. The online origin sets `online`.
 - The camera keeps checking during a manual mode. When the manual mode ends, the camera state is already current.
 - **Page text:** the page always says when the occupancy comes from a manual setting, who set it ("on this computer" or "online"), and when it returns to the camera. Example: "Occupied: set by hand at 14:02. Returns to the camera at 14:17." The text, not a colour, carries this.
 - **Events:** the log records an override set, a return to Automatic set by hand, and an expiry, each with the mode and the time.
@@ -84,7 +90,7 @@ The rule takes the check results with their times. It returns the automatic stat
 
 ### 4. Status and settings
 
-- The status record gains these fields: `occupancy` (`occupied`, `not_seen` or `unknown`), `occupancy_source` (`camera`, `manual`, `simulated` or `none`), `occupancy_override` (`{mode, set_at, expires_at}` or null) and `occupancy_camera` (last result, last sighting time and confirmation progress).
+- The status record gains these fields: `occupancy` (`occupied`, `not_seen`, `unknown`, or `not_occupied`, which is used only for a manual setting), `occupancy_source` (`camera`, `manual`, `simulated` or `none`), `occupancy_override` (`{mode, set_at, set_from, expires_at}` or null) and `occupancy_camera` (last result, last sighting time and confirmation progress).
 - `config/runtime.yaml` gains these optional keys, with defaults: `camera_interval_s` 10, `occupancy_confirm_s` 120, `occupancy_confirm_fraction` 0.75, `occupancy_hold_s` 900, `occupancy_override_s` 900, `person_confidence` 0.5. They are validated like the other runtime keys. Older files still load.
 - The System page "Camera" row shows the model in use, the last check result and the time of the last sighting.
 
@@ -95,12 +101,24 @@ The rule takes the check results with their times. It returns the automatic stat
 - The override: set, replace, expiry at 900 s, `not_occupied` that ends active limit alerts, events written. The dashboard route: sign-in and CSRF online, 303 on success, refusal of a bad mode.
 - The existing 667 tests must still pass.
 
-## Bench check (the user, with the laptop webcam)
+## Bench check (the user, with the laptop webcam): a gate
 
-Record the detection rate for standing, sitting, lying on a bed or sofa, and lying under a blanket. Compare with HOG on the same frames. Frames are used live and not stored. If YOLOX misses the lying positions, try the MediaPipe fallback before any fine-tuning.
+*My call (builder check):* the bench check is the first task and a gate. The rule, override and page work start only after YOLOX passes.
+
+- `tools/occupancy_bench.py` captures live frames and runs HOG and YOLOX on each frame. It prints one line per frame with both results. It stores no frame. HOG stays only in this tool, and `occupancy.py` no longer uses it.
+- Record the detection rate for standing, sitting, lying on a bed or sofa, and lying under a blanket.
+- Pass: YOLOX detects the person in at least 9 of 12 frames in each lying position. That is the same fraction as the entry rule.
+- The detector sits behind one small interface (`detect(frame) -> bool`), so another model can replace it. MediaPipe is not built now. If YOLOX fails, the plan stops, and the MediaPipe fallback comes back to the user before any fine-tuning.
 
 ## Left to the builder
 
 - The exact YOLOX pre- and post-processing (input size, letterbox, output decoding). Follow the zoo's `demo.py`.
 - The pinned download URL and its SHA-256.
 - The exact wording of the page text, following `DESIGN.md` and the product principles.
+
+## Open question (for the user)
+
+What does a camera failure do while the room is occupied?
+
+- (a) The room stays `occupied` until the 15-minute hold ends. Limit alerts keep running. The page says "Camera not working. Occupancy held from the last sighting at 14:02." After the hold, the state is `unknown`.
+- (b) The state becomes `unknown` after 30 s and limit alerts pause. If the camera comes back within 15 minutes, the room is `occupied` again without the 2-minute confirmation.
