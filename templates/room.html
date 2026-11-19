@@ -45,7 +45,7 @@
       {% if signed_in %}
       <form class="top-auth" action="/signout" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <span class="st">Signed in</span><span class="top-sep" aria-hidden="true">·</span><button class="btn btn-text btn-sm">Sign out</button>
+        <span class="st">Signed in</span><span class="top-sep" aria-hidden="true">·</span><button class="btn-link">Sign out</button>
       </form>
       {% else %}
       <a class="btn top-auth" href="/signin?next={{ request.path }}">Sign in</a>
