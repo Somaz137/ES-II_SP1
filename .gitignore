@@ -30,3 +30,7 @@ Thumbs.db
 
 /room.profile.yaml
 /room-demo.profile.yaml
+
+# Online sign-in password hash and session key (dashboard.py --set-password)
+/config/online_secret.yaml
+/config/online_secret.yaml.tmp
