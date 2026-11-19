@@ -220,3 +220,47 @@ def test_online_app_needs_a_secret(tmp_path):
 
     with pytest.raises(ValueError):
         create_app(tmp_path / "room.sqlite3", online=True, secret=None)
+
+
+def test_set_password_command_writes_a_hash(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("flask")
+    import dashboard
+    from online_auth import read_secret
+
+    monkeypatch.setattr(dashboard.getpass, "getpass", lambda prompt: PASSWORD)
+    secret_path = tmp_path / "online_secret.yaml"
+    assert dashboard.main(["--set-password", "--secret", str(secret_path)]) == 0
+    assert PASSWORD not in secret_path.read_text() and read_secret(secret_path)
+    assert PASSWORD not in capsys.readouterr().out
+
+
+def test_online_without_a_password_runs_the_local_dashboard_only(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("flask")
+    import dashboard
+    from flask import Flask
+
+    ran = []
+    monkeypatch.setattr(Flask, "run", lambda self, **kwargs: ran.append(kwargs))
+    started = []
+    monkeypatch.setattr(dashboard, "start_online", lambda *args, **kwargs: started.append(args))
+    assert dashboard.main(["--online", "--db", str(tmp_path / "r.sqlite3"),
+                           "--secret", str(tmp_path / "absent.yaml")]) == 0
+    assert ran == [{"host": "127.0.0.1", "port": 5000}] and not started
+    assert "dashboard.py --set-password" in capsys.readouterr().out
+
+
+def test_tunnel_changes_are_recorded_as_events_without_the_link(tmp_path):
+    pytest.importorskip("flask")
+    from dashboard import record_tunnel_change
+
+    store = RoomStore(tmp_path / "r.sqlite3")
+    record_tunnel_change(store, {"state": "starting", "url": None, "reason": None})
+    record_tunnel_change(store, {"state": "active", "url": BASE, "reason": None})
+    record_tunnel_change(store, {"state": "failed", "url": None, "reason": "cloudflared not found"})
+    record_tunnel_change(store, {"state": "off", "url": None, "reason": None})
+    events = store.events()
+    assert [(e["kind"], e["message"]) for e in events] == [
+        ("online_stopped", "Online access stopped"),
+        ("online_failed", "Online access failed: cloudflared not found"),
+        ("online_started", "Online access started (view-only link)")]
+    assert BASE not in repr(events)

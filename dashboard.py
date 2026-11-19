@@ -1,17 +1,23 @@
 """Serve the local room dashboard from SQLite without owning sensor inputs."""
 import argparse
+import atexit
 from datetime import timedelta
+import getpass
+import signal
+import sys
+import threading
 import math
 from pathlib import Path
 import time
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
 
-from online_auth import LoginLimiter, check_password, new_csrf_token, tokens_match
+from online_auth import (SECRET_FILE, LoginLimiter, check_password, new_csrf_token, prompt_password, read_secret,
+                         tokens_match, write_secret)
 
 from room_store import (DEFAULT_DB, DEMO_DB, EVENT_LIMIT_MAX, LABEL_MAX, METRICS, SERIES, SYSTEM_METRICS,
                         RoomStore, validate_label)
-from settings import RUNTIME_DEFAULTS
+from settings import LOCAL_DASHBOARD_PORT, RUNTIME_DEFAULTS, load_online_settings
 
 
 # (endpoint, path, title) for each page, in navigation order.
@@ -439,9 +445,95 @@ def create_app(path=DEFAULT_DB, *, demo=False, online=False, secret=None, tunnel
     return app
 
 
-if __name__ == "__main__":
+RUNTIME_FILE = Path(__file__).resolve().parent / "config" / "runtime.yaml"
+
+
+def record_tunnel_change(store, state):
+    """Online start, stop and failure as events; the link itself is not recorded."""
+    if state["state"] == "active":
+        store.add_event("online_started", "Online access started (view-only link)")
+    elif state["state"] == "failed":
+        store.add_event("online_failed", f"Online access failed: {state['reason']}")
+    elif state["state"] == "off":
+        store.add_event("online_stopped", "Online access stopped")
+
+
+def report_tunnel_change(state):
+    words = {"starting": "starting", "active": "view-only link active", "failed": "failed", "off": "off"}
+    detail = state["url"] or state["reason"] or ""
+    print(f"Online access: {words[state['state']]}" + (f" · {detail}" if detail else ""), flush=True)
+
+
+def start_online(path, demo, secret, settings):
+    """Serve the online origin on 127.0.0.1 and start cloudflared; returns the tunnel, or None."""
+    from werkzeug.serving import make_server
+
+    from online_tunnel import Tunnel, tunnel_command
+
+    store = RoomStore(path)
+
+    def changed(state):
+        record_tunnel_change(store, state)
+        report_tunnel_change(state)
+    tunnel = Tunnel(tunnel_command(settings["cloudflared_path"], settings["online_port"],
+                                   settings["cloudflared_tunnel"]),
+                    public_url=settings["online_public_url"], on_change=changed)
+    app = create_app(path, demo=demo, online=True, secret=secret, tunnel=tunnel,
+                     session_hours=settings["online_session_hours"])
+    try:
+        server = make_server("127.0.0.1", settings["online_port"], app, threaded=True)
+    except OSError as error:
+        print(f"Online access was not started: port {settings['online_port']} is not free ({error.strerror}). "
+              "The local dashboard runs now.", flush=True)
+        return None
+    threading.Thread(target=server.serve_forever, name="online-origin", daemon=True).start()
+
+    def stop():
+        tunnel.stop()
+        server.shutdown()
+    atexit.register(stop)
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # a normal exit runs the atexit cleanup
+    print(f"Online origin on http://127.0.0.1:{settings['online_port']} (view-only; only cloudflared uses it).",
+          flush=True)
+    tunnel.start()
+    return tunnel
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path)
     parser.add_argument("--demo", action="store_true")
-    args = parser.parse_args()
-    create_app(args.db or (DEMO_DB if args.demo else DEFAULT_DB), demo=args.demo).run(host="127.0.0.1")
+    parser.add_argument("--online", action="store_true",
+                        help="also serve the view-only online origin and start a cloudflared tunnel")
+    parser.add_argument("--set-password", action="store_true", help="set the online sign-in password and exit")
+    parser.add_argument("--secret", type=Path, default=SECRET_FILE, help=argparse.SUPPRESS)
+    parser.add_argument("--runtime", type=Path, default=RUNTIME_FILE)
+    args = parser.parse_args(argv)
+    if args.set_password:
+        try:
+            write_secret(args.secret, prompt_password(getpass.getpass))
+        except ValueError as problem:
+            print(problem)
+            return 1
+        print(f"Online password saved as a hash in {args.secret}. Restart dashboard.py --online to use it.")
+        return 0
+    path = args.db or (DEMO_DB if args.demo else DEFAULT_DB)
+    tunnel = None
+    if args.online:
+        try:
+            settings = load_online_settings(args.runtime)
+            secret = read_secret(args.secret)
+        except (OSError, ValueError) as problem:
+            settings, secret = None, None
+            print(f"Online access was not started: {problem}")
+        if settings and secret is None:
+            print("Online access was not started: no online password is set. Run python dashboard.py "
+                  "--set-password, then start again with --online. The local dashboard runs now.")
+        elif settings:
+            tunnel = start_online(path, args.demo, secret, settings)
+    create_app(path, demo=args.demo, tunnel=tunnel).run(host="127.0.0.1", port=LOCAL_DASHBOARD_PORT)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
