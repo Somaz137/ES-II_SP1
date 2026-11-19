@@ -137,3 +137,16 @@ def test_delayed_tick_uses_current_time_without_replaying_old_times():
     )
     assert times == [0, 121]
     assert state.communication.alert_active
+
+
+def test_dust_floor_reaches_the_dust_state():
+    clock = Clock()
+    state = run_monitor(
+        Transport(), ALERTS, RUNTIME, lambda s, t, io: None,
+        clock=clock, sleep=clock.sleep, should_stop=lambda: clock.now >= 1, dust_floor_mv=250,
+    )
+    assert state.dust.floor_mv == 250
+    clock = Clock()
+    state = run_monitor(Transport(), ALERTS, RUNTIME, lambda s, t, io: None,
+                        clock=clock, sleep=clock.sleep, should_stop=lambda: clock.now >= 1)
+    assert state.dust.floor_mv == 100

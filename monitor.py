@@ -105,7 +105,8 @@ def main():
 
     try:
         with camera if camera else nullcontext():
-            run_monitor(transport, alerts, runtime, publish, apply_controls=apply_controls)
+            run_monitor(transport, alerts, runtime, publish, apply_controls=apply_controls,
+                        dust_floor_mv=system["dust"]["disconnected_below_mv"])
     except KeyboardInterrupt:
         return
 

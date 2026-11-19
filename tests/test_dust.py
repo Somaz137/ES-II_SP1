@@ -107,3 +107,56 @@ def test_estimate_from_the_tracked_baseline_is_never_negative():
     baseline.add(1420, 3)
     assert estimate_dust(1420, baseline.value(3), 5000) == 100
     assert estimate_dust(920, baseline.value(3), 5000) == 0
+
+
+# Dust floor: a reading below the floor means the sensor is not connected.
+
+def test_record_below_floor_is_not_a_reading():
+    from dust import DUST_BELOW_FLOOR, DustState, record_dust
+    state = record_dust(DustState(floor_mv=100.0), (920.0, None), 1)
+    state = record_dust(state, (99.0, None), 4)
+    assert state.received_at == 1 and state.last_voltage_mv == 920.0
+    assert state.diagnostic == DUST_BELOW_FLOOR
+    assert DUST_BELOW_FLOOR == "Dust reading below the not-connected floor."
+
+
+def test_record_at_floor_is_a_reading():
+    from dust import DustState, record_dust
+    state = record_dust(DustState(floor_mv=100.0), (100.0, None), 5)
+    assert state.received_at == 5 and state.last_voltage_mv == 100.0 and state.diagnostic is None
+
+
+def below_floor_only(until):
+    state = create_monitoring_state(0, 120, 120, dust_floor_mv=100.0)
+    t = 0
+    while t <= until:
+        state = process_serial_line(state, '{"type":"dust","sensor_mv":50}', t)
+        t += 3
+    return state
+
+
+def test_not_connected_after_timeout():
+    state = below_floor_only(119)
+    dust = output(state, 119)["dust"]
+    assert dust["status"] == "sensor_error" and not dust["alert_active"]
+    assert dust["floor_mv"] == 100.0
+    dust = output(state, 120)["dust"]
+    assert dust["status"] == "not_connected" and dust["alert_active"]
+    assert dust["sensor_mv"] is None and dust["age_s"] is None
+
+
+def test_recovery_clears_not_connected():
+    state = below_floor_only(120)
+    assert output(state, 121)["dust"]["status"] == "not_connected"
+    state = process_serial_line(state, '{"type":"dust","sensor_mv":920}', 122)
+    dust = output(state, 122)["dust"]
+    assert dust["status"] == "fresh" and not dust["alert_active"]
+
+
+def test_alternating_around_floor_never_faults():
+    state = create_monitoring_state(0, 120, 120, dust_floor_mv=100.0)
+    for step, t in enumerate(range(0, 301, 3)):
+        value = 99 if step % 2 == 0 else 101
+        state = process_serial_line(state, json.dumps({"type": "dust", "sensor_mv": value}), t)
+        status = output(state, t)["dust"]
+        assert status["status"] != "not_connected" and not status["alert_active"]

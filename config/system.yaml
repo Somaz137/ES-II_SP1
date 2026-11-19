@@ -28,6 +28,10 @@ dust:
   baseline_window_s: 86400
   # Fresh, unbroken dust records needed before an estimate is shown.
   baseline_min_s: 600
+  # A sensor-side voltage below this (mV) is not a reading. With the 2:1 divider wired, a
+  # missing sensor reads near 0 V; a working one reads about 900 mV in clean air. With no
+  # reading at or above it for sensor_error_timeout_s, the dust sensor is "not connected".
+  disconnected_below_mv: 100
   # Display words for the estimate in ug/m3. Project display defaults, not health
   # standards and not official air-quality category names.
   levels:

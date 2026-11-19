@@ -51,10 +51,11 @@ def create_monitoring_state(
     started_at: float,
     communication_timeout_s: float,
     sensor_error_timeout_s: float,
+    dust_floor_mv: float = 100.0,
 ) -> MonitoringState:
     """Start normal communication timing while measurements remain empty."""
     return MonitoringState(
-        dust=DustState(started_at=started_at),
+        dust=DustState(started_at=started_at, floor_mv=float(dust_floor_mv)),
         communication=create_communication_state(started_at, communication_timeout_s),
         sensor=create_sensor_state(started_at, sensor_error_timeout_s),
     )

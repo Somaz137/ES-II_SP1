@@ -268,3 +268,42 @@ def test_profile_change_event_names_the_label(tmp_path):
     room.step(6, reading())
     assert room.messages()[0] == ("Patient profile changed. No label. No measurement limits. "
                                   "Sustained duration 9 s.")
+
+
+# Dust floor.
+
+@pytest.mark.parametrize("value", [0, -1, 5501, True])
+def test_floor_setting_validated(value):
+    from settings import validate_system_settings
+    data = copy.deepcopy(SYSTEM_DEFAULTS)
+    data["dust"]["disconnected_below_mv"] = value
+    with pytest.raises(ValueError):
+        validate_system_settings(data)
+
+
+def test_floor_default_is_100_in_yaml_and_defaults():
+    from pathlib import Path
+    from settings import load_system_settings
+    loaded = load_system_settings(Path(__file__).resolve().parents[1] / "config" / "system.yaml")
+    assert loaded["dust"]["disconnected_below_mv"] == 100
+    assert SYSTEM_DEFAULTS["dust"]["disconnected_below_mv"] == 100
+
+
+def test_below_floor_records_give_no_dust_estimate_or_baseline(tmp_path):
+    room = Room(tmp_path, system(dust=(100, 6), min_s=0))
+    for now in range(0, 150, 3):
+        status = room.step(now, reading(), dust_mv=50)
+        assert status["dust_ugm3"]["baseline_mv"] is None
+        assert status["dust"]["estimated_dust_ug_m3"] is None
+    assert status["dust"]["status"] == "not_connected"
+    assert room.session.baseline.value(now) is None and not room.session.baseline.buckets
+    assert room.store.history("dust_ugm3", now + 100000) == []
+    assert room.store.history("dust_mv", now + 100000) == []
+
+
+@pytest.mark.parametrize("value", [100, 50.5, 5500])
+def test_floor_setting_accepts_a_value_in_range(value):
+    from settings import validate_system_settings
+    data = copy.deepcopy(SYSTEM_DEFAULTS)
+    data["dust"]["disconnected_below_mv"] = value
+    validate_system_settings(data)

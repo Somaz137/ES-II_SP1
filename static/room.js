@@ -159,6 +159,10 @@ function restoredAt(events) {
   const found = (events || []).find(e => e.kind === "fault_ended" && e.message.startsWith("Communication"));
   return found ? " · contact restored " + clock(found.at) : " · contact restored";
 }
+// The dust fault text: a missing sensor (readings below the floor) or readings not arriving.
+function dustFault(dust) {
+  return dust?.status === "not_connected" ? `Dust sensor not connected (reading below ${dust.floor_mv}${NB}mV)` : null;
+}
 // What the last status before the monitor went quiet said; worded as past, never as current.
 function lastConfirmed(v) {
   const {status} = v;
@@ -166,7 +170,7 @@ function lastConfirmed(v) {
   const items = (status.limit_alerts || []).map(e => lower(condition(e, e.metric)));
   if (status.communication_alert_active && status.communication_timed_out) items.push("no contact with the ESP32");
   if (status.sensor_alert_active) items.push("BME680 readings not arriving");
-  if (status.dust?.alert_active) items.push("dust readings not arriving");
+  if (status.dust?.alert_active) items.push(dustFault(status.dust)?.replace(/^D/, "d") || "dust readings not arriving");
   const alarm = status.alarm;
   const sounding = alarm && alarm.state === "confirmed" && alarm.confirmed_level === 2 && !alarm.silenced;
   return "Last confirmed " + clock(status.updated_at) + ": " +
@@ -196,7 +200,7 @@ function renderAttention(v, failed) {
       redKeys.push("comm");
     }
     if (status.sensor_alert_active) { red.push("Sensor alert · BME680 readings are not arriving"); redKeys.push("bme"); }
-    if (status.dust?.alert_active) { red.push("Sensor alert · dust readings are not arriving"); redKeys.push("dust"); }
+    if (status.dust?.alert_active) { red.push("Sensor alert · " + (dustFault(status.dust) || "dust readings are not arriving")); redKeys.push("dust"); }
     if (status.profile_error) { red.push("The patient limits could not be loaded"); redKeys.push("profile"); }
     if (status.alarm?.state === "unreachable") { red.push("Local alarm unreachable · the LED and buzzer cannot be confirmed"); redKeys.push("alarm"); }
   }
@@ -615,7 +619,7 @@ function renderSystem(v) {
   const d = h.dust;
   const baseline = status?.dust_ugm3 ? (status.dust_ugm3.state === "establishing_baseline" ? "Establishing baseline" : "Baseline established") : "—";
   pathRow("dust", !known(d) ? "none" : d.alert_active ? "red" : d.state === "fresh" ? "green" : "amber",
-    !known(d) ? unknown : d.alert_active ? "Readings missing, alert active" : d.state === "fresh" ? "Readings current" : "Readings " + word(d.state),
+    !known(d) ? unknown : d.alert_active ? (dustFault(status?.dust) || "Readings missing, alert active") : d.state === "fresh" ? "Readings current" : "Readings " + word(d.state),
     d.age_s == null ? "—" : ago(d.age_s), baseline);
   const o = h.occupancy;
   pathRow("occupancy", !known(o) ? "none" : o.state === "occupied" ? "green" : o.state === "unknown" ? "amber" : "none",

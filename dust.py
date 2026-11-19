@@ -4,6 +4,10 @@ from dataclasses import dataclass, replace
 import json
 import math
 
+# A sensor-side voltage below the floor means no sensor: with the 2:1 divider wired, a
+# missing sensor reads near 0 V. Such a record is not a reading.
+DUST_BELOW_FLOOR = "Dust reading below the not-connected floor."
+
 @dataclass(frozen=True)
 class DustState:
     started_at: float = 0.0
@@ -11,6 +15,7 @@ class DustState:
     received_at: float | None = None
     seen: bool = False
     diagnostic: str | None = None
+    floor_mv: float = 100.0
 
 def parse_dust(line):
     try:
@@ -30,19 +35,23 @@ def record_dust(state, parsed, now):
     value, error = parsed
     if error:
         return replace(state, seen=True, diagnostic=error)
+    if value < state.floor_mv:
+        # Not a reading: keep the last reading and its time, so the timeout still runs.
+        return replace(state, seen=True, diagnostic=DUST_BELOW_FLOOR)
     return replace(state, seen=True, last_voltage_mv=value, received_at=now, diagnostic=None)
 
 def dust_status(state, now, timeout_s, disconnected):
     reference = state.started_at if state.received_at is None else state.received_at
     stale = now - reference >= timeout_s
     status = "communication_lost" if disconnected else (
-        "stale" if stale else "sensor_error" if state.diagnostic else
+        ("not_connected" if state.diagnostic == DUST_BELOW_FLOOR else "stale") if stale else
+        "sensor_error" if state.diagnostic else
         "waiting_for_first_measurement" if state.received_at is None else "fresh")
     return {"status": status, "sensor_mv": state.last_voltage_mv,
             "age_s": None if state.received_at is None else now-state.received_at,
             "alert_active": stale and not disconnected,
             "diagnostic": state.diagnostic, "calibration": "not_configured",
-            "estimated_dust_ug_m3": None}
+            "estimated_dust_ug_m3": None, "floor_mv": state.floor_mv}
 
 
 def estimate_dust(sensor_mv, baseline_mv, sensitivity_mv_per_mg_m3):
