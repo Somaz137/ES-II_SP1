@@ -77,23 +77,24 @@ In Arduino IDE, select **ESP32S3 Dev Module** and set Flash Size "16MB (128Mb)",
 
 ## Hardware checklist
 
-These are checks to do. None of them is done.
+The board was flashed on 17 November 2026 with nothing wired to it. The serial link and the alarm replies were checked. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md). Items marked partly done say what is still open. All other items are still to do.
 
 Before the first flash:
 
 1. Identify the exact ESP32-S3 board and get its pinout and schematic.
 2. Check that GPIO4 to GPIO9 are broken out and free on this board. Check that GPIO6 and GPIO7 are not used by an on-board RGB LED, button or other part.
 3. Check that no wire goes to a strapping pin (GPIO0, GPIO3, GPIO45, GPIO46). Check that nothing pulls these pins at reset.
-4. Find which USB port the laptop will use (USB-UART bridge or native USB). Choose `CDCOnBoot` to match. Note the Linux port name.
+4. Done on 17 November 2026: the laptop uses the CH343 USB-UART bridge (USB 1a86:55d3), Linux port `/dev/ttyACM0`, `CDCOnBoot=default`.
 5. Check the alarm LED series resistor value and that the LED current is within the GPIO limit.
 6. Read the buzzer module's markings or documentation for its trigger level and supply voltage. Set `ROOM_BUZZER_ACTIVE_HIGH` to match. Check that the module's signal input is safe at 3.3 V.
 7. Check the BME680 breakout supply (3.3 V) and its I2C address pin (0x76 or 0x77).
 8. Measure the dust divider with a meter. Check that the ADC pin never sees more than about 3.1 V.
+9. Decide how a disconnected dust sensor is detected. With no sensor attached, the dust input read about 870 to 930 mV and was accepted as a fresh dust record, most likely because the ADC pin floats. Candidates: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. Not decided.
 
 After the first flash:
 
-1. Check that the first line is `{"type":"alarm","state":0}` and that the LED and buzzer are off.
-2. Send `ALARM,1`, `ALARM,2` and `ALARM,0`. Check the LED, the buzzer and each reply. Check whether the buzzer needs a tone instead of a steady level.
+1. Partly done on 17 November 2026: the first firmware line after reset was `{"type":"alarm","state":0}`. Still open: check that the LED and buzzer are off.
+2. Partly done on 17 November 2026: `ALARM,0`, `ALARM,1`, `ALARM,2` and `ALARM,0` each got the matching reply in about 10 ms, and `ALARM,9` got none. Still open: check the LED and the buzzer, and whether the buzzer needs a tone instead of a steady level.
 3. Check BME680 readings every three seconds, their units and the address in use.
 4. Check the dust LED pulse width (0.32 ms), the sampling point (0.28 ms) and the 10 ms period on an oscilloscope. Check the accepted and rejected sample counts.
 5. Check whether opening the serial port resets the board.
@@ -179,9 +180,12 @@ Four days describes baseline history, not a required warm-up wait.
 ## Verification status
 
 - Completed: the three host tests above, with g++ 11.4.0.
-- Completed: compilation for the ESP32-S3 with `CDCOnBoot=default` and `CDCOnBoot=cdc`, `--warnings all`, no warnings.
+- Completed: compilation for the ESP32-S3 with `CDCOnBoot=default` and `CDCOnBoot=cdc`, `--warnings all`, no warnings (15 November, 8 MB options).
+- Completed on 17 November 2026: compilation with the 16 MB options above, no warnings, and upload to the board with every hash verified.
+- Completed on 17 November 2026, without sensors: clean boot, `bsec_initialization_failed` (`sensor_code` -2) every 3 s with no BME680, matching alarm replies, and a 60 s `monitor.py` run with the alarm confirmed at level 0.
 - Completed: a build for `esp32:esp32:esp32doit-devkit-v1` fails with the chip-check message.
-- Pending: everything in the hardware checklist.
+- Pending: the rest of the hardware checklist, including the LED and buzzer outputs, BME680 readings and the `iaq` field, and dust readings.
+- Open: a disconnected dust sensor cannot currently be told apart from a working one (checklist item 9).
 - Pending: check that an invalid supply value fails with the supply-selection message.
 - Pending: check startup, missing-data and read-failure error reporting on the board.
 - Pending: check the six-second measurement watchdog, the three-second error interval and the millisecond counter rollover.
