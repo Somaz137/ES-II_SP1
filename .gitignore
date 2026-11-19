@@ -39,3 +39,6 @@ Thumbs.db
 
 # cloudflared output from dashboard.py --online (settings: cloudflared_log)
 /logs/
+
+# Person detector model (tools/get_person_model.py)
+/models/
