@@ -45,8 +45,8 @@
 - Produces:
   - `MODEL_PATH: Path` (`<project>/models/object_detection_yolox_2022nov.onnx`) and `MODEL_SHA256: str` in `person_detector.py`.
   - `class ModelError(Exception)`.
-  - `check_model(path: Path = MODEL_PATH) -> None`. It raises `ModelError` when the file is missing or its SHA-256 differs. The message names `tools/get_person_model.py`.
-  - `class PersonDetector: __init__(self, confidence: float = 0.5, path: Path = MODEL_PATH, net=None)` and `detect(self, frame) -> bool`. `net=None` loads `cv2.dnn.readNet(str(path))` after `check_model`. A test passes a stub net.
+  - `check_model(path: Path | None = None) -> None` (None resolves to the module's `MODEL_PATH` at call time, so tests can monkeypatch it). It raises `ModelError` when the file is missing or its SHA-256 differs. The message names `tools/get_person_model.py`.
+  - `class PersonDetector: __init__(self, confidence: float = 0.5, path: Path | None = None, net=None)` and `detect(self, frame) -> bool`. `net=None` loads `cv2.dnn.readNet(str(path))` after `check_model`. A test passes a stub net.
   - `person_boxes(raw_output, confidence: float, frame_shape, input_size) -> list` (pure post-processing: COCO class 0 only, score threshold, non-maximum suppression with `cv2.dnn.NMSBoxes`).
 
 - [ ] **Step 1: Write the failing tests** in `tests/test_person_detector.py`:
