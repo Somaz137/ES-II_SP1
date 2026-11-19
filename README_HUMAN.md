@@ -17,7 +17,7 @@ It contains no instructions for an AI assistant.
 
 **Current status:** The repository contains the monitor, SQLite storage, patient-limit rules, camera occupancy, a local dashboard, and a Sharp dust path.
 These parts exist in software. Automated tests and a simulator verify them. On 17 November 2026 the monitor ran for 60 s against the flashed board with no sensors attached. No part has run with sensors or a real camera.
-The local alarm is implemented on the host and in the sketch. It is checked only with the simulator, host C++ tests and a compilation for the ESP32-S3. No LED or buzzer has been driven. The dashboard redesign is decided but not implemented. 7-day reading retention is implemented.
+The local alarm is implemented on the host and in the sketch. It is checked with the simulator, host C++ tests, a compilation for the ESP32-S3, and the board's serial replies to `ALARM` commands (17 November). No LED or buzzer has been driven. The dashboard redesign is decided but not implemented. 7-day reading retention is implemented.
 
 ## What the project does
 
