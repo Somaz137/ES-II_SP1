@@ -30,6 +30,11 @@ bool roomErrorSent = false;
 unsigned long roomLastErrorAt = 0;
 unsigned long roomLastMeasurementAt = 0;
 const char* roomStartupError = "bsec_initialization_failed";
+// Last IAQ accuracy from the BSEC callback, 0 to 3. Read by loop() for the
+// state save.
+uint8_t roomIaqAccuracy = 0;
+bool roomStateSavedOnce = false;
+uint32_t roomLastStateSaveMs = 0;
 
 // All call sites use constant protocol-safe diagnostics, not arbitrary text.
 void reportRoomError(const char* message) {
@@ -94,6 +99,7 @@ void receiveRoomSample(const bme68xData data, const bsecOutputs outputs,
           break;
         case BSEC_OUTPUT_IAQ:
           sample.accuracy = value.accuracy <= 3 ? value.accuracy : -1;
+          roomIaqAccuracy = value.accuracy <= 3 ? value.accuracy : 0;
           // Bosch's index, 0 to 500. The formatter prints null when unusable.
           sample.iaq = value.signal;
           break;
@@ -147,6 +153,84 @@ void applyAlarmLevel(int level) {
   sendAlarmReply(level);
 }
 
+// Prints the BSEC library version as major.minor.major_bugfix.minor_bugfix.
+// roomSensor.version is set by roomSensor.begin().
+void printBsecVersion() {
+  Serial.print(static_cast<unsigned>(roomSensor.version.major));
+  Serial.print('.');
+  Serial.print(static_cast<unsigned>(roomSensor.version.minor));
+  Serial.print('.');
+  Serial.print(static_cast<unsigned>(roomSensor.version.major_bugfix));
+  Serial.print('.');
+  Serial.print(static_cast<unsigned>(roomSensor.version.minor_bugfix));
+}
+
+// Asks the host for the saved BSEC state and waits up to
+// ROOM_BSEC_STATE_WAIT_MS for one BSEC_STATE line. ALARM lines are applied
+// during the wait. Call after setConfig and before updateSubscription, the
+// order of Bosch's example basic_config_state.ino. The wait reads through the
+// alarm reader's HostLineReader, so a line cut by the end of the wait goes on
+// in loop().
+void restoreBsecState() {
+  Serial.print("{\"type\":\"bsec_state_request\",\"bsec_version\":\"");
+  printBsecVersion();
+  Serial.println("\"}");
+  const uint32_t start = millis();
+  while (static_cast<uint32_t>(millis() - start) < ROOM_BSEC_STATE_WAIT_MS) {
+    unsigned used = 0;
+    while (used < ROOM_ALARM_MAX_BYTES_PER_PASS && Serial.available() > 0) {
+      const int c = Serial.read();
+      if (c < 0) break;
+      ++used;
+      const HostCommand command = roomAlarmReader.host.feed(static_cast<char>(c));
+      if (command.kind == ROOM_HOST_ALARM) {
+        applyAlarmLevel(command.level);
+      } else if (command.kind == ROOM_HOST_BSEC_NONE) {
+        return;
+      } else if (command.kind == ROOM_HOST_BSEC_STATE) {
+        // Bsec2::setState passes BSEC_MAX_STATE_BLOB_SIZE bytes to BSEC, so
+        // the bytes after the received state are zero.
+        static uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
+        memset(state, 0, sizeof(state));
+        memcpy(state, command.state, command.stateLength);
+        const bool ok = roomSensor.setState(state);
+        Serial.print("{\"type\":\"bsec_state_restored\",\"ok\":");
+        Serial.print(ok ? "true" : "false");
+        Serial.println("}");
+        return;
+      }
+    }
+    refreshAlarmOutputs();
+    delay(1);
+  }
+}
+
+// Sends the BSEC state to the host when bsecShouldSave allows it. Called from
+// loop(), outside the BSEC callback. Bsec2::getState does not report the
+// state length, so all BSEC_MAX_STATE_BLOB_SIZE bytes are sent.
+void saveBsecState() {
+  const uint32_t now = millis();
+  if (!bsecShouldSave(roomIaqAccuracy, roomStateSavedOnce, now, roomLastStateSaveMs,
+                      ROOM_BSEC_STATE_SAVE_MS)) return;
+  static uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
+  static char hex[2 * BSEC_MAX_STATE_BLOB_SIZE + 1];
+  if (!roomSensor.getState(state) ||
+      !formatStateHex(state, sizeof(state), hex, sizeof(hex))) {
+    // Tried again on the next pass; reportRoomError limits the error lines.
+    reportRoomError("bsec_state_save_failed");
+    return;
+  }
+  Serial.print("{\"type\":\"bsec_state\",\"accuracy\":");
+  Serial.print(static_cast<unsigned>(roomIaqAccuracy));
+  Serial.print(",\"bsec_version\":\"");
+  printBsecVersion();
+  Serial.print("\",\"state\":\"");
+  Serial.print(hex);
+  Serial.println("\"}");
+  roomStateSavedOnce = true;
+  roomLastStateSaveMs = now;
+}
+
 void setup() {
   roomLastCommandMs = millis();
   // Alarm outputs off before anything slow runs.
@@ -168,6 +252,7 @@ void setup() {
     reportRoomError(roomStartupError);
     return;
   }
+  restoreBsecState();
   bsecSensor requested[] = {
     BSEC_OUTPUT_RAW_TEMPERATURE, BSEC_OUTPUT_RAW_PRESSURE,
     BSEC_OUTPUT_RAW_HUMIDITY, BSEC_OUTPUT_RAW_GAS,
@@ -199,6 +284,7 @@ void loop() {
   if (!roomSensor.run()) {
     reportRoomError("bsec_measurement_failed");
   }
+  saveBsecState();
   if (millis() - roomLastMeasurementAt >= ROOM_NO_MEASUREMENT_MS) {
     reportRoomError("bsec_measurement_unavailable");
   }

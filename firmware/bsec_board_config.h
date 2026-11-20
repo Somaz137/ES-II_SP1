@@ -52,3 +52,12 @@ constexpr unsigned long ROOM_ALARM_LINK_TIMEOUT_MS = 30000;
 constexpr unsigned long ROOM_ALARM_BLINK_HALF_PERIOD_MS = 1000;
 static_assert(ROOM_ALARM_BLINK_HALF_PERIOD_MS > 0,
               "The blink half period divides the elapsed time; it must not be 0");
+
+// The board sends its BSEC state to the host at IAQ accuracy 3: once when it
+// first reaches 3 after start, then at this interval while it stays 3.
+// Bosch's standard interval, from Bosch's example basic_config_state.ino (STATE_SAVE_PERIOD, 360 minutes). User decision, 20 November 2026.
+constexpr unsigned long ROOM_BSEC_STATE_SAVE_MS = 360UL * 60UL * 1000UL;
+
+// At start the board asks the host for the saved BSEC state, then waits this
+// long for a BSEC_STATE line. With no reply it runs without a state.
+constexpr unsigned long ROOM_BSEC_STATE_WAIT_MS = 10000;
