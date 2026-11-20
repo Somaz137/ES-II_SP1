@@ -37,8 +37,8 @@ The user decided these pins. They are not checked against the physical board. Al
 |---|---|---|---|
 | BME680 SDA | GPIO8 | ROOM_I2C_SDA_PIN | |
 | BME680 SCL | GPIO9 | ROOM_I2C_SCL_PIN | |
-| Dust analog input (Vo through 2:1 divider) | GPIO4 | ROOM_DUST_ADC_PIN | ADC1 channel 3 |
-| Dust LED drive (NPN base through 1 kohm) | GPIO5 | ROOM_DUST_LED_PIN | HIGH turns the sensor LED on |
+| Dust analog input (Vo through 2:1 divider) | GPIO5 | ROOM_DUST_ADC_PIN | ADC1 channel 4 |
+| Dust LED drive (NPN base through 1 kohm) | GPIO4 | ROOM_DUST_LED_PIN | HIGH turns the sensor LED on |
 | Alarm LED (series resistor to ground) | GPIO6 | ROOM_ALARM_LED_PIN | HIGH lights the LED |
 | Buzzer module signal (3-pin module) | GPIO7 | ROOM_BUZZER_PIN | Polarity: ROOM_BUZZER_ACTIVE_HIGH |
 
@@ -180,7 +180,7 @@ Four days describes baseline history, not a required warm-up wait.
 - room_environment_safety_control_bme680.ino handles BSEC setup, callbacks, errors and the alarm outputs.
 - bsec_board_config.h contains the chip check, all board pins, the buzzer polarity, serial speed, supply selection, reporting intervals, the alarm read bound and the alarm link timeout and blink period.
 - bsec_serial_format.h converts scalar values and status fields to JSON.
-- sharp_dust.h runs experimental Sharp dust acquisition on GPIO5 (LED drive) and GPIO4 (analog input) and reports raw voltage records.
+- sharp_dust.h runs experimental Sharp dust acquisition on GPIO4 (LED drive) and GPIO5 (analog input) and reports raw voltage records.
 - sharp_dust_limits.h holds the pure dust sample rule: timing window, ADC limit 2750 mV and the 2:1 divider.
 - host_command.h reads host lines (`ALARM,<0|1|2>`, `BSEC_STATE,<hex>` of up to 238 bytes, `BSEC_STATE,NONE`) into a fixed 512-byte buffer, formats a BSEC state as hex and holds the state-save rule (accuracy 3, then once per period). Pure C++11, no Arduino dependency, no dynamic allocation.
 - alarm_command.h is the local alarm command core: line parser on top of host_command.h, level to LED and buzzer, link-lost check and LED blink, polarity helper, bounded serial pump and reply formatter. Pure C++11, no Arduino dependency, no dynamic allocation.

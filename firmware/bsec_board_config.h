@@ -11,8 +11,9 @@
 // Not yet checked against the physical board: see firmware/README.md.
 constexpr int ROOM_I2C_SDA_PIN = 8;
 constexpr int ROOM_I2C_SCL_PIN = 9;
-constexpr int ROOM_DUST_ADC_PIN = 4;    // ADC1 channel 3.
-constexpr int ROOM_DUST_LED_PIN = 5;    // HIGH turns on the external NPN sink.
+// The dust pins were swapped to match the user's wiring on 20 November 2026.
+constexpr int ROOM_DUST_ADC_PIN = 5;    // ADC1 channel 4.
+constexpr int ROOM_DUST_LED_PIN = 4;    // HIGH turns on the external NPN sink.
 constexpr int ROOM_ALARM_LED_PIN = 6;   // HIGH lights the LED (series resistor to ground).
 constexpr int ROOM_BUZZER_PIN = 7;      // Signal input of the 3-pin buzzer module.
 

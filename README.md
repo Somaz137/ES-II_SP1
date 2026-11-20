@@ -58,7 +58,7 @@ Do not repeat completed checks without a change, failure, or specific unresolved
 
 The board is an ESP32-S3 (QFN56, revision v0.2) with 16 MB quad flash and 8 MB embedded PSRAM, an N16R8-type module. esptool read these facts from the connected board on 17 November 2026. The documents assumed an N8R2 module (8 MB flash, 2 MB PSRAM) until then. The user selected the ESP32-S3 on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
 The board's USB port goes through a CH343 USB-UART bridge (USB 1a86:55d3). Linux names it `/dev/ttyACM0`.
-Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7.
+Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO5, dust LED drive GPIO4, alarm LED GPIO6, and buzzer module GPIO7.
 The firmware uses these pins. They are not checked against the physical board. The exact development board model is not identified.
 The user confirmed a 3.3 V sensor supply.
 The board header stores the pins, buzzer polarity, serial speed, supply selection, and reporting intervals.
@@ -142,7 +142,7 @@ python dashboard.py --online
 
 ## Sharp dust sensor
 
-The experimental GP2Y1010AU0F path adds independent dust voltage and status. A stale dust report raises a dust fault. The host converts the voltage to an estimated concentration in µg/m³ with Sharp's typical sensitivity and an automatic clean-air baseline (the lowest voltage in the last 24 hours, after 10 minutes of unbroken fresh records). The old `--dust-baseline-mv` and `--dust-sensitivity` options are removed. See [wiring, plan, calibration, and verification](docs/SHARP_DUST_INTEGRATION.md). Its wiring table uses the superseded DOIT pins. The decided ESP32-S3 dust pins are GPIO4 (analog input) and GPIO5 (LED drive). Firmware compilation and hardware timing remain pending.
+The experimental GP2Y1010AU0F path adds independent dust voltage and status. A stale dust report raises a dust fault. The host converts the voltage to an estimated concentration in µg/m³ with Sharp's typical sensitivity and an automatic clean-air baseline (the lowest voltage in the last 24 hours, after 10 minutes of unbroken fresh records). The old `--dust-baseline-mv` and `--dust-sensitivity` options are removed. See [wiring, plan, calibration, and verification](docs/SHARP_DUST_INTEGRATION.md). Its wiring table uses the superseded DOIT pins. The decided ESP32-S3 dust pins are GPIO5 (analog input) and GPIO4 (LED drive), swapped on 20 November 2026 to match the wiring. Firmware compilation and hardware timing remain pending.
 
 ## Local alarm
 
@@ -228,7 +228,7 @@ Firmware configuration commands and calibration-state storage remain future work
 
 ## Decisions (15 November 2026)
 
-- Board: ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. Implemented and compiled on 15 November; not checked on hardware.
+- Board: ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. Implemented and compiled on 15 November; not checked on hardware. Correction, 20 November 2026: the dust pins were swapped to match the wiring: dust analog input GPIO5, dust LED drive GPIO4.
 - Completion work builds on this branch. The dust sensor stays.
 - Primary dashboard viewer: a caregiver at a desk screen.
 - Notification: a local ESP32 buzzer and LED. Host side and sketch wiring implemented on 15 November; not checked on hardware. The buzzer sounds for limit alerts only (patient limits and the air-quality and dust system limits). System faults light the LED and show on the dashboard without sound.
