@@ -131,3 +131,19 @@ def test_alarm_reply_is_its_own_record_type(level):
 def test_malformed_alarm_reply_is_ignored(payload):
     result = parse_serial_line(json.dumps(payload))
     assert result.kind == "ignored" and result.alarm_level is None
+
+
+@pytest.mark.parametrize("line, kind", [
+    ('{"type":"bsec_state","accuracy":3,"bsec_version":"2.6.1.0","state":"' + "0f" * 238 + '"}',
+     "bsec_state"),
+    ('{"type":"bsec_state_request","bsec_version":"2.6.1.0"}', "bsec_state_request"),
+    ('{"type":"bsec_state_restored","ok":true}', "bsec_state_restored"),
+    ('{"type":"error","message":"bsec_state_save_failed","bsec_code":0,"sensor_code":0}',
+     "bsec_state_save_failed"),
+    ('{"type":"bsec_state","accuracy":3,"bsec_version":"2.6.1.0","state":"' + "0f" * 239 + '"}',
+     "ignored"),
+    ('{"type":"bsec_state","accuracy":3,"bsec_version":"2.6.1.0","state":"0g"}', "ignored"),
+])
+def test_bsec_state_lines_are_their_own_record_types(line, kind):
+    result = parse_serial_line(line)
+    assert result.kind == kind and result.measurements is None

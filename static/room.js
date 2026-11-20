@@ -342,9 +342,11 @@ function renderOverviewChart(v) {
 }
 
 const FAMILY = {limit: "Limit alert", communication: "Communication", sensor: "Sensor", alarm: "Alarm", profile: "Profile",
-  online: "Online access"};
-const FAMILY_TONE = {limit: "red", communication: "amber", sensor: "none", alarm: "red", profile: "none", online: "none"};
+  online: "Online access", calibration: "Bosch calibration"};
+const FAMILY_TONE = {limit: "red", communication: "amber", sensor: "none", alarm: "red", profile: "none", online: "none",
+  calibration: "none"};
 function family(event) {
+  if (event.kind.startsWith("bsec_state")) return "calibration";
   if (event.kind.startsWith("online")) return "online";
   if (event.kind.startsWith("limit")) return "limit";
   if (event.kind.startsWith("alarm")) return "alarm";
@@ -635,6 +637,13 @@ function renderSystem(v) {
   pathRow("alarm", known(a) ? alarm.tone : "none", known(a) ? alarm.chip : unknown,
     a.confirmation_age_s == null ? "—" : ago(a.confirmation_age_s),
     a.confirmed_level == null ? "No confirmation from the board" : `${ALARM_LEVEL[a.confirmed_level]}, confirmed by the board · level ${a.confirmed_level} of 2`);
+  // Wording from the server (dashboard.bsec_state_facts); the page adds the last board request.
+  const c = h.bsec_state;
+  const restore = c.last_restore_ok === true ? " · the board restored it" : c.last_restore_ok === false ? " · the board did not accept it" : "";
+  pathRow("bsec_state", !known(c) ? "none" : c.last_restore_ok === false ? "amber" : c.state === "saved" ? "green" : "none",
+    !known(c) ? unknown : c.state === "saved" ? "Saved" : c.state === "not_saved" ? "Not saved yet" : "Unknown",
+    c.saved_age_s == null ? "—" : ago(c.saved_age_s),
+    c.text + (c.last_reply_reason ? ` · last board request: ${c.last_reply_reason}` + restore : ""));
   const retained = current && status.measurement_current ? "" : status ? " (retained)" : "";
   const gas = status?.last_reading?.gas_ohms;
   $("gas_ohms").textContent = gas == null ? "—" : (gas / 1000).toFixed(1) + NB + "kΩ" + retained;

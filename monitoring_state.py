@@ -35,6 +35,35 @@ class AlarmReply(NamedTuple):
     received_at: float
 
 
+class BsecRequest(NamedTuple):
+    """The latest state request; count is the number of requests so far."""
+
+    count: int
+    bsec_version: str
+    received_at: float
+
+
+class BsecStateReport(NamedTuple):
+    """The latest state line from the board; count is the number so far."""
+
+    count: int
+    accuracy: int
+    bsec_version: str
+    state_hex: str
+    received_at: float
+
+
+class BsecRestored(NamedTuple):
+    count: int
+    ok: bool
+    received_at: float
+
+
+class BsecSaveFailed(NamedTuple):
+    count: int
+    received_at: float
+
+
 @dataclass(frozen=True)
 class MonitoringState:
     """Retain returned snapshots. Construct through create_monitoring_state()."""
@@ -45,6 +74,11 @@ class MonitoringState:
     gas: GasReadiness = field(default_factory=GasReadiness)
     dust: DustState = field(default_factory=DustState)
     alarm_reply: AlarmReply | None = None
+    # BSEC calibration state lines; the monitor answers and stores them.
+    bsec_request: BsecRequest | None = None
+    bsec_state: BsecStateReport | None = None
+    bsec_restored: BsecRestored | None = None
+    bsec_save_failed: BsecSaveFailed | None = None
 
 
 def create_monitoring_state(
@@ -137,6 +171,9 @@ def process_serial_line(
         # must not hide a stopped measurement stream. No reading or sensor effect.
         state = evaluate_monitoring_faults(state, now)
         return replace(state, alarm_reply=AlarmReply(parsed.alarm_level, now))
+    if parsed.kind.startswith("bsec_state"):
+        # Not communication contact, like alarm replies: no reading or sensor effect.
+        return record_bsec_line(evaluate_monitoring_faults(state, now), parsed, now)
 
     # Detect preceding silence before the message restores communication.
     communication = evaluate_communication_fault(state.communication, now)
@@ -157,3 +194,21 @@ def process_serial_line(
         state, communication=communication, sensor=sensor, reading=reading,
         gas=parsed.gas,
     )
+
+
+def record_bsec_line(state, parsed, now):
+    """Keep the latest BSEC line of each kind with a running count."""
+    def count(previous):
+        return 1 if previous is None else previous.count + 1
+
+    if parsed.kind == "bsec_state_request":
+        return replace(state, bsec_request=BsecRequest(
+            count(state.bsec_request), parsed.bsec_version, now))
+    if parsed.kind == "bsec_state":
+        return replace(state, bsec_state=BsecStateReport(
+            count(state.bsec_state), parsed.bsec_accuracy, parsed.bsec_version,
+            parsed.bsec_state_hex, now))
+    if parsed.kind == "bsec_state_restored":
+        return replace(state, bsec_restored=BsecRestored(
+            count(state.bsec_restored), parsed.restore_ok, now))
+    return replace(state, bsec_save_failed=BsecSaveFailed(count(state.bsec_save_failed), now))

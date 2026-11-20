@@ -9,6 +9,7 @@ import time
 from uuid import uuid4
 
 from alarm import AlarmTracker
+from bsec_state_store import BsecStateKeeper, state_path
 from room_store import DEFAULT_DB, DEMO_DB, RoomStore
 from room_session import RoomSession
 from simulated_input import SimulatedTransport
@@ -56,6 +57,8 @@ def main():
         system = load_system_settings(args.system)
         transport = SerialTransport(args.port, args.baud, runtime["serial_retry_interval_s"])
     store = RoomStore(args.db or (DEMO_DB if args.demo else DEFAULT_DB))
+    # The board's BSEC calibration state, kept next to the database.
+    bsec = BsecStateKeeper(state_path(store.path))
     timing = {key: runtime[key] for key in RUNTIME_DEFAULTS}
     timing["fault_check_interval_s"] = runtime["fault_check_interval_s"]
     session = RoomSession(store, demo=args.demo, timing=timing, system=system,
@@ -99,6 +102,9 @@ def main():
         occupancy = "occupied" if args.demo else camera.current(now) if camera else "unknown"
         record["occupancy_source"] = "simulated" if args.demo else "camera" if camera else "none"
         record["occupancy_observation_age_s"] = camera.observation_age(now) if camera else None
+        # Replies to BSEC state requests go out through the same send path as ALARM commands.
+        session.pending_events.extend(bsec.handle(state, now, time.time(), connection))
+        record["bsec_state"] = bsec.block()
         session.update(record, now, time.time(), occupancy,
                        alarm_reply=state.alarm_reply, transport=connection)
         print(json.dumps(record, allow_nan=False), flush=True)
