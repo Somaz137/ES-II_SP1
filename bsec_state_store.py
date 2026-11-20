@@ -85,6 +85,10 @@ def load_state(path):
             or not is_bsec_version(data.get("bsec_version")) or not is_accuracy(data.get("accuracy"))
             or not is_state_hex(data.get("state"))):
         raise DamagedStateFile("missing or invalid fields")
+    try:
+        iso_time(saved_at)
+    except (OverflowError, OSError, ValueError) as error:
+        raise DamagedStateFile("saved_at is not a time this computer can show") from error
     return {"saved_at": saved_at, "bsec_version": data["bsec_version"],
             "accuracy": data["accuracy"], "state": data["state"].lower()}
 

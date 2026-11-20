@@ -164,6 +164,9 @@ def test_reply_on_a_version_mismatch_is_none_naming_both_versions(tmp_path):
     json.dumps({"saved_at": 1, "bsec_version": VERSION, "accuracy": 3, "state": "zz" * 4}),
     json.dumps({"saved_at": 1, "bsec_version": VERSION, "accuracy": 3}),
     json.dumps({"saved_at": "x", "bsec_version": VERSION, "accuracy": 3, "state": FULL}),
+    json.dumps({"saved_at": 1e20, "bsec_version": VERSION, "accuracy": 3, "state": FULL}),
+    json.dumps({"saved_at": -1e20, "bsec_version": VERSION, "accuracy": 3, "state": FULL}),
+    json.dumps({"saved_at": 1e300, "bsec_version": VERSION, "accuracy": 3, "state": FULL}),
     json.dumps({"saved_at": 1, "bsec_version": 7, "accuracy": 3, "state": FULL}),
 ])
 def test_reply_for_a_damaged_file_is_none(tmp_path, content):
@@ -387,3 +390,34 @@ def test_system_page_has_the_bosch_calibration_row(app_store):
     assert 'id="path-bsec_state"' in page and "Bosch calibration" in page
     script = (Path(__file__).resolve().parents[1] / "static/room.js").read_text(encoding="utf-8")
     assert 'pathRow("bsec_state"' in script
+
+
+# ---------- a saved_at time that no clock can show ----------
+
+@pytest.mark.parametrize("saved_at", [1e20, -1e20, 1e300])
+def test_an_impossible_saved_at_is_damaged_at_start_and_on_request(tmp_path, saved_at):
+    (tmp_path / "room.bsec_state.json").write_text(json.dumps(
+        {"saved_at": saved_at, "bsec_version": VERSION, "accuracy": 3, "state": FULL}),
+        encoding="utf-8")
+    transport = FakeTransport([[request_line()]])
+    _, events, blocks = run(tmp_path, transport)
+    assert blocks[0]["saved_at"] is None and blocks[0]["accuracy"] is None
+    assert transport.sent == ["BSEC_STATE,NONE\n"]
+    assert kinds(events) == ["bsec_state_not_sent"] and "file damaged" in events[0][1]
+
+
+@pytest.mark.parametrize("saved_at", [1e20, -1e20, 1e300])
+def test_dashboard_api_survives_an_impossible_saved_at(app_store, tmp_path, saved_at):
+    client, store = app_store
+    path = tmp_path / "other.bsec_state.json"
+    path.write_text(json.dumps({"saved_at": saved_at, "bsec_version": VERSION, "accuracy": 3,
+                                "state": FULL}), encoding="utf-8")
+    store.write("status", {"updated_at": time.time(), "bsec_state": BsecStateKeeper(path).block()})
+    response = client.get("/api/room")
+    assert response.status_code == 200
+    assert response.json["health"]["bsec_state"]["text"] == "Bosch calibration not saved yet"
+    # A status block written by anything else with such a time does not break the API either.
+    store.write("status", {"updated_at": time.time(), "bsec_state": {**BLOCK, "saved_at": saved_at}})
+    response = client.get("/api/room")
+    assert response.status_code == 200
+    assert response.json["health"]["bsec_state"]["state"] == "not_saved"

@@ -159,19 +159,28 @@ def aged(value, extra):
     return None if value is None else value + extra
 
 
+def bsec_saved_stamp(saved_at):
+    """Local "YYYY-MM-DD HH:MM" of a saved_at time, or None when it is not a usable time."""
+    if not isinstance(saved_at, (int, float)) or isinstance(saved_at, bool):
+        return None
+    try:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(saved_at))
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
 def bsec_state_word(block):
     if not block:
         return "unknown"
-    saved_at = block.get("saved_at")
-    return "saved" if isinstance(saved_at, (int, float)) and not isinstance(saved_at, bool) else "not_saved"
+    return "saved" if bsec_saved_stamp(block.get("saved_at")) is not None else "not_saved"
 
 
 def bsec_state_facts(block, now):
     """The monitor's bsec_state block, its age and the System page wording."""
     saved_at, accuracy = block.get("saved_at"), block.get("accuracy")
-    saved = bsec_state_word(block) == "saved"
+    stamp = bsec_saved_stamp(saved_at) if block else None
+    saved = stamp is not None
     if saved:
-        stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(saved_at))
         text = f"Bosch calibration saved: {stamp}, accuracy {accuracy}"
     else:
         text = "Bosch calibration not saved yet" if block else "Bosch calibration unknown"
