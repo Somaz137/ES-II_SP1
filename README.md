@@ -142,7 +142,7 @@ python dashboard.py --online
 
 ## Sharp dust sensor
 
-The experimental GP2Y1010AU0F path adds independent dust voltage and status. A stale dust report raises a dust fault. The host converts the voltage to an estimated concentration in µg/m³ with Sharp's typical sensitivity and an automatic clean-air baseline (the lowest voltage in the last 24 hours, after 10 minutes of unbroken fresh records). The old `--dust-baseline-mv` and `--dust-sensitivity` options are removed. See [wiring, plan, calibration, and verification](docs/SHARP_DUST_INTEGRATION.md). Its wiring table uses the superseded DOIT pins. The decided ESP32-S3 dust pins are GPIO5 (analog input) and GPIO4 (LED drive), swapped on 20 November 2026 to match the wiring. Firmware compilation and hardware timing remain pending.
+The experimental GP2Y1010AU0F path adds independent dust voltage and status. A stale dust report raises a dust fault. The host converts the voltage to an estimated concentration in µg/m³ with Sharp's typical sensitivity and an automatic clean-air baseline (the lowest voltage in the last 24 hours, after 10 minutes of unbroken fresh records). The old `--dust-baseline-mv` and `--dust-sensitivity` options are removed. See [wiring, plan, calibration, and verification](docs/SHARP_DUST_INTEGRATION.md). The decided ESP32-S3 dust pins are GPIO5 (analog input) and GPIO4 (LED drive), swapped on 20 November 2026 to match the wiring. Firmware compilation and hardware timing remain pending.
 
 ## Local alarm
 
