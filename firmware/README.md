@@ -31,7 +31,7 @@ Check this setting again if you change the sensor breakout.
 
 ## Wiring (ESP32-S3)
 
-The user decided these pins. They are not checked against the physical board. All are named constants in bsec_board_config.h.
+The user decided these pins. They are not checked against the physical board. On 20 November 2026 the user decided that no external alarm LED and no buzzer are connected; the onboard RGB LED is the alarm LED. All are named constants in bsec_board_config.h.
 
 | Function | GPIO | Constant | Note |
 |---|---|---|---|
@@ -39,11 +39,13 @@ The user decided these pins. They are not checked against the physical board. Al
 | BME680 SCL | GPIO9 | ROOM_I2C_SCL_PIN | |
 | Dust analog input (Vo through 2:1 divider) | GPIO5 | ROOM_DUST_ADC_PIN | ADC1 channel 4 |
 | Dust LED drive (NPN base through 1 kohm) | GPIO4 | ROOM_DUST_LED_PIN | HIGH turns the sensor LED on |
-| Alarm LED (series resistor to ground) | GPIO6 | ROOM_ALARM_LED_PIN | HIGH lights the LED |
-| Buzzer module signal (3-pin module) | GPIO7 | ROOM_BUZZER_PIN | Polarity: ROOM_BUZZER_ACTIVE_HIGH |
+| Alarm LED (onboard RGB LED, `LED_BUILTIN`) | GPIO48 by default | ROOM_ALARM_LED_PIN | HIGH lights it white through the core's RGB LED support. Not checked on the board |
+| Buzzer module signal (3-pin module) | GPIO7 | ROOM_BUZZER_PIN | No buzzer connected now (20 November 2026). Polarity: ROOM_BUZZER_ACTIVE_HIGH |
 
 Connect all grounds together. Use the breakout documentation to identify the BME680 power terminal.
 The dust circuit is in [SHARP_DUST_INTEGRATION.md](../docs/SHARP_DUST_INTEGRATION.md).
+
+The alarm LED is `LED_BUILTIN` from the esp32 core's ESP32-S3 variant. In core 3.3.12, `digitalWrite` on this pin sends white at `RGB_BRIGHTNESS` (64) for HIGH and off for LOW to the addressable RGB LED on GPIO48. Some ESP32-S3 DevKitC-1 v1.1 boards have the RGB LED on GPIO38, and some clone boards need the "RGB" solder pad closed. Check this on the board.
 
 `ROOM_BUZZER_ACTIVE_HIGH` defaults to `true`: HIGH sounds the buzzer. The module's trigger level is not verified. Many 3-pin modules trigger on LOW. If the buzzer sounds right after power-on (level 0), the polarity is wrong: set the constant to `false` and rebuild.
 
@@ -82,11 +84,11 @@ The board was flashed on 17 November 2026 with nothing wired to it. The serial l
 Before wiring the board:
 
 1. Identify the exact ESP32-S3 board and get its pinout and schematic.
-2. Check that GPIO4 to GPIO9 are broken out and free on this board. Check that GPIO6 and GPIO7 are not used by an on-board RGB LED, button or other part.
+2. Check that GPIO4, GPIO5, GPIO7, GPIO8 and GPIO9 are broken out and free on this board. Check that GPIO7 is not used by a button or other on-board part. Check that the onboard RGB LED is on GPIO48 (not GPIO38) and that it lights without closing an "RGB" solder pad.
 3. Check that no wire goes to a strapping pin (GPIO0, GPIO3, GPIO45, GPIO46). Check that nothing pulls these pins at reset.
 4. Done on 17 November 2026: the laptop uses the CH343 USB-UART bridge (USB 1a86:55d3), Linux port `/dev/ttyACM0`, `CDCOnBoot=default`.
-5. Check the alarm LED series resistor value and that the LED current is within the GPIO limit.
-6. Read the buzzer module's markings or documentation for its trigger level and supply voltage. Set `ROOM_BUZZER_ACTIVE_HIGH` to match. Check that the module's signal input is safe at 3.3 V.
+5. No external alarm LED is connected (20 November 2026), so there is no LED resistor to check. After flashing, check that `ALARM,1` lights the onboard RGB LED white and `ALARM,0` turns it off.
+6. No buzzer is connected now (20 November 2026). When one is connected, read the buzzer module's markings or documentation for its trigger level and supply voltage. Set `ROOM_BUZZER_ACTIVE_HIGH` to match. Check that the module's signal input is safe at 3.3 V.
 7. Check the BME680 breakout supply (3.3 V) and its I2C address pin (0x76 or 0x77).
 8. Measure the dust divider with a meter. Check that the ADC pin never sees more than about 3.1 V.
 9. Dust disconnect: the host applies a floor rule (decided and implemented on the host on 20 November 2026). A dust voltage below `dust.disconnected_below_mv` (default 100 mV, sensor side), a 0 mV reading, or the board's `dust_input_at_zero` report all count as "no reading". After `sensor_error_timeout_s` (120 s) with no reading at or above the floor, the dust status is `not_connected` and the dust fault is on. Not yet checked on the bench: with the 2:1 divider wired and no sensor, confirm that the input reads below 100 mV (on 17 November, with nothing wired, the floating input read about 870 to 930 mV) and that a connected sensor reads above it.
@@ -192,6 +194,7 @@ Four days describes baseline history, not a required warm-up wait.
 - Completed: compilation for the ESP32-S3 with `CDCOnBoot=default` and `CDCOnBoot=cdc`, `--warnings all`, no warnings (15 November, 8 MB options).
 - Completed on 17 November 2026: compilation with the 16 MB options above, no warnings, and upload to the board with every hash verified.
 - Completed on 20 November 2026: the three host tests above with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391518 bytes flash, 28752 bytes global RAM). No upload.
+- Completed on 20 November 2026, after the alarm LED moved to the onboard RGB LED (`LED_BUILTIN`): all four host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391890 bytes flash, 29232 bytes global RAM). No upload.
 - Completed on 17 November 2026, without sensors: clean boot, `bsec_initialization_failed` (`sensor_code` -2) every 3 s with no BME680, matching alarm replies, and a 60 s `monitor.py` run with the alarm confirmed at level 0.
 - Completed: a build for `esp32:esp32:esp32doit-devkit-v1` fails with the chip-check message.
 - Pending: the rest of the hardware checklist, including the LED and buzzer outputs, BME680 readings and the `iaq` field, and dust readings.

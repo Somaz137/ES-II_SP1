@@ -14,7 +14,13 @@ constexpr int ROOM_I2C_SCL_PIN = 9;
 // The dust pins were swapped to match the user's wiring on 20 November 2026.
 constexpr int ROOM_DUST_ADC_PIN = 5;    // ADC1 channel 4.
 constexpr int ROOM_DUST_LED_PIN = 4;    // HIGH turns on the external NPN sink.
-constexpr int ROOM_ALARM_LED_PIN = 6;   // HIGH lights the LED (series resistor to ground).
+// Alarm LED: the onboard RGB LED (user decision, 20 November 2026; no external LED).
+// LED_BUILTIN is GPIO48 on the default ESP32-S3 variant. digitalWrite HIGH lights it
+// white and LOW turns it off, through the core's RGB LED support.
+// Not checked on the board: some ESP32-S3 DevKitC-1 v1.1 boards have the RGB LED on
+// GPIO38, and some clone boards need the "RGB" solder pad closed.
+constexpr int ROOM_ALARM_LED_PIN = LED_BUILTIN;
+// No buzzer is connected at present (20 November 2026), so GPIO7 drives nothing.
 constexpr int ROOM_BUZZER_PIN = 7;      // Signal input of the 3-pin buzzer module.
 
 // Buzzer module trigger level. UNVERIFIED: the module may be active high or

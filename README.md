@@ -58,7 +58,7 @@ Do not repeat completed checks without a change, failure, or specific unresolved
 
 The board is an ESP32-S3 (QFN56, revision v0.2) with 16 MB quad flash and 8 MB embedded PSRAM, an N16R8-type module. esptool read these facts from the connected board on 17 November 2026. The documents assumed an N8R2 module (8 MB flash, 2 MB PSRAM) until then. The user selected the ESP32-S3 on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
 The board's USB port goes through a CH343 USB-UART bridge (USB 1a86:55d3). Linux names it `/dev/ttyACM0`.
-Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO5, dust LED drive GPIO4, alarm LED GPIO6, and buzzer module GPIO7.
+Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO5, dust LED drive GPIO4, and buzzer module GPIO7. The alarm LED is the onboard RGB LED (GPIO48 by default, not checked on the board). No buzzer is connected now, so GPIO7 drives nothing.
 The firmware uses these pins. They are not checked against the physical board. The exact development board model is not identified.
 The user confirmed a 3.3 V sensor supply.
 The board header stores the pins, buzzer polarity, serial speed, supply selection, and reporting intervals.
@@ -154,7 +154,7 @@ The host commands a local alarm on the ESP32 over the serial link: `ALARM,0` (of
 
 The host sends on every change and again at each fault check, so a board reset is corrected. The dashboard shows the alarm as confirmed, pending, or unreachable (port not connected, write failed, or no reply within `alarm_confirm_timeout_s`, default 2 seconds). "Silence alarm" stops the buzzer for the limit alerts shown. The LED stays on. The monitor applies the silence at its next fault check and logs it. A new limit alert sounds again. Alarm failures never delay readings, fault checks or the status.
 
-The sketch reads commands without blocking, at most 64 bytes per loop pass, drives GPIO6 (LED) and GPIO7 (buzzer module) with a steady level, and replies after each command and once at start-up. The buzzer polarity is one constant, `ROOM_BUZZER_ACTIVE_HIGH`, default active high, not verified. In the demo the simulated board echoes each command. No LED or buzzer has been driven.
+The sketch reads commands without blocking, at most 64 bytes per loop pass, drives the alarm LED, which is the onboard RGB LED (GPIO48 by default, not checked on the board), and GPIO7 (buzzer module) with a steady level, and replies after each command and once at start-up. The buzzer polarity is one constant, `ROOM_BUZZER_ACTIVE_HIGH`, default active high, not verified. No buzzer is connected now (20 November 2026). In the demo the simulated board echoes each command. No LED or buzzer has been driven.
 
 Link-lost fallback: when the board gets no valid `ALARM` command for 30 s, the LED blinks, 1 s on and 1 s off. The buzzer keeps its last commanded state. Only a valid command resets the timer, and the next one ends the blink. The host normally sends a command every 5 s. Implemented and compiled on 20 November 2026; not checked on hardware.
 
@@ -221,19 +221,19 @@ Firmware configuration commands and calibration-state storage remain future work
 - The occupancy detector is OpenCV's default people detector, trained on upright pedestrians. It can miss seated, lying, or occluded people. Unknown occupancy suppresses patient-limit alerts. It has not been checked with a camera.
 - In serial mode without `--camera`, occupancy is always unknown, so patient-limit alerts never start.
 - Readings older than 7 days are deleted hourly. Events are never deleted. The event list shows the latest 50 events and pages to older ones.
-- The independent notification path is a local LED and buzzer on the ESP32, commanded by the host over USB. The sketch drives GPIO6 and GPIO7. Pins and buzzer polarity are not checked on hardware.
+- The independent notification path is a local LED and buzzer on the ESP32, commanded by the host over USB. The sketch drives the onboard RGB LED (GPIO48 by default) as the alarm LED and GPIO7 for the buzzer. No buzzer is connected now. Pins and buzzer polarity are not checked on hardware.
 - When the USB link is down the host cannot command the LED or buzzer. The dashboard then shows the alarm as unreachable. After 30 s without a valid command the board blinks the LED and keeps the buzzer in its last state (implemented and compiled, not checked on hardware).
 - The dust estimate uses a typical sensitivity and an automatic baseline. It is not PM2.5, an official index, or a calibrated concentration. It is not checked against a reference instrument.
 - The air-quality index is Bosch's estimate. It is not a gas concentration and is not checked against a reference.
 
 ## Decisions (15 November 2026)
 
-- Board: ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. Implemented and compiled on 15 November; not checked on hardware. Correction, 20 November 2026: the dust pins were swapped to match the wiring: dust analog input GPIO5, dust LED drive GPIO4.
+- Board: ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. Implemented and compiled on 15 November; not checked on hardware. Correction, 20 November 2026: the dust pins were swapped to match the wiring: dust analog input GPIO5, dust LED drive GPIO4. Correction, 20 November 2026: the alarm LED is now the onboard RGB LED (GPIO48 by default, not checked on the board), not GPIO6.
 - Completion work builds on this branch. The dust sensor stays.
 - Primary dashboard viewer: a caregiver at a desk screen.
 - Notification: a local ESP32 buzzer and LED. Host side and sketch wiring implemented on 15 November; not checked on hardware. The buzzer sounds for limit alerts only (patient limits and the air-quality and dust system limits). System faults light the LED and show on the dashboard without sound.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
-- Buzzer part: a 3-pin buzzer module driven from one GPIO (GPIO7 on the ESP32-S3). The alarm LED uses GPIO6.
+- Buzzer part: a 3-pin buzzer module driven from one GPIO (GPIO7 on the ESP32-S3). The alarm LED uses GPIO6. Correction, 20 November 2026: no external alarm LED and no buzzer are connected. The alarm LED is the onboard RGB LED (GPIO48 by default, not checked on the board). GPIO7 drives nothing for now.
 - Raw readings will be kept for 7 days. Event history is kept regardless. Implemented on 15 November.
 - The dashboard will be redesigned. The current page is a first draft. Implemented on this branch: five pages (Overview, Trends, Events, Patient limits, System), checked with the simulator and screenshots, not on hardware.
 - Air quality is shown as Bosch's index and dust as an estimated concentration, both with words; their limits are system setup; the profile has a short label. Implemented on 15 November with tests and the simulator only. This replaces the earlier raw-signals-only rule.
@@ -244,7 +244,7 @@ Firmware configuration commands and calibration-state storage remain future work
 2. Obtain the hardware and complete physical BME680, dust, and USB checks.
 3. Check camera capture and the occupancy detector with seated, lying, and occluded people.
 4. Agree on real patient limits for any demonstration.
-5. Check the local alarm on the real board: GPIO6 and GPIO7 free, buzzer polarity and whether it needs a tone, LED resistor, replies, and the link-lost LED blink. The host side, the sketch wiring and the "Silence alarm" control exist.
+5. Check the local alarm on the real board: that the onboard RGB LED lights white on GPIO48 (some boards use GPIO38 or need the "RGB" solder pad closed), GPIO7 free, buzzer polarity once a buzzer is connected and whether it needs a tone, replies, and the link-lost LED blink. The host side, the sketch wiring and the "Silence alarm" control exist.
 6. Check the five-page dashboard with the real board and sensors. It is checked only with the simulator and screenshots.
 7. Decide whether to save the BSEC calibration state across power loss, and check the Bosch word bands and the Sharp sensitivity against the datasheets.
 8. Demonstrate the complete system with actual hardware.

@@ -29,7 +29,8 @@ The project supplies no patient limits. The demo example limit applies only to t
 
 The prototype uses one room, one ESP32-S3 board, one BME680, one Sharp dust sensor, and one camera.
 The board is an ESP32-S3 with 16 MB flash and 8 MB embedded PSRAM, an N16R8-type module. esptool read these facts from the connected board on 17 November 2026. The documents assumed an N8R2 module until then. The user selected the ESP32-S3 on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
-The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO5, dust LED drive GPIO4, alarm LED GPIO6, and buzzer module GPIO7.
+The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO5, dust LED drive GPIO4, and buzzer module GPIO7.
+The alarm LED is the onboard RGB LED (GPIO48 by default, not checked on the board). No buzzer is connected now, so GPIO7 drives nothing.
 The firmware uses these pins. They are not checked against the physical board. The exact development board model is not identified.
 The user confirmed a 3.3 V sensor supply.
 The firmware configuration uses that value.
@@ -49,7 +50,7 @@ The project does not yet define those control functions.
 | Laptop | Runs the monitor, rules, storage, and dashboard | Implemented in software. Verified by tests and the simulator. |
 | Camera | Supplies frames for occupancy detection | OpenCV people detector implemented. Not checked with a camera. |
 | Dashboard | Shows room status, trends, events, limits and the local alarm state, and accepts communication acknowledgments and alarm silence requests | Five pages implemented: Overview, Trends, Events, Patient limits and System. Checked with the simulator and screenshots, not on hardware. |
-| Local alarm | Buzzer and LED on the ESP32 | Host side and sketch implemented. Checked with the simulator, host C++ tests and a compilation. Alarm LED GPIO6, buzzer GPIO7, buzzer polarity and pins not checked on the board. |
+| Local alarm | Buzzer and LED on the ESP32 | Host side and sketch implemented. Checked with the simulator, host C++ tests and a compilation. Alarm LED: the onboard RGB LED (GPIO48 by default, not checked on the board). Buzzer GPIO7: no buzzer is connected now. Buzzer polarity and pins not checked on the board. |
 
 The laptop performs the main project logic.
 The ESP32 provides the connection to the environmental sensor.
@@ -347,7 +348,7 @@ The test filenames remain unchanged so their original test cases are easy to tra
 - The occupancy detector can miss seated, lying, or occluded people. Unknown occupancy suppresses patient-limit alerts.
 - Raw readings older than 7 days are deleted. Events are never deleted. The dashboard shows the latest 50 events and pages to older ones.
 - Timing settings apply at monitor startup. The dashboard uses the values in the latest monitor status.
-- The sketch drives the alarm LED on GPIO6 and the buzzer module on GPIO7 with a steady level. Pins and buzzer polarity are not checked on hardware. The polarity default is active high.
+- The sketch drives the alarm LED, which is the onboard RGB LED (GPIO48 by default, not checked on the board), and the buzzer module on GPIO7 with a steady level. No buzzer is connected now. Pins and buzzer polarity are not checked on hardware. The polarity default is active high.
 - When the USB link is down the host cannot command the LED or buzzer. The dashboard then shows the alarm as unreachable. A firmware fallback is an open decision.
 - The dust value is an estimate with a typical sensitivity and an automatic baseline. It is not PM2.5, an official index, or a calibrated concentration.
 - The air-quality index is a Bosch estimate. Its word bands are not checked against the Bosch datasheet.
@@ -357,13 +358,13 @@ The test filenames remain unchanged so their original test cases are easy to tra
 
 These decisions are not implemented, except where an entry says so.
 
-- The board is an ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. The firmware uses them and compiles (15 November). They are not checked on hardware. Correction, 20 November 2026: the dust pins were swapped to match the wiring: dust analog input GPIO5, dust LED drive GPIO4.
+- The board is an ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. The firmware uses them and compiles (15 November). They are not checked on hardware. Correction, 20 November 2026: the dust pins were swapped to match the wiring: dust analog input GPIO5, dust LED drive GPIO4. Correction, 20 November 2026: the alarm LED is now the onboard RGB LED (GPIO48 by default, not checked on the board), not GPIO6.
 - Completion work builds on the current branch. The dust sensor stays.
 - The primary dashboard viewer is a caregiver at a desk screen.
 - The notification channel is a local alarm on the ESP32: a buzzer and an LED. The host side, the "Silence alarm" control and the sketch wiring were implemented on 15 November.
 - The buzzer sounds for limit alerts only: patient limits, and the air-quality and dust system limits. System faults light the LED and show on the dashboard without sound.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
-- The buzzer is a 3-pin buzzer module driven from one GPIO.
+- The buzzer is a 3-pin buzzer module driven from one GPIO. Correction, 20 November 2026: no external alarm LED and no buzzer are connected. The alarm LED is the onboard RGB LED (GPIO48 by default, not checked on the board). GPIO7 drives nothing for now.
 - Raw readings will be kept for 7 days. Event history is kept regardless. Implemented on 15 November.
 - The dashboard will be redesigned. The current page is a first draft. Implemented on this branch: five pages (Overview, Trends, Events, Patient limits, System), checked with the simulator and screenshots, not on hardware.
 - Air quality is Bosch's BSEC index and dust is an estimated concentration, both with words and an "estimate" label. Their limits are system setup. The profile has a short label. This replaces the raw-signals-only rule. Implemented on 15 November; tests and simulator only.
@@ -377,7 +378,7 @@ These decisions are not implemented, except where an entry says so.
 5. Check physical USB reconnection, sensor failures, units, and actual BSEC status transitions.
 6. Check dust timing with an oscilloscope and measure a clean-air baseline.
 7. Check the camera and the occupancy detector with seated, lying, and occluded people.
-8. Check the local alarm on the real board: the LED, the buzzer polarity, and that GPIO6 and GPIO7 are free.
+8. Check the local alarm on the real board: that the onboard RGB LED lights white on GPIO48 (some boards use GPIO38 or need the "RGB" solder pad closed), that GPIO7 is free, and the buzzer polarity once a buzzer is connected.
 9. Check the five-page dashboard with the real board and sensors. It is checked only with the simulator and screenshots.
 10. Demonstrate normal operation, faults, and recovery with actual hardware.
 11. Decide how to detect a disconnected dust sensor. With no dust sensor attached, the dust input reads about 870 to 930 mV and is accepted as a fresh dust record, most likely because the ADC pin floats. A disconnected dust sensor cannot currently be told apart from a working one. Candidate fixes: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. The user will choose when wiring.
