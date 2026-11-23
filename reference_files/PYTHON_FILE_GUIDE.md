@@ -1,37 +1,39 @@
 # Python file guide
 
 This guide explains the current files in simple terms.
-The main folder contains nineteen application Python files.
-The project also contains two Python tools and eighteen Python test files.
-The total is thirty-nine Python files.
+The main folder contains twenty-two application Python files.
+The project also contains two Python tools and twenty-three Python test files.
+The total is forty-seven Python files (counted on 23 November 2026, branch `feature/bsec-state`).
 The six newest application files and three newest test files are on branch `feature/sharp-dust-integration`.
 They are verified only with automated tests and the simulator.
 The local alarm added `alarm.py`, `tests/test_alarm.py` and `tests/test_alarm_link.py` on branch `feature/local-alarm`. It is also verified only with tests and the simulator.
 The air-quality and dust-estimate step added `air_quality.py`, `tests/test_air_quality.py` and `tests/test_system_limits.py` on branch `feature/air-quality-dust-label`. It is verified only with tests and the simulator.
+The BSEC state save added `bsec_state_store.py` and `tests/test_bsec_state.py` on branch `feature/bsec-state` (20 November 2026). It is verified with tests and the simulator. The firmware side is compiled and host-tested, not checked on hardware.
 
 ## Application files
 
 | File | Purpose |
 |---|---|
-| `monitor.py` | Starts the program with a serial port or `--demo`. Reads command options, loads settings, and starts monitoring. Connects storage, patient rules, the camera, dashboard acknowledgment and silence requests, and the local alarm. |
+| `monitor.py` | Starts the program with a serial port or `--demo`. Reads command options, loads settings, and starts monitoring. Connects storage, patient rules, the camera, dashboard acknowledgment and silence requests, the local alarm, and the BSEC state keeper (`bsec_state_store.py`), which answers the board's state requests through the same send path as alarm commands. |
 | `settings.py` | Reads the three YAML settings files. Rejects missing or invalid settings and unworkable timing combinations. Holds the timing defaults, the system defaults and the demonstration system values. Imports PyYAML only when it reads a file. |
 | `serial_transport.py` | Opens the selected serial port. Collects complete lines and retries the connection after errors. Sends alarm commands with a write limited to about 20 ms; a failed send is reported, never raised. |
-| `serial_parser.py` | Reads each text message. Identifies a valid reading, sensor error, incomplete reading, alarm reply, or ignored message. |
+| `serial_parser.py` | Reads each text message. Identifies a valid reading, sensor error, incomplete reading, alarm reply, BSEC state line (`bsec_state`, `bsec_state_request`, `bsec_state_restored`), the board's `bsec_state_save_failed` error, or ignored message. The `bsec_state_save_failed` error is its own kind, not a sensor error. |
 | `measurements.py` | Checks the four measurement values. Retains the last complete reading, its receipt time, and the latest input condition. |
 | `communication_fault.py` | Tracks messages from the ESP32. Raises an alert when communication stops and handles acknowledgment. |
 | `sensor_fault.py` | Tracks repeated measurement errors. Raises a sensor alert after the waiting period and clears it after a valid reading. |
 | `gas_readiness.py` | Checks the Bosch status fields. Reports gas warm-up and calibration status. Keeps the reported Bosch air-quality index, 0 to 500, or none. |
 | `air_quality.py` | Decides whether the Bosch index is current, calibrating or unavailable (current from accuracy 2), and picks its display word. |
-| `monitoring_state.py` | Keeps the reading, fault states, and gas status together. Applies each message to the correct parts. Keeps the board's latest alarm reply, which is not a reading and not communication contact. |
+| `monitoring_state.py` | Keeps the reading, fault states, and gas status together. Applies each message to the correct parts. Keeps the board's latest alarm reply, which is not a reading and not communication contact. Keeps the latest BSEC state line of each kind with a running count; these lines are not communication contact either. |
 | `monitoring_loop.py` | Repeats serial reads and fault checks. Continues checking faults when no messages arrive. |
 | `status_output.py` | Prepares the status report. Includes measurements, reading age, receipt time, connection state, alerts, gas status, and dust status. |
 | `dust.py` | Reads Sharp dust records. Reports dust voltage, age, and status. Tracks the clean-air baseline (lowest recent voltage) and calculates the dust estimate. |
 | `room_store.py` | Stores status, readings, and events in SQLite. Loads, checks, and saves the patient profile file, including its optional short label. |
 | `room_session.py` | Applies patient limits and the sustained duration, and the air-quality and dust system limits with their own hold times. Requires occupied status and a fresh reading. Publishes the air-quality and dust-estimate states. Logs alert, fault and profile-change events. Runs the local alarm after the limit state is built and logs silence and alarm reachability events. |
 | `alarm.py` | Decides the local alarm level (0 off, 1 LED, 2 LED and buzzer), applies silence to the limit alerts shown, and tracks whether the board confirmed the level. Has no I/O. |
+| `bsec_state_store.py` | Keeps the board's Bosch BSEC calibration state in `<database name>.bsec_state.json` next to the database. Writes a temporary file and renames it. Answers each board request with one line: `BSEC_STATE,<hex>` when the file exists and the BSEC version matches, otherwise `BSEC_STATE,NONE` with the reason (no saved state, version mismatch, file damaged). Reports saves, replies and restore results as events and a status block for the System page. |
 | `occupancy.py` | Checks one camera frame every 60 seconds with OpenCV's default people detector. Saves no frames. |
-| `simulated_input.py` | Produces simulated BME680 records with a Bosch index (calibrating at start, then a scripted episode) and dust records with a scripted episode for `--demo` and echoes alarm commands like the board would. Tests can make it silent or failing. It is not a hardware driver. |
-| `dashboard.py` | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits, acknowledgment requests, and alarm silence requests. Reports alarm health. With `--online` also serves the view-only online origin (sign-in, CSRF, protective headers) and starts the tunnel; `--set-password` writes the online password hash. |
+| `simulated_input.py` | Produces simulated BME680 records with a Bosch index (calibrating at start, then a scripted episode) and dust records with a scripted episode for `--demo` and echoes alarm commands like the board would. Like the firmware it asks for the BSEC state at start, confirms a `BSEC_STATE,<hex>` reply, and sends one stand-in state line (not a real Bosch state) after 60 s. Tests can make it silent or failing. It is not a hardware driver. |
+| `dashboard.py` | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits, acknowledgment requests, and alarm silence requests. Reports alarm health and the Bosch calibration row (saved time and accuracy, or not saved yet, and the last request result). With `--online` also serves the view-only online origin (sign-in, CSRF, protective headers) and starts the tunnel; `--set-password` writes the online password hash. |
 | `online_auth.py` | Writes and reads the git-ignored online password file (werkzeug hash and session key), limits failed sign-ins in memory, and makes and compares CSRF tokens. |
 | `online_tunnel.py` | Starts `cloudflared` without a shell, reads the quick-tunnel link from its output, reports off, starting, active or failed, restarts it at most twice, and stops it on exit. |
 
@@ -82,6 +84,7 @@ Closing the dashboard does not stop monitoring.
 | `tests/test_online_tunnel.py` | Checks link parsing from sample cloudflared output, state changes with a fake process, the missing program, bounded restarts and stop. |
 | `tests/test_online_dashboard.py` | Checks that the online origin allows reading, refuses controls without sign-in or with a bad CSRF token, sends its headers, locks controls with words, rate-limits sign-in and shows no secret; and that the local origin is unchanged. |
 | `tests/test_alarm.py` | Checks alarm levels, command timing, confirmation, timeout, failed sends, reconnect, silence, and events. |
+| `tests/test_bsec_state.py` | Checks the BSEC state lines in the parser, that they do not reset the communication timer, the file write and rename, missing, damaged and mismatched files, one reply per request, the logged events, the simulated board, the System page row, and an impossible `saved_at` time. |
 | `tests/test_alarm_link.py` | Checks the simulated board and the alarm through the session and the monitor loop. Shows that failing, silent and raising transports change no reading, fault check, limit alert, event, or published status. |
 
 The test filenames describe the behavior under test.
@@ -95,6 +98,8 @@ On 15 November the air-quality and dust-estimate step added 76 cases: 37 in `tes
 
 On 19 November online access added 73 cases: 14 in `tests/test_online_settings.py`, 12 in `tests/test_online_auth.py`, 12 in `tests/test_online_tunnel.py` and 35 in `tests/test_online_dashboard.py`. The full suite reported 634 passed, with and without `-W error`.
 
+On 20 November the BSEC state save added 64 cases: 58 in `tests/test_bsec_state.py` and 6 in `tests/test_serial_parser.py`. On 23 November the full suite reported 752 passed on branch `feature/bsec-state`.
+
 ## Other important files
 
 | File or folder | Purpose |
@@ -103,7 +108,7 @@ On 19 November online access added 73 cases: 14 in `tests/test_online_settings.p
 | `config/system.yaml` | Air-quality and dust limits (off as shipped), word bands and levels, dust sensitivity and baseline rule. |
 | `config/runtime.yaml` | Stores host polling, connection retry, and periodic fault-check intervals, and the optional timing keys, including the alarm confirmation timeout. |
 | `requirements.txt` | Lists the required Python packages and versions. |
-| `firmware/room_environment_safety_control_bme680.ino` | Runs on the ESP32. Reads the sensor and sends measurements or errors. |
+| `firmware/room_environment_safety_control_bme680.ino` | Runs on the ESP32. Reads the sensor and sends measurements or errors. Asks the laptop for the BSEC state at start and sends it at IAQ accuracy 3. |
 | `firmware/bsec_board_config.h` | Requires the ESP32-S3. Stores all board pins, the buzzer polarity, supply, and reporting intervals. |
 | `firmware/bsec_serial_format.h` | Converts firmware measurements and Bosch status into JSON text. |
 | `firmware/sharp_dust.h` | Experimental Sharp dust acquisition on GPIO4 and GPIO5. Compiled for the ESP32-S3. Not hardware-checked. |
@@ -115,6 +120,8 @@ On 19 November online access added 73 cases: 14 in `tests/test_online_settings.p
 | `firmware/tests/test_bsec_serial_format.cpp` | Checks firmware message formatting on a computer without the sensor. |
 | `firmware/alarm_command.h` | Parses alarm commands with a fixed buffer, reads `Serial` with a byte bound, maps the level to LED and buzzer, and formats the reply. Used by the sketch. |
 | `firmware/tests/test_alarm_command.cpp` | Checks `firmware/alarm_command.h` on a computer with g++. |
+| `firmware/host_command.h` | Reads the host lines `ALARM,<0|1|2>`, `BSEC_STATE,<hex>` and `BSEC_STATE,NONE` with a fixed buffer (up to 511 characters), formats the BSEC state as hex, and holds the state-save rule (accuracy 3, then every 6 hours). Used by the sketch. |
+| `firmware/tests/test_host_command.cpp` | Checks `firmware/host_command.h` on a computer with g++. |
 | `tests/fixtures/bsec_reading.json` | Supplies an example reading for tests. It is not a physical measurement. |
 | `README.md` | Gives the project entry point and current status. |
 | `README_HUMAN.md` | Explains the system and its behavior for people. |

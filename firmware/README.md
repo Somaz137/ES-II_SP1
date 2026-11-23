@@ -1,10 +1,10 @@
 # ESP32-S3 BSEC firmware
 
 **Target:** an ESP32-S3 (QFN56, revision v0.2) with 16 MB quad flash and 8 MB embedded PSRAM, an N16R8-type module. esptool read these facts from the connected board on 17 November 2026. The documents assumed an N8R2 module until then. The board was selected on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
-**Status:** the board was flashed on 17 November 2026. The serial link and the alarm protocol were checked without sensors. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md). The exact development board model is not identified. Sensor, LED and buzzer behaviour is unverified.
+**Status:** the board was flashed on 17 November 2026. The serial link and the alarm protocol were checked without sensors. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md). On 20 November 2026 the board, still on firmware `1c74995`, was checked on the bench with the BME680, the dust sensor and the onboard RGB LED. The results are in the [hardware checklist](#hardware-checklist). The exact development board model is not identified. The buzzer is not connected. The BSEC state save and restore (20 November 2026) is compiled and host-tested, not flashed and not checked on hardware.
 The 8 November build for the DOIT board is history. See the [8 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-08.md).
 
-This source prepares BSEC low-power acquisition every three seconds, experimental Sharp dust acquisition and a local LED and buzzer alarm.
+This source prepares BSEC low-power acquisition every three seconds, experimental Sharp dust acquisition, a local LED and buzzer alarm, and the BSEC state save and restore through the laptop.
 It does not establish a working hardware integration.
 
 ## Board configuration
@@ -39,13 +39,13 @@ The user decided these pins. They are not checked against the physical board. On
 | BME680 SCL | GPIO9 | ROOM_I2C_SCL_PIN | |
 | Dust analog input (Vo through 2:1 divider) | GPIO5 | ROOM_DUST_ADC_PIN | ADC1 channel 4 |
 | Dust LED drive (NPN base through 1 kohm) | GPIO4 | ROOM_DUST_LED_PIN | HIGH turns the sensor LED on |
-| Alarm LED (onboard RGB LED, `LED_BUILTIN`) | GPIO48 by default | ROOM_ALARM_LED_PIN | HIGH lights it white through the core's RGB LED support. Not checked on the board |
+| Alarm LED (onboard RGB LED, `LED_BUILTIN`) | GPIO48 by default | ROOM_ALARM_LED_PIN | HIGH lights it white through the core's RGB LED support. Lit white and turned off as commanded on the bench (20 November 2026) |
 | Buzzer module signal (3-pin module) | GPIO7 | ROOM_BUZZER_PIN | No buzzer connected now (20 November 2026). Polarity: ROOM_BUZZER_ACTIVE_HIGH |
 
 Connect all grounds together. Use the breakout documentation to identify the BME680 power terminal.
 The dust circuit is in [SHARP_DUST_INTEGRATION.md](../docs/SHARP_DUST_INTEGRATION.md).
 
-The alarm LED is `LED_BUILTIN` from the esp32 core's ESP32-S3 variant. In core 3.3.12, `digitalWrite` on this pin sends white at `RGB_BRIGHTNESS` (64) for HIGH and off for LOW to the addressable RGB LED on GPIO48. Some ESP32-S3 DevKitC-1 v1.1 boards have the RGB LED on GPIO38, and some clone boards need the "RGB" solder pad closed. Check this on the board.
+The alarm LED is `LED_BUILTIN` from the esp32 core's ESP32-S3 variant. In core 3.3.12, `digitalWrite` on this pin sends white at `RGB_BRIGHTNESS` (64) for HIGH and off for LOW to the addressable RGB LED on GPIO48. Some ESP32-S3 DevKitC-1 v1.1 boards have the RGB LED on GPIO38, and some clone boards need the "RGB" solder pad closed. On this board the default worked: on 20 November 2026 the LED lit white for `ALARM,1` and `ALARM,2` and turned off for `ALARM,0`.
 
 `ROOM_BUZZER_ACTIVE_HIGH` defaults to `true`: HIGH sounds the buzzer. The module's trigger level is not verified. Many 3-pin modules trigger on LOW. If the buzzer sounds right after power-on (level 0), the polarity is wrong: set the constant to `false` and rebuild.
 
@@ -54,6 +54,8 @@ The alarm LED is `LED_BUILTIN` from the esp32 core's ESP32-S3 variant. In core 3
 - `CDCOnBoot=default`: `Serial` is UART0. Use it when the USB cable goes into a port served by a USB-UART bridge chip (often labelled UART or COM). On Linux the port is usually `/dev/ttyUSB<n>` or `/dev/ttyACM<n>`, depending on the bridge chip.
 - `CDCOnBoot=cdc`: `Serial` is the native USB port of the ESP32-S3 (hardware CDC). Use it when the cable goes into the port wired to GPIO19/GPIO20 (often labelled USB). On Linux the port is usually `/dev/ttyACM<n>`.
 - This board's USB port goes through a CH343 bridge (USB 1a86:55d3). It carries UART0, so use `CDCOnBoot=default`. Linux names it `/dev/ttyACM0`. The flash on 17 November 2026 used this setting.
+- The board also has a native USB port (USB 303a:1001). On 20 November 2026, with the cable in that port, upload worked but no serial data came, because `CDCOnBoot=default` sends `Serial` to UART0. Use the CH343 port for the monitor.
+- Opening the CH343 port does not reset the board (checked on 20 November 2026).
 - The source is the same for both. Only the build option differs.
 
 ## Build commands
@@ -79,29 +81,34 @@ In Arduino IDE, select **ESP32S3 Dev Module** and set Flash Size "16MB (128Mb)",
 
 ## Hardware checklist
 
-The board was flashed on 17 November 2026 with nothing wired to it. The serial link and the alarm replies were checked. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md). Items marked partly done say what is still open. All other items are still to do.
+The board was flashed on 17 November 2026 with nothing wired to it. The serial link and the alarm replies were checked. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md).
+On 20 November 2026 the board was checked on the bench with the BME680, the dust sensor and the onboard RGB LED. It still ran firmware `1c74995`, from before the BSEC state save. The cable was in the CH343 USB port (`1a86:55d3`, `/dev/ttyACM0`). The results are recorded against the items below.
+Items marked partly done say what is still open. All other items are still to do.
 
 Before wiring the board:
 
 1. Identify the exact ESP32-S3 board and get its pinout and schematic.
-2. Check that GPIO4, GPIO5, GPIO7, GPIO8 and GPIO9 are broken out and free on this board. Check that GPIO7 is not used by a button or other on-board part. Check that the onboard RGB LED is on GPIO48 (not GPIO38) and that it lights without closing an "RGB" solder pad.
+2. Check that GPIO4, GPIO5, GPIO7, GPIO8 and GPIO9 are broken out and free on this board. Check that GPIO7 is not used by a button or other on-board part. The onboard RGB LED part is done (20 November 2026): it lights on the default pin without closing an "RGB" solder pad.
 3. Check that no wire goes to a strapping pin (GPIO0, GPIO3, GPIO45, GPIO46). Check that nothing pulls these pins at reset.
 4. Done on 17 November 2026: the laptop uses the CH343 USB-UART bridge (USB 1a86:55d3), Linux port `/dev/ttyACM0`, `CDCOnBoot=default`.
-5. No external alarm LED is connected (20 November 2026), so there is no LED resistor to check. After flashing, check that `ALARM,1` lights the onboard RGB LED white and `ALARM,0` turns it off.
-6. No buzzer is connected now (20 November 2026). When one is connected, read the buzzer module's markings or documentation for its trigger level and supply voltage. Set `ROOM_BUZZER_ACTIVE_HIGH` to match. Check that the module's signal input is safe at 3.3 V.
-7. Check the BME680 breakout supply (3.3 V) and its I2C address pin (0x76 or 0x77).
-8. Measure the dust divider with a meter. Check that the ADC pin never sees more than about 3.1 V.
-9. Dust disconnect: the host applies a floor rule (decided and implemented on the host on 20 November 2026). A dust voltage below `dust.disconnected_below_mv` (default 100 mV, sensor side), a 0 mV reading, or the board's `dust_input_at_zero` report all count as "no reading". After `sensor_error_timeout_s` (120 s) with no reading at or above the floor, the dust status is `not_connected` and the dust fault is on. Not yet checked on the bench: with the 2:1 divider wired and no sensor, confirm that the input reads below 100 mV (on 17 November, with nothing wired, the floating input read about 870 to 930 mV) and that a connected sensor reads above it.
+5. No buzzer is connected now (20 November 2026). When one is connected, read the buzzer module's markings or documentation for its trigger level and supply voltage. Set `ROOM_BUZZER_ACTIVE_HIGH` to match. Check that the module's signal input is safe at 3.3 V.
+6. Check the BME680 breakout supply (3.3 V) and its I2C address pin (0x76 or 0x77).
+7. Measure the dust divider with a meter. Check that the ADC pin never sees more than about 3.1 V.
+8. Dust disconnect: the host applies a floor rule (decided and implemented on the host on 20 November 2026). A dust voltage below `dust.disconnected_below_mv` (default 100 mV, sensor side), a 0 mV reading, or the board's `dust_input_at_zero` report all count as "no reading". After `sensor_error_timeout_s` (120 s) with no reading at or above the floor, the dust status is `not_connected` and the dust fault is on. Not yet checked on the bench: with the 2:1 divider wired and no sensor, confirm that the input reads below 100 mV (on 17 November, with nothing wired, the floating input read about 870 to 930 mV) and that a connected sensor reads above it. See after-flashing item 9 for the 20 November result.
 
 After flashing:
 
-1. Partly done on 17 November 2026: the first firmware line after reset was `{"type":"alarm","state":0}`. Still open: check that the LED and buzzer are off.
-2. Partly done on 17 November 2026: `ALARM,0`, `ALARM,1`, `ALARM,2` and `ALARM,0` each got the matching reply in about 10 ms, and `ALARM,9` got none. Still open: check the LED and the buzzer, and whether the buzzer needs a tone instead of a steady level.
-3. Check BME680 readings every three seconds, their units and the address in use.
+1. Partly done on 17 November 2026: the first firmware line after reset was `{"type":"alarm","state":0}`. Still open: check that the LED and buzzer are off. Not done on 20 November 2026: the start-up line after a reset-button press (the window was missed).
+2. Partly done on 17 November 2026: `ALARM,0`, `ALARM,1`, `ALARM,2` and `ALARM,0` each got the matching reply in about 10 ms, and `ALARM,9` got none. Pass on 20 November 2026: `ALARM,0`, `ALARM,1` and `ALARM,2` replied in about 10 ms, `ALARM,9` got no reply, and the onboard RGB LED was off or white as commanded. Still open: the buzzer, and whether it needs a tone instead of a steady level.
+3. Check BME680 readings every three seconds, their units and the address in use. Partly done on 20 November 2026: temperature, humidity and pressure came every 3.000 s with plausible values. Gas: SUSPECT. `gas_ohms` was 12917166.00 in every reading for about 15 minutes. Inference, not measured: by the BME68x formula this value is a raw gas ADC of 0 at range 0 with the valid bits still set, so the gas part may be faulty or not genuine. The IAQ values are then not meaningful. Still open: the address in use and the 10-minute gas run.
 4. Check the dust LED pulse width (0.32 ms), the sampling point (0.28 ms) and the 10 ms period on an oscilloscope. Check the accepted and rejected sample counts.
-5. Check whether opening the serial port resets the board.
+5. Done on 20 November 2026: opening the CH343 serial port does not reset the board.
 6. With native USB: check what happens to readings when the laptop stops reading the port.
-7. Link-lost fallback: stop `monitor.py`. Check that the LED blinks (1 s on, 1 s off) after about 30 s and that the buzzer keeps its last state. Start `monitor.py` again and check that its next command stops the blink.
+7. Link-lost fallback: stop `monitor.py`. Check that the LED blinks (1 s on, 1 s off) after about 30 s and that the buzzer keeps its last state. Start `monitor.py` again and check that its next command stops the blink. Partly done on 20 November 2026: the user saw the blink start after 30 s with no command and saw the next command stop it. Still open: the buzzer part (no buzzer connected).
+8. Done on 20 November 2026 (moved here from the before-wiring list): `ALARM,1` lights the onboard RGB LED white and `ALARM,0` turns it off. No external alarm LED is connected, so there is no LED resistor to check.
+9. Dust readings. FAIL on 20 November 2026: every reading was `dust_input_at_zero` (GPIO5 reads 0 V). The code reads the right pin. The cause is likely the wiring or the sensor power. To do: check with a meter. Vcc 5 V on sensor pins 6 and 1, ground on pins 2 and 4, Vo on pin 5, and the divider midpoint to GPIO5.
+10. Monitor and dashboard. Pass on 20 November 2026: `monitor.py` raised the dust fault at 120 s and sent level 1, and the board confirmed it (the user saw the LED white). All five dashboard pages and `/api/room` returned HTTP 200.
+11. BSEC state save and restore. Not done: it needs a new flash with the BSEC state firmware. Run to IAQ accuracy 3, wait for a save, power-cycle, and confirm the restore.
 
 ## Local alarm
 
@@ -112,7 +119,7 @@ The host sends `ALARM,0` (LED and buzzer off), `ALARM,1` (LED only) or `ALARM,2`
 - `loop()` reads at most 64 bytes per pass with `pumpAlarmInput`. It never waits for input. It runs even when the BME680 failed to start.
 - Each valid command sets the outputs and prints one reply. Malformed lines get no reply.
 - The buzzer gets a steady level. There is no tone and no beep pattern.
-- Link-lost fallback: when no valid command arrives for 30 s (`ROOM_ALARM_LINK_TIMEOUT_MS`), the LED blinks, 1 s on and 1 s off (`ROOM_ALARM_BLINK_HALF_PERIOD_MS`). The buzzer keeps its last commanded state. The timer starts at boot, and only a valid `ALARM` command resets it; malformed lines do not. The next valid command ends the blink. The board prints no line for this. The host normally sends a command every 5 s (`fault_check_interval_s`). Implemented and compiled on 20 November 2026; not checked on hardware.
+- Link-lost fallback: when no valid command arrives for 30 s (`ROOM_ALARM_LINK_TIMEOUT_MS`), the LED blinks, 1 s on and 1 s off (`ROOM_ALARM_BLINK_HALF_PERIOD_MS`). The buzzer keeps its last commanded state. The timer starts at boot, and only a valid `ALARM` command resets it; malformed lines do not. The next valid command ends the blink. The board prints no line for this. The host normally sends a command every 5 s (`fault_check_interval_s`). Implemented on 20 November 2026. On the bench the same day the user saw the blink start after 30 s and stop at the next command (after-flashing item 7).
 - `refreshAlarmOutputs()` is the only function that writes the LED and buzzer pins. `setup()`, each valid command and each `loop()` pass call it. It computes the outputs with `alarmOutputsAt` and writes the pins only when they change.
 
 ## Serial behavior
@@ -147,7 +154,37 @@ Continuous failure reports errors at most once every three seconds.
 Two missing sample periods trigger reporting when BSEC returns without measurements.
 Python still applies its separate 120-second fault rules.
 Initialization failures continue reporting until intervention or restart.
-Automatic sensor reinitialization and calibration-state storage remain future work. Without stored state the index calibrates again after each board start.
+Automatic sensor reinitialization remains future work. The BSEC calibration state is kept on the laptop. See [BSEC state on the laptop](#bsec-state-on-the-laptop).
+
+## BSEC state on the laptop
+
+Bosch's BSEC library keeps its learned calibration state in RAM. A reset or power cut loses it. The laptop keeps a copy (user decision, 20 November 2026). See the [design](../docs/superpowers/specs/2026-11-20-bsec-state-on-laptop-design.md). Compiled and host-tested on 20 November 2026. Not checked on hardware: the board still runs `1c74995`.
+
+Restore at start. In `setup()`, after `setConfig` and before `updateSubscription` (the order of Bosch's example `basic_config_state.ino`), the board prints:
+
+- `{"type":"bsec_state_request","bsec_version":"<x.y.z.w>"}`
+
+It then waits up to 10 s (`ROOM_BSEC_STATE_WAIT_MS`) for one line from the host:
+
+- `BSEC_STATE,<hex>`: the board calls `setState` and prints `{"type":"bsec_state_restored","ok":true}` or `{"type":"bsec_state_restored","ok":false}`. A state shorter than 238 bytes is padded with zeros, because `Bsec2::setState` always passes 238 bytes to BSEC.
+- `BSEC_STATE,NONE`: the board prints nothing and starts without a state.
+- No valid line in 10 s: the board prints nothing and starts without a state.
+
+During the wait the board still applies `ALARM` commands and replies to them. It reads at most 64 bytes per pass, as in `loop()`. Invalid lines are ignored and the wait goes on. A `BSEC_STATE` line that arrives after the wait is treated as an invalid line. Opening the CH343 port does not reset the board (20 November 2026), so starting `monitor.py` does not cause a restore. The board asks only when it starts.
+
+Save. `loop()` calls `saveBsecState()` after `roomSensor.run()`. The board sends its state only when the latest IAQ accuracy is 3: at once the first time after start, then every 6 hours (`ROOM_BSEC_STATE_SAVE_MS`) while the accuracy is 3. Six hours is Bosch's standard interval, from Bosch's example `basic_config_state.ino` (`STATE_SAVE_PERIOD`, 360 minutes). The line is:
+
+- `{"type":"bsec_state","accuracy":3,"bsec_version":"<x.y.z.w>","state":"<hex>"}`
+
+`Bsec2::getState` does not report the state length, so the board always sends all 238 bytes (`BSEC_MAX_STATE_BLOB_SIZE`) as 476 lowercase hex characters.
+
+If `Bsec2::getState` fails, the board prints an error line and tries again on the next loop pass:
+
+- `{"type":"error","message":"bsec_state_save_failed","bsec_code":<n>,"sensor_code":<n>}`
+
+This line shares the error rate limit of `reportRoomError`, so it appears at most once every three seconds. The host parses it as its own kind, `bsec_state_save_failed`, not as a sensor error, and logs a `bsec_state_save_failed` event ("The board could not read its Bosch calibration state to save it. The board tries again.").
+
+The host side: the monitor writes `<database name>.bsec_state.json` next to the database and answers each request with one line. It sends the state when the file exists and its BSEC version matches the request. Otherwise it sends `BSEC_STATE,NONE`. The BSEC state lines do not count as communication. See the main [README](../README.md#bosch-calibration-state).
 
 Python receives the same JSON records at the same serial speed.
 Its parser, fault rules and gas readiness rules need no change for this board.
@@ -179,8 +216,8 @@ Four days describes baseline history, not a required warm-up wait.
 
 ## Source organization
 
-- room_environment_safety_control_bme680.ino handles BSEC setup, callbacks, errors and the alarm outputs.
-- bsec_board_config.h contains the chip check, all board pins, the buzzer polarity, serial speed, supply selection, reporting intervals, the alarm read bound and the alarm link timeout and blink period.
+- room_environment_safety_control_bme680.ino handles BSEC setup, callbacks, errors, the alarm outputs and the BSEC state request, restore and save.
+- bsec_board_config.h contains the chip check, all board pins, the buzzer polarity, serial speed, supply selection, reporting intervals, the alarm read bound, the alarm link timeout and blink period, the BSEC state save period (6 hours) and the restore wait (10 s).
 - bsec_serial_format.h converts scalar values and status fields to JSON.
 - sharp_dust.h runs experimental Sharp dust acquisition on GPIO4 (LED drive) and GPIO5 (analog input) and reports raw voltage records.
 - sharp_dust_limits.h holds the pure dust sample rule: timing window, ADC limit 2750 mV and the 2:1 divider.
@@ -190,20 +227,22 @@ Four days describes baseline history, not a required warm-up wait.
 
 ## Verification status
 
-- Completed: the three host tests above, with g++ 11.4.0.
+- Completed: the host tests above, with g++ 11.4.0. Three test programs until 20 November 2026; four since `test_host_command.cpp` was added.
 - Completed: compilation for the ESP32-S3 with `CDCOnBoot=default` and `CDCOnBoot=cdc`, `--warnings all`, no warnings (15 November, 8 MB options).
 - Completed on 17 November 2026: compilation with the 16 MB options above, no warnings, and upload to the board with every hash verified.
-- Completed on 20 November 2026: the three host tests above with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391518 bytes flash, 28752 bytes global RAM). No upload.
+- Completed on 20 November 2026: the three host tests then present (all but `test_host_command.cpp`) with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391518 bytes flash, 28752 bytes global RAM). No upload.
 - Completed on 20 November 2026, after the alarm LED moved to the onboard RGB LED (`LED_BUILTIN`): all four host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391890 bytes flash, 29232 bytes global RAM). No upload.
+- Completed on 20 November 2026, after the BSEC state save and restore: all four host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (397162 bytes flash, 30192 bytes global RAM). No upload. Not checked on hardware.
 - Completed on 17 November 2026, without sensors: clean boot, `bsec_initialization_failed` (`sensor_code` -2) every 3 s with no BME680, matching alarm replies, and a 60 s `monitor.py` run with the alarm confirmed at level 0.
 - Completed: a build for `esp32:esp32:esp32doit-devkit-v1` fails with the chip-check message.
-- Pending: the rest of the hardware checklist, including the LED and buzzer outputs, BME680 readings and the `iaq` field, and dust readings.
-- Open: a disconnected dust sensor cannot currently be told apart from a working one (checklist item 9).
+- Completed on 20 November 2026, on firmware `1c74995`: the bench checks recorded in the hardware checklist (alarm replies, the onboard RGB LED, the link-lost blink, the dust fault through the monitor, the dashboard pages, and BME680 temperature, humidity and pressure).
+- Pending: the rest of the hardware checklist, including the buzzer output, the gas reading (suspect on 20 November) and the `iaq` field, dust readings (failed on 20 November) and the BSEC state save and restore.
+- Open: a disconnected dust sensor cannot currently be told apart from a working one (before-wiring item 8).
 - Pending: check that an invalid supply value fails with the supply-selection message.
 - Pending: check startup, missing-data and read-failure error reporting on the board.
 - Pending: check the six-second measurement watchdog, the three-second error interval and the millisecond counter rollover.
 
-No dashboard, occupancy logic, environmental thresholds, or state persistence exists in this sketch.
+No dashboard, occupancy logic or environmental thresholds exist in this sketch. The sketch stores no BSEC state in flash. The laptop keeps it.
 
 ## Upstream references
 

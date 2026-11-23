@@ -32,6 +32,7 @@ User decision (20 November 2026): keep the saved state in a file on the laptop, 
 4. **Restore at board start.** After `setConfig`, the board prints `{"type":"bsec_state_request","bsec_version":"<x.y.z.w>"}`. It then waits up to 10 seconds for one line, `BSEC_STATE,<hex>` or `BSEC_STATE,NONE`. During the wait it still applies `ALARM` commands. It calls `setState` with the state and reports `{"type":"bsec_state_restored","ok":true|false}`. Then it subscribes to outputs as now.
 5. **Laptop reply.** When the monitor reads a request, it sends the saved state if the file exists and the BSEC version matches. Otherwise it sends `BSEC_STATE,NONE` and logs the reason (no file, version mismatch, or file damaged). The restore and its result are logged as events.
 6. **If the laptop is not listening at board start,** the board continues without a state after 10 s. Note: with the CH343 bridge, opening the serial port may reset the board (firmware checklist item 5, not yet checked). If it does, starting `monitor.py` triggers a fresh start and a restore.
+   - Note, 20 November 2026 bench: opening the CH343 port does not reset the board. Starting `monitor.py` therefore does not cause a restore.
 7. **Firmware command reader.** It now keeps at most 31 characters. Raise the limit to fit `BSEC_STATE,` plus 476 hex characters. Keep the per-pass byte bound.
 8. **Dashboard.** The System page shows "Bosch calibration saved: <time>, accuracy 3", or "not saved yet", and the result of the last restore.
 
