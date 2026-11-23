@@ -110,6 +110,36 @@ The rule takes the check results with their times. It returns the automatic stat
 - Pass: YOLOX detects the person in at least 9 of 12 frames in each lying position. That is the same fraction as the entry rule.
 - The detector sits behind one small interface (`detect(frame) -> bool`), so another model can replace it. MediaPipe is not built now. If YOLOX fails, the plan stops, and the MediaPipe fallback comes back to the user before any fine-tuning.
 
+## Decision after the bench gate (23 November 2026)
+
+Gate result (20 November 2026, laptop webcam, threshold 0.5, 12 frames each): standing 12/12, sitting 9/12, lying 11/12, **lying under a blanket 4/12 (fail)**, empty room 0/12. The blanket frames were nearly overexposed (mean brightness about 235 of 255).
+
+The user chose options A and C, plus a MediaPipe comparison on the bench only (23 November 2026). Option B (switch the production detector to MediaPipe) is not chosen now.
+
+### A. Threshold from measured top scores
+
+- The bench tool prints the top YOLOX person score of each frame (commit `4d06e35`). The user runs one bench session: lying under a blanket, lying without a blanket, and the empty room with the lights on and the bed with its blanket in view. Each run has 12 frames.
+- **Rule for the threshold `T`.** Try `T` = 0.50, 0.45, 0.40, 0.35, 0.30, 0.25, in that order. Pick the first `T` for which both are true:
+  1. At least 9 of the 12 blanket frames have a top score ≥ `T`.
+  2. The highest top score in all empty-room frames is below `T − 0.10`. The 0.10 margin guards against false sightings.
+- If no `T` passes, `person_confidence` stays 0.5 and option C covers the blanket case.
+- The chosen `T` becomes the default of `person_confidence`. The value and the scores that justify it are recorded in the README.
+
+### C. A manual "Occupied" starts the camera hold
+
+- When a manual `occupied` setting starts to apply, the monitor tells the camera rule that a person was assumed at the time of the setting (`set_at`, converted to the monitor's clock). The rule enters `occupied`, and the hold starts from that time.
+- This does not add a check to the confirmation window. "Person seen in S of N checks" stays a count of real sightings.
+- A later real sighting moves the hold forward as usual. When the manual setting expires after 15 minutes, the room stays occupied as long as the camera has seen the person at least once in the last 15 minutes. If the camera has not seen anyone since the setting, the hold ends at the same moment as the manual setting.
+- Each new manual `occupied` request (a new `id`) does this once. A stored setting that is applied at monitor start does it too, with its original `set_at`. `not_occupied` and `auto` do not change the rule.
+- Without a camera (demo mode, or serial mode without `--camera`), this has no effect.
+- Use case: a caregiver who sees the patient under a blanket sets "Occupied" once. After that, the camera only needs one sighting every 15 minutes.
+
+### MediaPipe comparison (bench only)
+
+- The bench tool also runs the MediaPipe person detector from the OpenCV model zoo (`person_detection_mediapipe_2023mar.onnx`) through `cv2.dnn`. It prints its result and top score next to the YOLOX result. The model is downloaded to `models/` with a pinned SHA-256, the same way as YOLOX. No new pip package. Record its licence.
+- MediaPipe code lives only in `tools/`. `occupancy.py` and the monitor do not use it.
+- If MediaPipe does clearly better than YOLOX in the same runs, the choice of a switch (option B) goes back to the user.
+
 ## Left to the builder
 
 - The exact YOLOX pre- and post-processing (input size, letterbox, output decoding). Follow the zoo's `demo.py`.

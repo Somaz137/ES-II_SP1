@@ -15,7 +15,9 @@
 - No new pip package. `requirements.txt` stays unchanged.
 - No camera frame is written to disk or sent anywhere, in the monitor or in the bench tool.
 - Model: OpenCV zoo `object_detection_yolox_2022nov.onnx`, stored in `models/` (git-ignored), checked against a pinned SHA-256. Record its licence (Apache 2.0, from the zoo's LICENSE file) in the README.
-- Runtime defaults: `camera_interval_s` 10, `occupancy_confirm_s` 120, `occupancy_confirm_fraction` 0.75, `occupancy_hold_s` 900, `occupancy_override_s` 900, `person_confidence` 0.5.
+- Runtime defaults: `camera_interval_s` 10, `occupancy_confirm_s` 120, `occupancy_confirm_fraction` 0.75, `occupancy_hold_s` 900, `occupancy_override_s` 900, `person_confidence` 0.5. (Task 5b may lower `person_confidence`, by the rule in the spec section "Decision after the bench gate", part A.)
+- **Amendment, 23 November 2026.** The gate failed on "lying under a blanket" (4/12). The user chose options A and C plus a MediaPipe comparison on the bench only. See the spec section "Decision after the bench gate". This adds Task 1b and Task 5b, and adds the "assume occupied" step to Tasks 2, 3, 4 and 6. Task numbers 1–6 do not change.
+- MediaPipe code lives only in `tools/`. No production module imports it.
 - States in the status record: `occupied`, `not_seen`, `unknown`, `not_occupied` (manual only). Only `occupied` allows limit alerts.
 - Reason codes: `occupancy_not_seen`, `occupancy_unknown`, `occupancy_manual`.
 - Page wording is factual. It never relies on colour alone. `not_seen` uses the amber tone, the same as `unknown`.
@@ -64,6 +66,35 @@
 - [ ] **Step 8: Commit** with the message `Add the YOLOX person detector, model download and HOG comparison bench tool`.
 - [ ] **Step 9: STOP. Gate.** Report to the main session. The user runs the bench tool in four positions: standing, sitting, lying on a bed or sofa, and lying under a blanket, with 12 frames each. Pass: YOLOX detects 9 or more of 12 frames in each lying position. Do not start Task 2 until the main session reports the result.
 
+> **Gate result (20 November 2026):** standing 12/12, sitting 9/12, lying 11/12, lying under a blanket 4/12 (FAIL), empty room 0/12. The user decided on 23 November 2026 to go on with options A and C (spec, "Decision after the bench gate"). Tasks 2–6 go ahead. The bench-only diagnostic `top_score` and `--confidence` were added in commit `4d06e35`.
+
+### Task 1b: MediaPipe person detector in the bench tool (bench only)
+
+**Files:**
+- Create: `tools/mediapipe_person.py`
+- Modify: `tools/get_person_model.py` (an option to also fetch the MediaPipe model)
+- Modify: `tools/occupancy_bench.py` (an MP column)
+- Test: `tests/test_mediapipe_person.py`
+
+**Interfaces:**
+- Produces, in `tools/mediapipe_person.py` only:
+  - `MP_MODEL_PATH: Path` (`<project>/models/person_detection_mediapipe_2023mar.onnx`) and `MP_MODEL_SHA256: str`.
+  - `class MediaPipePerson: __init__(self, confidence: float = 0.5, path: Path | None = None, net=None)`, `detect(frame) -> bool` and `top_score(frame) -> float`. It uses the same `check_model` pattern and the same `ModelError` as `person_detector.py`: reuse them, do not copy them.
+  - A pure post-processing function for the raw outputs, with anchor decoding and NMS. Follow the zoo's `models/person_detection_mediapipe/mp_persondet.py` and `demo.py` for the input size, the anchors and the score (sigmoid).
+
+- [ ] **Step 1: Write the failing tests** in `tests/test_mediapipe_person.py`:
+  - `test_mp_missing_model_raises_with_download_hint`: a missing path raises `ModelError` that names `tools/get_person_model.py`.
+  - `test_mp_postprocess_keeps_scores_above_threshold`: a raw output with one anchor at score logit +3 (about 0.95) and the others at −10. With confidence 0.5, one box. With confidence 0.99, none.
+  - `test_mp_detect_uses_stub_net`: a stub net with `setInput` and `forward` gives `detect(frame) is True` for the high-score output and `False` for an all-low output. Use a `numpy.zeros((480, 640, 3), numpy.uint8)` frame.
+  - `test_production_modules_do_not_import_mediapipe`: `occupancy.py`, `monitor.py` and `person_detector.py` contain no `mediapipe` import (a text check on the files).
+- [ ] **Step 2: Run** the new tests. Expected: FAIL.
+- [ ] **Step 3: Implement `tools/mediapipe_person.py`.** The frame is a local variable only and is never stored.
+- [ ] **Step 4: Extend `tools/get_person_model.py`** with `--mediapipe`. It downloads `models/person_detection_mediapipe/person_detection_mediapipe_2023mar.onnx` from Hugging Face `opencv/opencv_zoo` the same way as YOLOX: a temporary name, a SHA-256 check, and a rename. Pin the hash from the downloaded file. Record the URL, the hash and the licence (from the zoo's LICENSE file next to the model) in the docstring.
+- [ ] **Step 5: Extend `tools/occupancy_bench.py`.** When the MediaPipe model file is present, each line gets ` MP <yes|no> (top <score>)` after the YOLOX part, and the total line gets `MP <n>/<total>`. Print scores with 3 decimals, so that a score just under the threshold does not show as the threshold value (this closes the Task 1 deferred minor about 2 decimals). When the file is missing, print one note at the start and leave out the MP column. The rest of the line format stays the same.
+- [ ] **Step 6: Run the full suite.** Expected: PASS. Run `env/bin/python tools/get_person_model.py --mediapipe`, then `env/bin/python -I tools/occupancy_bench.py --camera 0 --frames 3` with no person in view. Record the MediaPipe time per frame (measured).
+- [ ] **Step 7: Commit** with the message `Add the MediaPipe person detector to the bench tool for comparison`.
+- [ ] **Step 8: Report.** The main session asks the user for one bench session, 12 frames each: lying under a blanket, lying without a blanket, and the empty room with the lights on and the bed with its blanket in view. Task 5b uses the printed top scores. Tasks 2–5 do not wait for this session.
+
 ### Task 2: Occupancy rule (pure)
 
 **Files:**
@@ -79,6 +110,7 @@
   - `checks`: int (checks in the window)
   - `needed`: int (`ceil(fraction × checks expected in confirm_s)`)
   - `held`: bool (true when occupied only because of the hold)
+- Also produces (amendment, option C): `assume_occupied(self, at: float) -> None`. The rule enters `occupied`, and `last_seen_at` becomes `max(last_seen_at, at)`. It adds no check to the window, so `seen` and `checks` do not change. Repeated calls are safe.
 
 Rule (from the spec, section 2):
 - Entry needs a full window: the oldest check in the window is at least `confirm_s − interval_s` old. Then `seen / expected ≥ fraction`, where `expected = round(confirm_s / interval_s)`. With the defaults, `expected` = 12 and `needed` = 9.
@@ -97,6 +129,10 @@ Rule (from the spec, section 2):
   - `test_failed_camera_before_entry_is_unknown`: only `"failed"` from t=0 to t=40. At t=40, `unknown`.
   - `test_no_checks_is_unknown`: `state(0)["state"] == "unknown"`.
   - `test_bounded_memory`: 10 000 checks. Internal storage holds at most `expected + 1` entries.
+  - `test_assume_occupied_starts_hold`: `assume_occupied(0)`, then `"not_seen"` checks every 10 s from t=10. At t=890, `occupied` with `held` True. At t=900, `not_seen`.
+  - `test_sighting_after_assume_extends_hold`: `assume_occupied(0)`, `"not_seen"` checks, one `"seen"` at t=300. At t=1100, `occupied`. At t=1200, `not_seen`.
+  - `test_assume_is_not_a_check`: `assume_occupied(0)` with no checks. At t=0, `state == "occupied"`, `seen == 0`, `checks == 0`, and `camera_working` False.
+  - `test_assume_earlier_than_last_sighting_keeps_later`: enter by t=110 (last seen at 110), then `assume_occupied(50)`. `last_seen_at == 110`.
 - [ ] **Step 2: Run** the tests. Expected: FAIL.
 - [ ] **Step 3: Implement `OccupancyRule`.**
 - [ ] **Step 4: Run** the tests. Expected: PASS.
@@ -117,6 +153,7 @@ Rule (from the spec, section 2):
   - `CameraOccupancy(index, timing: dict, detector=None)`. `timing` holds the six runtime keys. With `detector=None` the worker builds `PersonDetector(timing["person_confidence"])` in its thread.
   - `CameraOccupancy.snapshot(now) -> dict`, which is the rule's `state(now)` dict.
   - `CameraOccupancy.record(result, at)`, which the worker calls and tests call directly.
+  - `CameraOccupancy.assume_occupied(at)` (amendment, option C), which passes to the rule under the same lock as `record`. Test: `test_camera_assume_occupied_reaches_rule`, where `assume_occupied(0)` gives `snapshot(0)["state"] == "occupied"`.
   - `current(now)` and `observation_age(now)` are removed. Update the callers.
 
 - [ ] **Step 1: Write the failing tests.**
@@ -154,6 +191,11 @@ Rule (from the spec, section 2):
   - `test_damaged_override_is_ignored`: `parse_override` returns None for `"x"`, `{}`, `{"mode": "maybe", "set_at": 1}`, `{"mode": "occupied"}`, and `{"mode": "occupied", "set_at": True}`.
   - `test_override_survives_restart_until_expiry`: a monitor-level test with a fake store holding an override set 300 s ago. The first publish applies it. With one set 1000 s ago, it does not apply, and no event is logged.
   - `test_override_events`: setting `occupied`, then `auto`, then `not_occupied` and letting it expire logs `occupancy_override_set`, `occupancy_override_cleared`, `occupancy_override_set` and `occupancy_override_expired`, in that order. Each message names the mode and the time.
+  - `test_manual_occupied_seeds_camera_hold` (amendment, option C). Use a monitor-level test with a fake camera that records `assume_occupied` calls:
+    - An `occupied` override set 300 s ago (wall clock) gives one call with `at == monotonic_now − 300`.
+    - More publishes with the same `id` give no new call. A new `id` gives one new call.
+    - `not_occupied` and `auto` give no call.
+    - With no camera (serial mode without `--camera`), nothing is called and nothing raises.
   - In `tests/test_room_software.py`:
     - `occupancy="not_seen"` gives the reason `occupancy_not_seen` and the message `"No person seen. Limit monitoring is paused."`.
     - `occupancy="not_occupied"` gives `occupancy_manual` and `"Set to not occupied by hand. Limit monitoring is paused."`.
@@ -166,6 +208,7 @@ Rule (from the spec, section 2):
   - When the request changes, the monitor logs set or cleared through `session.note_event`. When `resolve` first returns `info` None for a request that was applying, it logs expired.
   - `publish` sets `occupancy` and `occupancy_source` (`"manual"` while an override applies) and `occupancy_override` (`info`).
   - Demo mode uses `"occupied"` as the automatic state.
+  - Option C: when an `occupied` request with a new `id` first applies (set while running, or found at start and not expired), call `camera.assume_occupied(monotonic_now − max(0, wall_now − set_at))` once, when a camera exists. Clock jumps make `wall_now − set_at` negative or large: clamp it at 0, and skip the call when it is `occupancy_override_s` or more (the request has expired anyway).
 - [ ] **Step 4: Run the full suite.** Expected: PASS.
 - [ ] **Step 5: Commit** with the message `Apply the manual occupancy override with a 15-minute expiry; name the occupancy pause reason`.
 
@@ -199,6 +242,20 @@ Rule (from the spec, section 2):
 - [ ] **Step 4: Run the full suite.** Then run `monitor.py --demo` and `dashboard.py --demo`, set each mode, and check the Overview text. Take a screenshot for the report.
 - [ ] **Step 5: Commit** with the message `Add the occupancy override control and the new occupancy text to the dashboard`.
 
+### Task 5b: Set the person threshold from the bench data (waits for the user's bench session)
+
+**Files:**
+- Modify: `settings.py` (`RUNTIME_DEFAULTS["person_confidence"]`), `config/runtime.yaml` (the commented default), `person_detector.py` (the `PersonDetector` default, the same value)
+- Test: `tests/test_runtime_settings.py` (the default value)
+
+**Input:** the bench output of the user's session from Task 1b Step 8. The main session saves it in the SDD workspace as `bench-<date>.txt`.
+
+- [ ] **Step 1: Apply the rule** in the spec section "Decision after the bench gate", part A. Write a table of each candidate `T` with the blanket count (≥ 9 of 12?) and the empty-room highest top score (below `T − 0.10`?). Put it in the report. Do this by counting the printed scores, not by eye.
+- [ ] **Step 2:** If a `T` passes, update the test of the default first (RED), then the three default values (GREEN). If no `T` passes, change no code: the default stays 0.5, and the report says that option C carries the blanket case.
+- [ ] **Step 3: Run the full suite.** Expected: PASS.
+- [ ] **Step 4: Commit** with the message `Set the person threshold to <T> from the bench top scores` (only if code changed).
+- [ ] **Step 5: Report** the table, the chosen `T`, and the MediaPipe counts beside the YOLOX counts. If MediaPipe gets 9 or more of 12 on the blanket and 0 of 12 on the empty room while YOLOX does not, say so. The main session takes the choice of a switch (option B) to the user. This task does not switch.
+
 ### Task 6: Documentation
 
 **Files:**
@@ -213,6 +270,8 @@ Rule (from the spec, section 2):
   - the new runtime keys
   - the limitation that the detector cannot tell the patient from a visitor
   - the bench result, with its date and measured numbers
-- [ ] **Step 2:** In `PYTHON_FILE_GUIDE.md`, add `person_detector.py`, `occupancy_rule.py`, `occupancy_override.py` and the two tools, and record the new test count.
+  - the gate failure on the blanket (4/12), the chosen threshold and the scores that justify it (Task 5b), and the MediaPipe comparison counts
+  - option C: a manual "Occupied" starts the camera hold, and after it expires the camera needs only one sighting per 15 minutes
+- [ ] **Step 2:** In `PYTHON_FILE_GUIDE.md`, add `person_detector.py`, `occupancy_rule.py`, `occupancy_override.py` and the three tools (`get_person_model.py`, `occupancy_bench.py`, `mediapipe_person.py`), and record the new test count.
 - [ ] **Step 3:** Run the full suite and record the count. Run `grep -n "HOG" README.md README_HUMAN.md`. Each hit must be a history or comparison line, not a description of the current detector.
 - [ ] **Step 4: Commit** with the message `docs: occupancy detector, confirmation, hold and override`.
