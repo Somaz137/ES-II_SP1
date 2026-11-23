@@ -178,11 +178,11 @@ Save. `loop()` calls `saveBsecState()` after `roomSensor.run()`. The board sends
 
 `Bsec2::getState` does not report the state length, so the board always sends all 238 bytes (`BSEC_MAX_STATE_BLOB_SIZE`) as 476 lowercase hex characters.
 
-If `Bsec2::getState` fails, the board prints an error line and tries again on the next loop pass:
+If `Bsec2::getState` fails, the board prints an error line and tries again after 60 seconds (`ROOM_BSEC_STATE_RETRY_MS`):
 
 - `{"type":"error","message":"bsec_state_save_failed","bsec_code":<n>,"sensor_code":<n>}`
 
-This line shares the error rate limit of `reportRoomError`, so it appears at most once every three seconds. The host parses it as its own kind, `bsec_state_save_failed`, not as a sensor error, and logs a `bsec_state_save_failed` event ("The board could not read its Bosch calibration state to save it. The board tries again.").
+A lasting fault therefore sends this line once a minute. The line also shares the error rate limit of `reportRoomError`. The host parses it as its own kind, `bsec_state_save_failed`, not as a sensor error, and logs a `bsec_state_save_failed` event ("The board could not read its Bosch calibration state to save it. The board tries again.").
 
 The host side: the monitor writes `<database name>.bsec_state.json` next to the database and answers each request with one line. It sends the state when the file exists and its BSEC version matches the request. Otherwise it sends `BSEC_STATE,NONE`. The BSEC state lines do not count as communication. See the main [README](../README.md#bosch-calibration-state).
 
@@ -237,7 +237,7 @@ Four days describes baseline history, not a required warm-up wait.
 - Completed: a build for `esp32:esp32:esp32doit-devkit-v1` fails with the chip-check message.
 - Completed on 20 November 2026, on firmware `1c74995`: the bench checks recorded in the hardware checklist (alarm replies, the onboard RGB LED, the link-lost blink, the dust fault through the monitor, the dashboard pages, and BME680 temperature, humidity and pressure).
 - Pending: the rest of the hardware checklist, including the buzzer output, the gas reading (suspect on 20 November) and the `iaq` field, dust readings (failed on 20 November) and the BSEC state save and restore.
-- Open: a disconnected dust sensor cannot currently be told apart from a working one (before-wiring item 8).
+- Pending: a bench check of a real dust disconnect. The host floor rule is implemented (before-wiring item 8). On 20 November every reading was `dust_input_at_zero` and the monitor raised the dust fault at 120 s.
 - Pending: check that an invalid supply value fails with the supply-selection message.
 - Pending: check startup, missing-data and read-failure error reporting on the board.
 - Pending: check the six-second measurement watchdog, the three-second error interval and the millisecond counter rollover.

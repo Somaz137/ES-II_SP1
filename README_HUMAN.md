@@ -220,7 +220,7 @@ The selected design uses status reports from Bosch BSEC software.
 Python does not declare readiness after a fixed waiting period.
 The new Python module can read these reports.
 The new firmware source prepares these reports.
-Compilation succeeded on Linux. On 20 November 2026 the BME680 ran on the bench, but the gas reading was suspect (the same `gas_ohms` value for about 15 minutes), so the IAQ values were not meaningful. Real Bosch status changes are still to check.
+Compilation succeeded on Linux. On 20 November 2026 the BME680 ran on the bench, but the gas reading was suspect (the same `gas_ohms` value for about 15 minutes), so the IAQ values are probably not meaningful (an inference, not measured; see the hardware checklist). Real Bosch status changes are still to check.
 The earlier firmware reports no BSEC status, so Python shows unknown until the new firmware supplies valid reports.
 
 BSEC reports initial stabilization and stabilization after power-on.
@@ -251,7 +251,7 @@ BSEC learns the room's normal air over hours. The learned calibration state live
 The board sends its state only when the IAQ accuracy is 3: the first time after start, then every 6 hours while the accuracy stays 3. Six hours is Bosch's standard interval, from Bosch's example sketch `basic_config_state.ino` (`STATE_SAVE_PERIOD`, 360 minutes).
 The monitor writes the state to a file next to the database, for example `room.bsec_state.json`. It writes a temporary file first and then renames it.
 At start the board asks the laptop for the state and waits up to 10 seconds. The monitor sends the saved state if the file exists and the BSEC version matches. Otherwise it sends `BSEC_STATE,NONE` and logs why. Without a reply the board starts without a state.
-If the board cannot read its state, it reports `bsec_state_save_failed` and tries again. The monitor logs this as an event, not as a sensor error.
+If the board cannot read its state, it reports `bsec_state_save_failed` and tries again after 60 seconds. The monitor logs this as an event, not as a sensor error. The monitor also logs this event when the laptop cannot write the state file. The event message tells the two causes apart.
 The System page shows "Bosch calibration saved: <time>, accuracy 3" or "not saved yet", and the result of the last restore. The Events page lists these events under "Bosch calibration".
 This is compiled and host-tested. It is not yet checked on hardware. The board on the bench still runs firmware `1c74995`, from before this feature, so it needs a new flash first.
 
@@ -357,7 +357,7 @@ The test filenames remain unchanged so their original test cases are easy to tra
 
 ## Known limitations
 
-- Every new part is verified only with tests and the simulator.
+- Every new part is verified with tests and the simulator, and partly on the bench on 20 November 2026 (see the hardware checklist in `firmware/README.md`).
 - The occupancy detector can miss seated, lying, or occluded people. Unknown occupancy suppresses patient-limit alerts.
 - Raw readings older than 7 days are deleted. Events are never deleted. The dashboard shows the latest 50 events and pages to older ones.
 - Timing settings apply at monitor startup. The dashboard uses the values in the latest monitor status.
@@ -394,7 +394,7 @@ These decisions are not implemented, except where an entry says so.
 8. Check the local alarm on the real board: that GPIO7 is free, and the buzzer polarity once a buzzer is connected. Done on 20 November 2026: the onboard RGB LED was off or white as commanded, and the link-lost blink started and stopped.
 9. Check the five-page dashboard with the real board and sensors. It is checked only with the simulator and screenshots.
 10. Demonstrate normal operation, faults, and recovery with actual hardware.
-11. Decide how to detect a disconnected dust sensor. With no dust sensor attached, the dust input reads about 870 to 930 mV and is accepted as a fresh dust record, most likely because the ADC pin floats. A disconnected dust sensor cannot currently be told apart from a working one. Candidate fixes: a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. The user will choose when wiring.
+11. Check a real dust disconnect on the bench. The monitor applies a floor rule: a dust voltage below `dust.disconnected_below_mv` (100 mV), a 0 mV reading, or the board's `dust_input_at_zero` report count as "no reading". After 120 s with no reading at or above the floor, the dust status is not connected and the dust fault is on. On 20 November every reading was `dust_input_at_zero` and the monitor raised the dust fault at 120 s. Still to check: with the divider wired and no sensor, the input reads below 100 mV, and a connected sensor reads above it.
 12. Online access: send a signed-in control request (save limits, silence, acknowledge) through a real tunnel. Online access is implemented. One real tunnel run on 19 November 2026 loaded the pages and refused control requests without sign-in.
 13. BSEC state save and restore on the board. Flash the new firmware first (the board still runs `1c74995`). Then run to IAQ accuracy 3, wait for a save, power-cycle, and confirm the restore.
 14. Open items from the 20 November 2026 bench check:

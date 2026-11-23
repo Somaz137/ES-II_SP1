@@ -6,7 +6,7 @@ The selected board changed to an ESP32-S3 on 15 November 2026. See [Selected har
 ## Current status
 
 This branch adds the room software: SQLite storage, patient limits, sustained-breach alerts, camera occupancy, a local dashboard, and a Sharp dust sensor path.
-These parts exist in software. They are verified only by automated tests and the simulator.
+These parts exist in software. They are verified by automated tests and the simulator, and partly on the bench on 20 November 2026 (see below).
 On 17 November 2026 the ESP32-S3 was flashed. The serial link and the alarm protocol were checked with no sensors attached.
 On 20 November 2026 the board, still on firmware `1c74995`, was checked on the bench with the BME680, the dust sensor and the onboard RGB LED. The alarm replies, the LED, the link-lost blink, the dust fault through the monitor, the dashboard pages and the BME680 temperature, humidity and pressure passed. Dust failed and the gas reading is suspect. See the [firmware hardware checklist](firmware/README.md#hardware-checklist). No buzzer or camera check has taken place.
 The Bosch calibration (BSEC) state is now saved on the laptop and sent back at board start (20 November 2026). It is compiled and host-tested. It is not yet checked on hardware: the board still runs `1c74995`, from before this firmware. See [Bosch calibration state](#bosch-calibration-state).
@@ -173,7 +173,7 @@ Bosch's BSEC library learns the room's normal air over hours. Its IAQ accuracy g
 - Save: the board sends its state only at IAQ accuracy 3. It sends the first time accuracy reaches 3 after start, then every 6 hours while accuracy is 3. Six hours is Bosch's standard interval, from Bosch's example sketch `basic_config_state.ino` (`STATE_SAVE_PERIOD`, 360 minutes).
 - File: the monitor writes `<database name>.bsec_state.json` next to the database, for example `room.bsec_state.json` or `room-demo.bsec_state.json`. It writes a temporary file and renames it, so a crash never leaves a half-written file.
 - Restore: at start the board asks for the state after `setConfig` and before it subscribes to outputs (Bosch's example order). It waits up to 10 s and still applies `ALARM` commands. The monitor replies `BSEC_STATE,<hex>` when the file exists and its BSEC version matches the board's. Otherwise it replies `BSEC_STATE,NONE` and logs the reason: no saved state, version mismatch, or file damaged. With no reply in 10 s the board starts without a state.
-- If the board cannot read its state to save it, it prints the error `bsec_state_save_failed` and tries again on the next loop pass. The monitor logs it as a `bsec_state_save_failed` event, not as a sensor error.
+- If the board cannot read its state to save it, it prints the error `bsec_state_save_failed` and tries again after 60 seconds. The monitor logs it as a `bsec_state_save_failed` event, not as a sensor error. The monitor also logs this event when the laptop cannot write the state file. The event message tells the two causes apart.
 - Events: `bsec_state_saved`, `bsec_state_sent`, `bsec_state_not_sent`, `bsec_state_restored`, `bsec_state_restore_failed` and `bsec_state_save_failed`. The Events page shows them under "Bosch calibration".
 - The System page has a "Bosch calibration" row: "Bosch calibration saved: <time>, accuracy 3" or "Bosch calibration not saved yet", with the result of the last board request.
 - In `--demo` the simulated board asks for the state at start and sends one stand-in state (not a real Bosch state) after 60 s.
