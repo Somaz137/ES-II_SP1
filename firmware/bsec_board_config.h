@@ -58,6 +58,10 @@ static_assert(ROOM_ALARM_BLINK_HALF_PERIOD_MS > 0,
 // Bosch's standard interval, from Bosch's example basic_config_state.ino (STATE_SAVE_PERIOD, 360 minutes). User decision, 20 November 2026.
 constexpr unsigned long ROOM_BSEC_STATE_SAVE_MS = 360UL * 60UL * 1000UL;
 
+// After a failed getState the board waits this long before it tries again,
+// so a lasting fault sends one bsec_state_save_failed line a minute.
+constexpr unsigned long ROOM_BSEC_STATE_RETRY_MS = 60000;
+
 // At start the board asks the host for the saved BSEC state, then waits this
 // long for a BSEC_STATE line. With no reply it runs without a state.
 constexpr unsigned long ROOM_BSEC_STATE_WAIT_MS = 10000;

@@ -154,3 +154,12 @@ inline bool bsecShouldSave(std::uint8_t accuracy, bool savedOnce, std::uint32_t 
   if (!savedOnce) return true;
   return static_cast<std::uint32_t>(nowMs - lastSaveMs) >= periodMs;
 }
+
+// True when the board may call getState again. After a failed getState
+// (failed is true) it waits retryMs from failedAtMs. Unsigned subtraction
+// keeps the result right across the millis() wrap.
+inline bool bsecRetryAllowed(bool failed, std::uint32_t nowMs, std::uint32_t failedAtMs,
+                             std::uint32_t retryMs) {
+  if (!failed) return true;
+  return static_cast<std::uint32_t>(nowMs - failedAtMs) >= retryMs;
+}

@@ -125,5 +125,16 @@ int main() {
   assert(!bsecShouldSave(3, true, lastSave + sixHours - 1u, lastSave, sixHours));
   assert(bsecShouldSave(3, true, lastSave + sixHours, lastSave, sixHours));
   assert(!bsecShouldSave(3, true, 0x00000010u, lastSave, sixHours));
+
+  // Retry gate: after a failed getState, wait retryMs before the next try.
+  const uint32_t minute = 60000u;
+  assert(bsecRetryAllowed(false, 1000u, 0u, minute));
+  assert(!bsecRetryAllowed(true, 5000u, 5000u, minute));
+  assert(!bsecRetryAllowed(true, 5000u + minute - 1u, 5000u, minute));
+  assert(bsecRetryAllowed(true, 5000u + minute, 5000u, minute));
+  // millis() wraps between the failure and the retry.
+  const uint32_t failedAt = 0xFFFFF000u;
+  assert(!bsecRetryAllowed(true, 0x00000010u, failedAt, minute));
+  assert(bsecRetryAllowed(true, failedAt + minute, failedAt, minute));
   return 0;
 }

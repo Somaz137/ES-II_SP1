@@ -35,6 +35,9 @@ const char* roomStartupError = "bsec_initialization_failed";
 uint8_t roomIaqAccuracy = 0;
 bool roomStateSavedOnce = false;
 uint32_t roomLastStateSaveMs = 0;
+// Set when getState fails; saveBsecState waits ROOM_BSEC_STATE_RETRY_MS.
+bool roomStateSaveFailed = false;
+uint32_t roomStateFailedMs = 0;
 
 // All call sites use constant protocol-safe diagnostics, not arbitrary text.
 void reportRoomError(const char* message) {
@@ -190,6 +193,8 @@ void restoreBsecState() {
       } else if (command.kind == ROOM_HOST_BSEC_STATE) {
         // Bsec2::setState passes BSEC_MAX_STATE_BLOB_SIZE bytes to BSEC, so
         // the bytes after the received state are zero.
+        static_assert(ROOM_HOST_STATE_MAX <= BSEC_MAX_STATE_BLOB_SIZE,
+                      "A received BSEC state must fit in the setState buffer");
         static uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
         memset(state, 0, sizeof(state));
         memcpy(state, command.state, command.stateLength);
@@ -212,14 +217,19 @@ void saveBsecState() {
   const uint32_t now = millis();
   if (!bsecShouldSave(roomIaqAccuracy, roomStateSavedOnce, now, roomLastStateSaveMs,
                       ROOM_BSEC_STATE_SAVE_MS)) return;
+  if (!bsecRetryAllowed(roomStateSaveFailed, now, roomStateFailedMs,
+                        ROOM_BSEC_STATE_RETRY_MS)) return;
   static uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
   static char hex[2 * BSEC_MAX_STATE_BLOB_SIZE + 1];
   if (!roomSensor.getState(state) ||
       !formatStateHex(state, sizeof(state), hex, sizeof(hex))) {
-    // Tried again on the next pass; reportRoomError limits the error lines.
+    // Tried again after ROOM_BSEC_STATE_RETRY_MS.
+    roomStateSaveFailed = true;
+    roomStateFailedMs = now;
     reportRoomError("bsec_state_save_failed");
     return;
   }
+  roomStateSaveFailed = false;
   Serial.print("{\"type\":\"bsec_state\",\"accuracy\":");
   Serial.print(static_cast<unsigned>(roomIaqAccuracy));
   Serial.print(",\"bsec_version\":\"");
