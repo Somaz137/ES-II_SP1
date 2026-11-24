@@ -1,7 +1,7 @@
 # ESP32-S3 BSEC firmware
 
 **Target:** an ESP32-S3 (QFN56, revision v0.2) with 16 MB quad flash and 8 MB embedded PSRAM, an N16R8-type module. esptool read these facts from the connected board on 17 November 2026. The documents assumed an N8R2 module until then. The board was selected on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
-**Status:** the board was flashed on 17 November 2026. The serial link and the alarm protocol were checked without sensors. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md). On 20 November 2026 the board, still on firmware `1c74995`, was checked on the bench with the BME680, the dust sensor and the onboard RGB LED. The results are in the [hardware checklist](#hardware-checklist). The exact development board model is not identified. The buzzer is not connected. The BSEC state save and restore (20 November 2026) is compiled and host-tested, not flashed and not checked on hardware.
+**Status:** the board was flashed on 17 November 2026. The serial link and the alarm protocol were checked without sensors. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md). On 20 November 2026 the board, still on firmware `1c74995`, was checked on the bench with the BME680, the dust sensor and the onboard RGB LED. The results are in the [hardware checklist](#hardware-checklist). On 25 November 2026 the board was flashed with `f1a9dee`, then with `49029f2` (dust LED polarity fix and I2C bus restart). With `49029f2`, readings and dust pass on the board. The gas reading fails at the Bosch heater temperature. See the [25 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-25.md). The exact development board model is not identified. The buzzer is not connected. The BSEC state save and restore and the I2C bus restart are on the board but not exercised.
 The 8 November build for the DOIT board is history. See the [8 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-08.md).
 
 This source prepares BSEC low-power acquisition every three seconds, experimental Sharp dust acquisition, a local LED and buzzer alarm, and the BSEC state save and restore through the laptop.
@@ -83,6 +83,7 @@ In Arduino IDE, select **ESP32S3 Dev Module** and set Flash Size "16MB (128Mb)",
 
 The board was flashed on 17 November 2026 with nothing wired to it. The serial link and the alarm replies were checked. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md).
 On 20 November 2026 the board was checked on the bench with the BME680, the dust sensor and the onboard RGB LED. It still ran firmware `1c74995`, from before the BSEC state save. The cable was in the CH343 USB port (`1a86:55d3`, `/dev/ttyACM0`). The results are recorded against the items below.
+On 25 November 2026 the checks ran again with `tools/sensor_check.py`, a dust and BME680 diagnostic and a BME680 heater sweep, then with firmware `49029f2`. The results are recorded against the items below, after the 20 November results. See the [25 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-25.md).
 Items marked partly done say what is still open. All other items are still to do.
 
 Before wiring the board:
@@ -92,23 +93,26 @@ Before wiring the board:
 3. Check that no wire goes to a strapping pin (GPIO0, GPIO3, GPIO45, GPIO46). Check that nothing pulls these pins at reset.
 4. Done on 17 November 2026: the laptop uses the CH343 USB-UART bridge (USB 1a86:55d3), Linux port `/dev/ttyACM0`, `CDCOnBoot=default`.
 5. No buzzer is connected now (20 November 2026). When one is connected, read the buzzer module's markings or documentation for its trigger level and supply voltage. Set `ROOM_BUZZER_ACTIVE_HIGH` to match. Check that the module's signal input is safe at 3.3 V.
-6. Check the BME680 breakout supply (3.3 V) and its I2C address pin (0x76 or 0x77).
+6. Check the BME680 breakout supply (3.3 V) and its I2C address pin (0x76 or 0x77). Partly done on 25 November 2026: the I2C scan found only 0x76, chip id 0x61, variant 0. The supply voltage under heater load is not measured.
 7. Measure the dust divider with a meter. Check that the ADC pin never sees more than about 3.1 V.
 8. Dust disconnect: the host applies a floor rule (decided and implemented on the host on 20 November 2026). A dust voltage below `dust.disconnected_below_mv` (default 100 mV, sensor side), a 0 mV reading, or the board's `dust_input_at_zero` report all count as "no reading". After `sensor_error_timeout_s` (120 s) with no reading at or above the floor, the dust status is `not_connected` and the dust fault is on. Not yet checked on the bench: with the 2:1 divider wired and no sensor, confirm that the input reads below 100 mV (on 17 November, with nothing wired, the floating input read about 870 to 930 mV) and that a connected sensor reads above it. See after-flashing item 9 for the 20 November result.
 
 After flashing:
 
-1. Partly done on 17 November 2026: the first firmware line after reset was `{"type":"alarm","state":0}`. Still open: check that the LED and buzzer are off. Not done on 20 November 2026: the start-up line after a reset-button press (the window was missed).
+1. Partly done on 17 November 2026: the first firmware line after reset was `{"type":"alarm","state":0}`. Still open: check that the LED and buzzer are off. Not done on 20 November 2026: the start-up line after a reset-button press (the window was missed). Not done on 25 November 2026: each upload reset the board before the tool opened the port, so the start-up lines were not captured.
 2. Partly done on 17 November 2026: `ALARM,0`, `ALARM,1`, `ALARM,2` and `ALARM,0` each got the matching reply in about 10 ms, and `ALARM,9` got none. Pass on 20 November 2026: `ALARM,0`, `ALARM,1` and `ALARM,2` replied in about 10 ms, `ALARM,9` got no reply, and the onboard RGB LED was off or white as commanded. Still open: the buzzer, and whether it needs a tone instead of a steady level.
-3. Check BME680 readings every three seconds, their units and the address in use. Partly done on 20 November 2026: temperature, humidity and pressure came every 3.000 s with plausible values. Gas: SUSPECT. `gas_ohms` was 12917166.00 in every reading for about 15 minutes. Inference, not measured: by the BME68x formula this value is a raw gas ADC of 0 at range 0 with the valid bits still set, so the gas part may be faulty or not genuine. The IAQ values are then not meaningful. Still open: the address in use and the 10-minute gas run.
+3. Check BME680 readings every three seconds, their units and the address in use. Partly done on 20 November 2026: temperature, humidity and pressure came every 3.000 s with plausible values. Gas: SUSPECT. `gas_ohms` was 12917166.00 in every reading for about 15 minutes. Inference, not measured: by the BME68x formula this value is a raw gas ADC of 0 at range 0 with the valid bits still set, so the gas part may be faulty or not genuine. The IAQ values are then not meaningful. Still open then: the address in use and the 10-minute gas run.
+   25 November 2026: before the flash, the old firmware gave no reading in 120 s (40 × `bsec_measurement_unavailable`, `sensor_code` -2). Readings PASS with `f1a9dee` and `49029f2` (58 readings in 180 s, mean interval 3.0 s, no sensor errors). Address 0x76 (diagnostic). Gas FAIL: 55 of 58 readings at 12917166.00 ohm with both firmware versions. A heater sweep without BSEC found the cause: the gas reading is real at 200 to 260 °C. It fails in most readings at 280 and 300 °C and in all readings at 320 °C (gas ADC 0), at every heater time tried. The Bosch configuration heats to about 320 °C (inference), so the Bosch index cannot work with this module as it is. The fix is an open decision: see the [BME680 gas heater decision record](../docs/superpowers/specs/2026-11-25-bme680-gas-heater-decision.md).
 4. Check the dust LED pulse width (0.32 ms), the sampling point (0.28 ms) and the 10 ms period on an oscilloscope. Check the accepted and rejected sample counts.
 5. Done on 20 November 2026: opening the CH343 serial port does not reset the board.
 6. With native USB: check what happens to readings when the laptop stops reading the port.
 7. Link-lost fallback: stop `monitor.py`. Check that the LED blinks (1 s on, 1 s off) after about 30 s and that the buzzer keeps its last state. Start `monitor.py` again and check that its next command stops the blink. Partly done on 20 November 2026: the user saw the blink start after 30 s with no command and saw the next command stop it. Still open: the buzzer part (no buzzer connected).
 8. Done on 20 November 2026 (moved here from the before-wiring list): `ALARM,1` lights the onboard RGB LED white and `ALARM,0` turns it off. No external alarm LED is connected, so there is no LED resistor to check.
-9. Dust readings. FAIL on 20 November 2026: every reading was `dust_input_at_zero` (GPIO5 reads 0 V). The code reads the right pin. The cause is likely the wiring or the sensor power. To do: check with a meter. Vcc 5 V on sensor pins 6 and 1, ground on pins 2 and 4, Vo on pin 5, and the divider midpoint to GPIO5.
+9. Dust readings. FAIL on 20 November 2026: every reading was `dust_input_at_zero` (GPIO5 reads 0 V). The code reads the right pin.
+   Fixed on 25 November 2026, by polarity. A diagnostic showed that GPIO4 drives sensor pin 3 directly, so LOW turns the LED on. The firmware assumed an NPN driver and turned the LED off for every sample. With `ROOM_DUST_LED_ACTIVE_LOW = true` (`49029f2`): PASS, 60 of 60 dust records, 892.7 to 1135.0 mV sensor side (mean 1018.9 mV), 0 `dust_input_at_zero`. Still open: the GPIO4 voltage and current with a meter, and the LED timing (item 4).
 10. Monitor and dashboard. Pass on 20 November 2026: `monitor.py` raised the dust fault at 120 s and sent level 1, and the board confirmed it (the user saw the LED white). All five dashboard pages and `/api/room` returned HTTP 200.
-11. BSEC state save and restore. Not done: it needs a new flash with the BSEC state firmware. Run to IAQ accuracy 3, wait for a save, power-cycle, and confirm the restore.
+11. BSEC state save and restore. Not done. The firmware with this feature is on the board since 25 November 2026. The check needs IAQ accuracy 3, and accuracy reached only 1 because the gas reading fails (item 3). Run to IAQ accuracy 3, wait for a save, power-cycle, and confirm the restore.
+12. I2C bus restart (25 November 2026). Not exercised. `49029f2` is on the board, but the bus did not fail during the 180 s check or the following monitor run, so no `i2c_bus_restarted` line appeared. To check: a longer run that shows the line and readings that resume after it.
 
 ### Sensor check
 
@@ -137,7 +141,9 @@ Run order:
 
 1. Stop the monitor. The monitor does not lock the port: two programs on one port each get only part of the lines. The tool refuses to run when another program holds the port. Run the tool with the current firmware.
 2. Do the meter checks and fix the wiring. Run the tool again.
-3. Flash the new firmware. Run the tool again. Then start the monitor for the BSEC restore check (README "Remaining work" item 11).
+3. Flash the new firmware. Run the tool again. Then start the monitor for the BSEC restore check (README "Remaining work" item 2). This check needs a working gas reading.
+
+On 25 November 2026 the tool ran on the old firmware, after the flash of `f1a9dee`, and after the flash of `49029f2`. The meter step was not done; the diagnostic sketch found the dust fault instead.
 
 ## Local alarm
 
@@ -163,7 +169,7 @@ Only the loop task writes `Serial`. The dust task never writes it. Lines therefo
 Every 3 s the loop prints one dust line:
 
 - `{"type":"dust","sensor_mv":…,"samples":…,"rejected_samples":…}`: the mean sensor-side voltage of the accepted samples.
-- `{"type":"dust_error","message":"dust_input_at_zero"}`: the window failed (fewer than 100 accepted samples, or more rejected than accepted) and more than half of all its samples read 0 mV with good timing. A missing sensor at about 0 V gives this line. The host counts it as below the floor. Added on 20 November 2026; compiled, not checked on hardware.
+- `{"type":"dust_error","message":"dust_input_at_zero"}`: the window failed (fewer than 100 accepted samples, or more rejected than accepted) and more than half of all its samples read 0 mV with good timing. A missing sensor at about 0 V gives this line. The host counts it as below the floor. Added on 20 November 2026. Seen on the board on 20 and 25 November 2026, while the LED polarity was wrong.
 - `{"type":"dust_error","message":"dust_acquisition_unavailable"}`: any other failed window, or the dust task did not start.
 
 With `CDCOnBoot=cdc`, a write can wait up to about 100 ms per block when the laptop holds the port open but does not read. This is core behaviour (`HWCDC.cpp`). It is not checked on the board.
@@ -184,7 +190,7 @@ Two missing sample periods trigger reporting when BSEC returns without measureme
 Python still applies its separate 120-second fault rules.
 Initialization failures keep reporting their error until a bus restart succeeds.
 
-I2C bus restart (added 25 November 2026; compiled and host-tested, not checked on hardware). A diagnostic on 25 November 2026 showed the BME680's I2C bus stop answering after the first `bme68x_init` (rc -2 for about 27 s), and `Wire.end()` + `Wire.begin()` restored it at once. The firmware now restarts the bus by elapsed time (`roomBusRestartDue` in `bus_recovery.h`):
+I2C bus restart (added 25 November 2026; compiled and host-tested; on the board since 25 November 2026 but not exercised, because the bus did not fail). A diagnostic on 25 November 2026 showed the BME680's I2C bus stop answering after the first `bme68x_init` (rc -2 for about 27 s), and `Wire.end()` + `Wire.begin()` restored it at once. The firmware now restarts the bus by elapsed time (`roomBusRestartDue` in `bus_recovery.h`):
 
 - With no valid reading, and no successful sensor start, for 10 s (`ROOM_BUS_RESTART_AFTER_MS`, more than three LP intervals), `loop()` calls `restartRoomBus()`. While the readings stay missing, it restarts at most once every 30 s (`ROOM_BUS_RESTART_INTERVAL_MS`). A sensor that fails to start at boot is restarted 10 s after `setup()`, then at most every 30 s.
 - Before the restart, a running sensor copies its BSEC state to RAM with `getState`. The board prints `{"type":"error","message":"i2c_bus_restarted"}` once per restart, then calls `Wire.end()` and `startRoomSensor()` (`Wire.begin`, `begin` at 0x76 then 0x77, `setConfig`, state restore, `updateSubscription`, callback; the same function `setup()` uses).
@@ -195,7 +201,7 @@ The BSEC calibration state is also kept on the laptop. See [BSEC state on the la
 
 ## BSEC state on the laptop
 
-Bosch's BSEC library keeps its learned calibration state in RAM. A reset or power cut loses it. The laptop keeps a copy (user decision, 20 November 2026). See the [design](../docs/superpowers/specs/2026-11-20-bsec-state-on-laptop-design.md). Compiled and host-tested on 20 November 2026. Not checked on hardware: the board still runs `1c74995`.
+Bosch's BSEC library keeps its learned calibration state in RAM. A reset or power cut loses it. The laptop keeps a copy (user decision, 20 November 2026). See the [design](../docs/superpowers/specs/2026-11-20-bsec-state-on-laptop-design.md). Compiled and host-tested on 20 November 2026. On the board since 25 November 2026 (`f1a9dee`, then `49029f2`). Not exercised: accuracy 3 is not reached while the gas reading fails.
 
 Restore at start. In `startRoomSensor()` (called by `setup()`, and by a bus restart when no RAM copy of the state is held), after `setConfig` and before `updateSubscription` (the order of Bosch's example `basic_config_state.ino`), the board prints:
 
@@ -267,17 +273,18 @@ Four days describes baseline history, not a required warm-up wait.
 
 - Completed: the host tests above, with g++ 11.4.0. Three test programs until 20 November 2026; four since `test_host_command.cpp` was added; five since `test_bus_recovery.cpp` was added (25 November 2026).
 - Completed: compilation for the ESP32-S3 with `CDCOnBoot=default` and `CDCOnBoot=cdc`, `--warnings all`, no warnings (15 November, 8 MB options).
+- Completed: a build for `esp32:esp32:esp32doit-devkit-v1` fails with the chip-check message.
 - Completed on 17 November 2026: compilation with the 16 MB options above, no warnings, and upload to the board with every hash verified.
+- Completed on 17 November 2026, without sensors: clean boot, `bsec_initialization_failed` (`sensor_code` -2) every 3 s with no BME680, matching alarm replies, and a 60 s `monitor.py` run with the alarm confirmed at level 0.
 - Completed on 20 November 2026: the three host tests then present (all but `test_host_command.cpp`) with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391518 bytes flash, 28752 bytes global RAM). No upload.
-- Completed on 25 November 2026, after the dust LED polarity fix (`ROOM_DUST_LED_ACTIVE_LOW`): all four host tests (the dust test now checks `dustLedLevel`), no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (397210 bytes flash, 30200 bytes global RAM). No upload.
-- Completed on 25 November 2026, after the I2C bus restart (`bus_recovery.h`, `startRoomSensor`, `restartRoomBus`): all five host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (397546 bytes flash, 30448 bytes global RAM). No upload. Not checked on hardware.
 - Completed on 20 November 2026, after the alarm LED moved to the onboard RGB LED (`LED_BUILTIN`): all four host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391890 bytes flash, 29232 bytes global RAM). No upload.
 - Completed on 20 November 2026, after the BSEC state save and restore: all four host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (397162 bytes flash, 30192 bytes global RAM). No upload. Not checked on hardware.
-- Completed on 17 November 2026, without sensors: clean boot, `bsec_initialization_failed` (`sensor_code` -2) every 3 s with no BME680, matching alarm replies, and a 60 s `monitor.py` run with the alarm confirmed at level 0.
-- Completed: a build for `esp32:esp32:esp32doit-devkit-v1` fails with the chip-check message.
 - Completed on 20 November 2026, on firmware `1c74995`: the bench checks recorded in the hardware checklist (alarm replies, the onboard RGB LED, the link-lost blink, the dust fault through the monitor, the dashboard pages, and BME680 temperature, humidity and pressure).
-- Pending: the rest of the hardware checklist, including the buzzer output, the gas reading (suspect on 20 November) and the `iaq` field, dust readings (failed on 20 November) and the BSEC state save and restore.
-- Pending: a bench check of a real dust disconnect. The host floor rule is implemented (before-wiring item 8). On 20 November every reading was `dust_input_at_zero` and the monitor raised the dust fault at 120 s.
+- Completed on 25 November 2026, after the dust LED polarity fix (`ROOM_DUST_LED_ACTIVE_LOW`): all four host tests (the dust test now checks `dustLedLevel`), no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (397210 bytes flash, 30200 bytes global RAM). No upload at that step.
+- Completed on 25 November 2026, after the I2C bus restart (`bus_recovery.h`, `startRoomSensor`, `restartRoomBus`): all five host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (397546 bytes flash, 30448 bytes global RAM). No upload at that step.
+- Completed on 25 November 2026: upload of `f1a9dee` (397210 bytes, all four hashes verified) and of `49029f2` (397546 bytes flash, 30448 bytes globals, all four hashes verified). `tools/sensor_check.py` after the `49029f2` flash: readings PASS, dust PASS, gas FAIL (heater fault).
+- Pending: the rest of the hardware checklist, including the buzzer output, a working gas reading and the `iaq` field (gas fails at the Bosch heater temperature, 25 November), the BSEC state save and restore, and the I2C bus restart on the board.
+- Pending: a bench check of a real dust disconnect. The host floor rule is implemented (before-wiring item 8). On 20 November every reading was `dust_input_at_zero` (wrong LED polarity, found on 25 November) and the monitor raised the dust fault at 120 s.
 - Pending: check that an invalid supply value fails with the supply-selection message.
 - Pending: check startup, missing-data and read-failure error reporting on the board.
 - Pending: check the six-second measurement watchdog, the three-second error interval and the millisecond counter rollover.

@@ -9,7 +9,7 @@
 5. Add optional explicit calibration in monitor.py. Default concentration is null. Implemented, then replaced on 15 November 2026 by the automatic baseline below.
 8. Show an estimated concentration with a word level and an automatic clean-air baseline, with a system-setup limit. Implemented on 15 November 2026; tests and simulator only.
 6. Verify host behavior and document hardware checks. The full pinned Ubuntu suite passed on 15 November 2026. The sketch with `firmware/sharp_dust.h` compiled for the ESP32-S3 on 15 November 2026. Oscilloscope timing and physical calibration are pending.
-7. Port to the ESP32-S3: GPIO5 LED drive, GPIO4 analog input, ADC limit aligned with `dust.py`. Implemented and compiled. Not checked on hardware.
+7. Port to the ESP32-S3: GPIO5 LED drive, GPIO4 analog input, ADC limit aligned with `dust.py`. Implemented and compiled. Correction, 20 November 2026: the pins were swapped (GPIO5 analog input, GPIO4 LED drive). Correction, 25 November 2026: the LED polarity was fixed; dust readings work on the board.
 
 ## Wiring design: ESP32-S3
 
@@ -18,7 +18,7 @@ The user selected an ESP32-S3 with an N8R2 module on 15 November 2026. Correctio
 Verify connector numbering against Sharp's drawing. Cable colours are not a pinout.
 Do not connect the sensor's analog output directly to ESP32 GPIO; it goes through the 2:1 divider.
 
-Wiring in use, measured on 25 November 2026: GPIO4 drives sensor pin 3 directly, with no NPN transistor. The LED is on when GPIO4 is LOW. A diagnostic pulse LOW on GPIO4 gave 446 to 528 mV at GPIO5 (mean 470 mV); a pulse HIGH gave 0.8 to 1.8 mV. The firmware assumed the NPN driver until then and so turned the LED off for every sample. `ROOM_DUST_LED_ACTIVE_LOW` in `firmware/bsec_board_config.h` is `true` for this wiring. GPIO4 stays a push-pull output, so off is HIGH (3.3 V). It is not open-drain: a released pin would float toward 5 V through the LED, above the ESP32-S3 pin limit. The fix is compiled and host-tested, not yet checked on the board.
+Wiring in use, measured on 25 November 2026: GPIO4 drives sensor pin 3 directly, with no NPN transistor. The LED is on when GPIO4 is LOW. A diagnostic pulse LOW on GPIO4 gave 446 to 528 mV at GPIO5 (mean 470 mV); a pulse HIGH gave 0.8 to 1.8 mV. The firmware assumed the NPN driver until then and so turned the LED off for every sample. `ROOM_DUST_LED_ACTIVE_LOW` in `firmware/bsec_board_config.h` is `true` for this wiring. GPIO4 stays a push-pull output, so off is HIGH (3.3 V). It is not open-drain: a released pin would float toward 5 V through the LED, above the ESP32-S3 pin limit. With the fix (firmware `49029f2`), the board sent 60 of 60 dust records at 892.7 to 1135.0 mV sensor side on 25 November 2026. Before `beginDust()` runs (during reset and boot), GPIO4 is not yet an output, so the LED state in that window is not set by the firmware. A meter check of the GPIO4 voltage and current is a hardware follow-up.
 
 | Sensor pin | Connection |
 |---|---|
@@ -37,7 +37,7 @@ Check that the supplied resistor is 150 ohm and capacitor is 220 uF, rated at le
 
 Sharp specifies a 10 ms cycle, a 0.32 ms LED pulse and sampling 0.28 ms after LED turn-on. A FreeRTOS task performs acquisition; the main loop alone writes serial output. No added third-party library is required. Existing dependency pins are unchanged.
 
-This firmware is experimental. Arduino ADC call latency and task preemption can violate the pulse window. Detected overruns are discarded; fewer than 100 accepted samples per report or more rejected than accepted samples produces dust_error. When more than half of all samples in that window read 0 mV with good timing, the message is `dust_input_at_zero` (a missing sensor at about 0 V); otherwise it is `dust_acquisition_unavailable`. Added on 20 November 2026; compiled, not checked on hardware. The software timestamps do not prove the actual ADC aperture. Verify waveform and ADC sampling on the installed ESP32 core before accepting readings. If the ADC cannot meet the timing, acquisition needs a hardware-timed redesign, not relaxed limits.
+This firmware is experimental. Arduino ADC call latency and task preemption can violate the pulse window. Detected overruns are discarded; fewer than 100 accepted samples per report or more rejected than accepted samples produces dust_error. When more than half of all samples in that window read 0 mV with good timing, the message is `dust_input_at_zero` (a missing sensor at about 0 V); otherwise it is `dust_acquisition_unavailable`. Added on 20 November 2026. The board sent `dust_input_at_zero` on 20 and 25 November 2026, while the LED polarity was wrong. The software timestamps do not prove the actual ADC aperture. Verify waveform and ADC sampling on the installed ESP32 core before accepting readings. If the ADC cannot meet the timing, acquisition needs a hardware-timed redesign, not relaxed limits.
 
 The sensor has no digital identity or self-test. A plausible analog voltage cannot prove it is connected or healthy. A disconnected or failed sensor can look plausible. The host detects missing/invalid reports, not every physical fault.
 
@@ -107,3 +107,13 @@ Open point: a disconnected dust sensor cannot currently be told apart from a wor
 - A firmware check that compares the signal with the sensor LED on and off.
 
 The user will choose when wiring the sensor. No dust reading, LED pulse or oscilloscope check took place. See the [17 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-17.md).
+
+### ESP32-S3 board, 25 November 2026, sensor wired
+
+- Firmware `f1a9dee` (LED pulse HIGH): `tools/sensor_check.py` saw only `dust_input_at_zero` (41 in 120 s on the old firmware, 60 in 180 s on `f1a9dee`).
+- Diagnostic sketch: pulse LOW gave a pulse mean of about 470 mV at GPIO5 (window means 446 to 528 mV). Pulse HIGH gave 0.8 to 1.8 mV. So GPIO4 drives sensor pin 3 directly and LOW turns the LED on.
+- Firmware `49029f2` (`ROOM_DUST_LED_ACTIVE_LOW = true`): dust PASS. 60 of 60 records, 892.7 to 1135.0 mV sensor side, mean 1018.9 mV, 0 `dust_input_at_zero`. After the first record, 295 to 298 accepted samples and 2 to 5 rejected per record.
+- The monitor on `49029f2` reached a current dust estimate after the 10-minute baseline (baseline 921.5 mV, about 4 µg/m³, "low").
+- Not checked: the LED pulse timing on an oscilloscope, the GPIO4 voltage and current, and a real dust disconnect.
+
+See the [25 November verification record](../reference_files/LINUX_VERIFICATION_2026-11-25.md).
