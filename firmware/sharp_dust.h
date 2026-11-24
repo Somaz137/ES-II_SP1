@@ -1,9 +1,16 @@
 #pragma once
 // Experimental acquisition: verify pulse and ADC timing with an oscilloscope.
-// Pins are in bsec_board_config.h. ROOM_DUST_LED_PIN HIGH turns on an external
-// NPN sink; never wire sensor pin 3 directly. ROOM_DUST_ADC_PIN reads Vo
-// through the 2:1 divider. This task never writes Serial; only loop() does.
+// Pins are in bsec_board_config.h. ROOM_DUST_LED_PIN drives the LED (sensor
+// pin 3); ROOM_DUST_LED_ACTIVE_LOW sets the polarity: true (the measured wiring)
+// when GPIO4 drives pin 3 directly and LOW turns the LED on, false for an NPN
+// low-side driver where HIGH turns it on. The pin stays a push-pull output: a
+// released pin would float toward 5 V through the LED. ROOM_DUST_ADC_PIN reads
+// Vo through the 2:1 divider. This task never writes Serial; only loop() does.
 #include "sharp_dust_limits.h"
+
+static inline void setDustLed(bool on) {
+  digitalWrite(ROOM_DUST_LED_PIN, dustLedLevel(on, ROOM_DUST_LED_ACTIVE_LOW) ? HIGH : LOW);
+}
 
 static portMUX_TYPE dustMux = portMUX_INITIALIZER_UNLOCKED;
 static uint32_t dustSum = 0, dustCount = 0, dustRejected = 0, dustZeroRejected = 0;
@@ -12,13 +19,13 @@ static bool dustTaskReady = false;
 void dustAcquire(void*) {
   TickType_t wake = xTaskGetTickCount();
   for (;;) {
-    digitalWrite(ROOM_DUST_LED_PIN, HIGH);
+    setDustLed(true);
     const uint32_t start = micros();
     delayMicroseconds(280);
     const uint32_t sampleStart = micros() - start;
     const uint32_t mv = analogReadMilliVolts(ROOM_DUST_ADC_PIN);
     while (micros() - start < 320) {}
-    digitalWrite(ROOM_DUST_LED_PIN, LOW);
+    setDustLed(false);
     const uint32_t pulse = micros() - start;
     portENTER_CRITICAL(&dustMux);
     // Reject timing overruns and out-of-range readings instead of presenting
@@ -40,7 +47,7 @@ void dustAcquire(void*) {
 
 void beginDust() {
   pinMode(ROOM_DUST_LED_PIN, OUTPUT);
-  digitalWrite(ROOM_DUST_LED_PIN, LOW);
+  setDustLed(false);
   analogReadResolution(12);
   // The core only applies a per-pin attenuation to a pin that is already an
   // ADC channel, so read once before setting it. 11 dB is ESP-IDF 12 dB.

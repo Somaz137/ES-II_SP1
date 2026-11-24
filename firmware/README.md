@@ -38,7 +38,7 @@ The user decided these pins. They are not checked against the physical board. On
 | BME680 SDA | GPIO8 | ROOM_I2C_SDA_PIN | |
 | BME680 SCL | GPIO9 | ROOM_I2C_SCL_PIN | |
 | Dust analog input (Vo through 2:1 divider) | GPIO5 | ROOM_DUST_ADC_PIN | ADC1 channel 4 |
-| Dust LED drive (NPN base through 1 kohm) | GPIO4 | ROOM_DUST_LED_PIN | HIGH turns the sensor LED on |
+| Dust LED drive (sensor pin 3, wired directly) | GPIO4 | ROOM_DUST_LED_PIN | LOW turns the sensor LED on (measured 25 November 2026). `ROOM_DUST_LED_ACTIVE_LOW` sets the polarity: `true` for this direct wiring, `false` for the NPN driver of [the dust integration guide](../docs/SHARP_DUST_INTEGRATION.md). Push-pull output; off is HIGH (3.3 V) |
 | Alarm LED (onboard RGB LED, `LED_BUILTIN`) | GPIO48 by default | ROOM_ALARM_LED_PIN | HIGH lights it white through the core's RGB LED support. Lit white and turned off as commanded on the bench (20 November 2026) |
 | Buzzer module signal (3-pin module) | GPIO7 | ROOM_BUZZER_PIN | No buzzer connected now (20 November 2026). Polarity: ROOM_BUZZER_ACTIVE_HIGH |
 
@@ -249,7 +249,7 @@ Four days describes baseline history, not a required warm-up wait.
 - bsec_board_config.h contains the chip check, all board pins, the buzzer polarity, serial speed, supply selection, reporting intervals, the alarm read bound, the alarm link timeout and blink period, the BSEC state save period (6 hours) and the restore wait (10 s).
 - bsec_serial_format.h converts scalar values and status fields to JSON.
 - sharp_dust.h runs experimental Sharp dust acquisition on GPIO4 (LED drive) and GPIO5 (analog input) and reports raw voltage records.
-- sharp_dust_limits.h holds the pure dust sample rule: timing window, ADC limit 2750 mV and the 2:1 divider.
+- sharp_dust_limits.h holds the pure dust sample rule: timing window, ADC limit 2750 mV, the 2:1 divider and `dustLedLevel` (LED logic level from the wanted state and the polarity).
 - host_command.h reads host lines (`ALARM,<0|1|2>`, `BSEC_STATE,<hex>` of up to 238 bytes, `BSEC_STATE,NONE`) into a fixed 512-byte buffer, formats a BSEC state as hex and holds the state-save rule (accuracy 3, then once per period). Pure C++11, no Arduino dependency, no dynamic allocation.
 - alarm_command.h is the local alarm command core: line parser on top of host_command.h, level to LED and buzzer, link-lost check and LED blink, polarity helper, bounded serial pump and reply formatter. Pure C++11, no Arduino dependency, no dynamic allocation.
 - tests/test_bsec_serial_format.cpp, tests/test_alarm_command.cpp, tests/test_sharp_dust_limits.cpp and tests/test_host_command.cpp run without a board. Build and run each on Linux, for example `g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_alarm_command.cpp -o /tmp/test_alarm_command && /tmp/test_alarm_command`. The first three passed with no warnings on 15 November 2026 and again on 20 November 2026; all four passed with no warnings on 20 November 2026 after host_command.h was added.
@@ -260,6 +260,7 @@ Four days describes baseline history, not a required warm-up wait.
 - Completed: compilation for the ESP32-S3 with `CDCOnBoot=default` and `CDCOnBoot=cdc`, `--warnings all`, no warnings (15 November, 8 MB options).
 - Completed on 17 November 2026: compilation with the 16 MB options above, no warnings, and upload to the board with every hash verified.
 - Completed on 20 November 2026: the three host tests then present (all but `test_host_command.cpp`) with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391518 bytes flash, 28752 bytes global RAM). No upload.
+- Completed on 25 November 2026, after the dust LED polarity fix (`ROOM_DUST_LED_ACTIVE_LOW`): all four host tests (the dust test now checks `dustLedLevel`), no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (397210 bytes flash, 30200 bytes global RAM). No upload.
 - Completed on 20 November 2026, after the alarm LED moved to the onboard RGB LED (`LED_BUILTIN`): all four host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391890 bytes flash, 29232 bytes global RAM). No upload.
 - Completed on 20 November 2026, after the BSEC state save and restore: all four host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (397162 bytes flash, 30192 bytes global RAM). No upload. Not checked on hardware.
 - Completed on 17 November 2026, without sensors: clean boot, `bsec_initialization_failed` (`sensor_code` -2) every 3 s with no BME680, matching alarm replies, and a 60 s `monitor.py` run with the alarm confirmed at level 0.

@@ -16,20 +16,22 @@
 The user selected an ESP32-S3 with an N8R2 module on 15 November 2026. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. It supersedes the DOIT ESP32 DevKit V1. The dust LED drive is GPIO5 (in place of GPIO25). The dust analog input is GPIO4, ADC1 channel 3 (in place of GPIO34). The BME680 I2C pins are SDA GPIO8 and SCL GPIO9. The firmware uses these pins through `firmware/bsec_board_config.h`. They are not checked against the physical board. The circuit itself is unchanged. Correction, 20 November 2026: the dust pins were swapped to match the user's wiring. The dust analog input is GPIO5, ADC1 channel 4. The dust LED drive is GPIO4. The table below uses these pins.
 
 Verify connector numbering against Sharp's drawing. Cable colours are not a pinout.
-Do not connect the sensor's analog output or LED pin directly to ESP32 GPIO.
+Do not connect the sensor's analog output directly to ESP32 GPIO; it goes through the 2:1 divider.
+
+Wiring in use, measured on 25 November 2026: GPIO4 drives sensor pin 3 directly, with no NPN transistor. The LED is on when GPIO4 is LOW. A diagnostic pulse LOW on GPIO4 gave 446 to 528 mV at GPIO5 (mean 470 mV); a pulse HIGH gave 0.8 to 1.8 mV. The firmware assumed the NPN driver until then and so turned the LED off for every sample. `ROOM_DUST_LED_ACTIVE_LOW` in `firmware/bsec_board_config.h` is `true` for this wiring. GPIO4 stays a push-pull output, so off is HIGH (3.3 V). It is not open-drain: a released pin would float toward 5 V through the LED, above the ESP32-S3 pin limit. The fix is compiled and host-tested, not yet checked on the board.
 
 | Sensor pin | Connection |
 |---|---|
 | 1 V-LED | 5 V through 150 ohm resistor; 220 uF capacitor positive to pin 1, negative to pin 2 |
 | 2 LED-GND | Common ground |
-| 3 LED | NPN collector; emitter to common ground; GPIO4 through 1 kohm to base; 10 kohm base-to-emitter pull-down |
+| 3 LED | In use (25 November 2026): GPIO4 directly; LOW turns the LED on (`ROOM_DUST_LED_ACTIVE_LOW = true`). Alternative: NPN collector; emitter to common ground; GPIO4 through 1 kohm to base; 10 kohm base-to-emitter pull-down; HIGH turns the LED on (set `ROOM_DUST_LED_ACTIVE_LOW = false`) |
 | 4 S-GND | Common ground |
 | 5 Vo | 10 kohm to GPIO5 node; another 10 kohm from node to ground (2:1 divider) |
 | 6 Vcc | Regulated 5 V |
 
-Use an NPN rated to sink at least 20 mA, e.g. a suitable 2N3904; check the actual transistor pinout. This is an external low-side LED driver: GPIO HIGH enables the LED. Keep the existing BME680 supply at 3.3 V on I2C GPIO8/GPIO9.
+For the NPN alternative, use an NPN rated to sink at least 20 mA, e.g. a suitable 2N3904; check the actual transistor pinout. This is an external low-side LED driver: GPIO HIGH enables the LED, so set `ROOM_DUST_LED_ACTIVE_LOW` to `false` before flashing. Keep the existing BME680 supply at 3.3 V on I2C GPIO8/GPIO9.
 
-Check that the supplied resistor is 150 ohm and capacitor is 220 uF, rated at least 10 V. Additional parts: three 10 kohm resistors, one 1 kohm resistor and one NPN transistor. Keep wiring short. Confirm ADC voltage with a meter before attaching GPIO5; the divider produces half the sensor voltage. All grounds must be common. Do not join independent 5 V sources together.
+Check that the supplied resistor is 150 ohm and capacitor is 220 uF, rated at least 10 V. Additional parts: two 10 kohm resistors for the divider; the NPN alternative adds a third 10 kohm resistor, one 1 kohm resistor and one NPN transistor. Keep wiring short. Confirm ADC voltage with a meter before attaching GPIO5; the divider produces half the sensor voltage. All grounds must be common. Do not join independent 5 V sources together.
 
 ## Acquisition and limitations
 

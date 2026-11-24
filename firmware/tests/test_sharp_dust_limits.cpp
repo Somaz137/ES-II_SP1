@@ -49,5 +49,13 @@ int main() {
   assert(dustInputAtZero(0, 0xFFFFFFFFu, 0x80000000u));
   assert(!dustInputAtZero(0, 0xFFFFFFFFu, 0x7FFFFFFFu));
   assert(!dustInputAtZero(1, 0xFFFFFFFFu, 0x80000000u));  // 2^32 of 2^32: exactly half.
+
+  // LED logic level (true = HIGH). Active low: on is LOW, off is HIGH.
+  static_assert(!dustLedLevel(true, true), "on, active low: LOW");
+  assert(!dustLedLevel(true, true));
+  assert(dustLedLevel(false, true));
+  // Active high (NPN low-side driver): on is HIGH, off is LOW.
+  assert(dustLedLevel(true, false));
+  assert(!dustLedLevel(false, false));
   return 0;
 }

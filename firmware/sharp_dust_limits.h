@@ -20,6 +20,13 @@ static_assert(ROOM_DUST_MAX_ADC_MV * ROOM_DUST_DIVIDER_RATIO == ROOM_DUST_MAX_SE
 constexpr uint32_t ROOM_DUST_SAMPLE_START_MAX_US = 300;
 constexpr uint32_t ROOM_DUST_PULSE_MAX_US = 340;
 
+// LED logic level for the wanted LED state, true = HIGH. With an active-low
+// LED (sensor pin 3 driven directly) on is LOW; with an NPN low-side driver
+// on is HIGH.
+constexpr bool dustLedLevel(bool on, bool activeLow) {
+  return on != activeLow;
+}
+
 inline bool dustTimingAccepted(uint32_t sampleStartUs, uint32_t pulseUs) {
   return sampleStartUs <= ROOM_DUST_SAMPLE_START_MAX_US && pulseUs <= ROOM_DUST_PULSE_MAX_US;
 }

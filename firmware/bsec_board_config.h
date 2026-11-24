@@ -13,7 +13,11 @@ constexpr int ROOM_I2C_SDA_PIN = 8;
 constexpr int ROOM_I2C_SCL_PIN = 9;
 // The dust pins were swapped to match the user's wiring on 20 November 2026.
 constexpr int ROOM_DUST_ADC_PIN = 5;    // ADC1 channel 4.
-constexpr int ROOM_DUST_LED_PIN = 4;    // HIGH turns on the external NPN sink.
+constexpr int ROOM_DUST_LED_PIN = 4;    // Drives sensor pin 3 (LED); see below.
+// Measured 25 November 2026: GPIO4 drives sensor pin 3 directly, so the LED is
+// on when GPIO4 is LOW. Set false for the NPN low-side driver of
+// docs/SHARP_DUST_INTEGRATION.md (LED on when GPIO4 is HIGH).
+constexpr bool ROOM_DUST_LED_ACTIVE_LOW = true;
 // Alarm LED: the onboard RGB LED (user decision, 20 November 2026; no external LED).
 // LED_BUILTIN is GPIO48 on the default ESP32-S3 variant. digitalWrite HIGH lights it
 // white and LOW turns it off, through the core's RGB LED support.
