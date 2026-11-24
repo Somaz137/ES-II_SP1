@@ -139,5 +139,5 @@ CLI: `--port` (required), `--baud` (default 115200), `--seconds` (default 120, m
 Not a code task. Steps, in order, each reported to the user:
 1. Confirm no monitor holds `/dev/ttyACM0`. Run the tool with the firmware now on the board (`1c74995`) and `--log` into the scratchpad. Record the result.
 2. Compile the sketch from this branch with the `arduino-cli compile` command in `firmware/README.md` (scratch folder named `room_environment_safety_control_bme680`), then upload it to `/dev/ttyACM0` (CH343 port). Record the commit flashed.
-3. Run the tool again, with `--breath`. Record the result.
-4. If gas and dust pass, start the monitor for the BSEC restore check (README item 11) only after asking the user, because accuracy 3 can take hours.
+3. Run the tool again. Record the result.
+4. If gas and dust pass, start the monitor for the BSEC restore check (README item 11) in the background; the user takes no part in the tests (25 November). No `--breath` run: it needs a person.
