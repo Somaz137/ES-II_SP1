@@ -182,14 +182,22 @@ Invalid conversions and failures produce recognized error records.
 Continuous failure reports errors at most once every three seconds.
 Two missing sample periods trigger reporting when BSEC returns without measurements.
 Python still applies its separate 120-second fault rules.
-Initialization failures continue reporting until intervention or restart.
-Automatic sensor reinitialization remains future work. The BSEC calibration state is kept on the laptop. See [BSEC state on the laptop](#bsec-state-on-the-laptop).
+Initialization failures keep reporting their error until a bus restart succeeds.
+
+I2C bus restart (added 25 November 2026; compiled and host-tested, not checked on hardware). A diagnostic on 25 November 2026 showed the BME680's I2C bus stop answering after the first `bme68x_init` (rc -2 for about 27 s), and `Wire.end()` + `Wire.begin()` restored it at once. The firmware now restarts the bus by elapsed time (`roomBusRestartDue` in `bus_recovery.h`):
+
+- With no valid reading, and no successful sensor start, for 10 s (`ROOM_BUS_RESTART_AFTER_MS`, more than three LP intervals), `loop()` calls `restartRoomBus()`. While the readings stay missing, it restarts at most once every 30 s (`ROOM_BUS_RESTART_INTERVAL_MS`). A sensor that fails to start at boot is restarted 10 s after `setup()`, then at most every 30 s.
+- Before the restart, a running sensor copies its BSEC state to RAM with `getState`. The board prints `{"type":"error","message":"i2c_bus_restarted"}` once per restart, then calls `Wire.end()` and `startRoomSensor()` (`Wire.begin`, `begin` at 0x76 then 0x77, `setConfig`, state restore, `updateSubscription`, callback; the same function `setup()` uses).
+- The state restore uses the RAM copy with `setState` when one is held and prints `{"type":"bsec_state_restored","ok":true|false}`. Without a RAM copy (the sensor was not running, or `getState` failed) it asks the host as at boot (`bsec_state_request`, up to 10 s wait, ALARM lines applied during the wait). A RAM copy stays held until a start succeeds.
+- The existing error lines are unchanged. Calling `Bsec2::begin()`, `setConfig()` and `updateSubscription()` again on the same object is safe in bsec2 1.10.2610: `begin()` reuses the BSEC instance memory and calls `bsec_init`, which clears the algorithm state, so the restore after `setConfig` puts the calibration back.
+
+The BSEC calibration state is also kept on the laptop. See [BSEC state on the laptop](#bsec-state-on-the-laptop).
 
 ## BSEC state on the laptop
 
 Bosch's BSEC library keeps its learned calibration state in RAM. A reset or power cut loses it. The laptop keeps a copy (user decision, 20 November 2026). See the [design](../docs/superpowers/specs/2026-11-20-bsec-state-on-laptop-design.md). Compiled and host-tested on 20 November 2026. Not checked on hardware: the board still runs `1c74995`.
 
-Restore at start. In `setup()`, after `setConfig` and before `updateSubscription` (the order of Bosch's example `basic_config_state.ino`), the board prints:
+Restore at start. In `startRoomSensor()` (called by `setup()`, and by a bus restart when no RAM copy of the state is held), after `setConfig` and before `updateSubscription` (the order of Bosch's example `basic_config_state.ino`), the board prints:
 
 - `{"type":"bsec_state_request","bsec_version":"<x.y.z.w>"}`
 
@@ -245,22 +253,24 @@ Four days describes baseline history, not a required warm-up wait.
 
 ## Source organization
 
-- room_environment_safety_control_bme680.ino handles BSEC setup, callbacks, errors, the alarm outputs and the BSEC state request, restore and save.
+- room_environment_safety_control_bme680.ino handles BSEC setup (`startRoomSensor`), the I2C bus restart (`restartRoomBus`), callbacks, errors, the alarm outputs and the BSEC state request, restore and save.
+- bus_recovery.h holds the pure I2C bus restart rule `roomBusRestartDue` and its constants (10 s without a valid reading, then at most one restart per 30 s; wrap-safe). Pure C++11, no Arduino dependency.
 - bsec_board_config.h contains the chip check, all board pins, the buzzer polarity, serial speed, supply selection, reporting intervals, the alarm read bound, the alarm link timeout and blink period, the BSEC state save period (6 hours) and the restore wait (10 s).
 - bsec_serial_format.h converts scalar values and status fields to JSON.
 - sharp_dust.h runs experimental Sharp dust acquisition on GPIO4 (LED drive) and GPIO5 (analog input) and reports raw voltage records.
 - sharp_dust_limits.h holds the pure dust sample rule: timing window, ADC limit 2750 mV, the 2:1 divider and `dustLedLevel` (LED logic level from the wanted state and the polarity).
 - host_command.h reads host lines (`ALARM,<0|1|2>`, `BSEC_STATE,<hex>` of up to 238 bytes, `BSEC_STATE,NONE`) into a fixed 512-byte buffer, formats a BSEC state as hex and holds the state-save rule (accuracy 3, then once per period). Pure C++11, no Arduino dependency, no dynamic allocation.
 - alarm_command.h is the local alarm command core: line parser on top of host_command.h, level to LED and buzzer, link-lost check and LED blink, polarity helper, bounded serial pump and reply formatter. Pure C++11, no Arduino dependency, no dynamic allocation.
-- tests/test_bsec_serial_format.cpp, tests/test_alarm_command.cpp, tests/test_sharp_dust_limits.cpp and tests/test_host_command.cpp run without a board. Build and run each on Linux, for example `g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_alarm_command.cpp -o /tmp/test_alarm_command && /tmp/test_alarm_command`. The first three passed with no warnings on 15 November 2026 and again on 20 November 2026; all four passed with no warnings on 20 November 2026 after host_command.h was added.
+- tests/test_bsec_serial_format.cpp, tests/test_alarm_command.cpp, tests/test_sharp_dust_limits.cpp, tests/test_host_command.cpp and tests/test_bus_recovery.cpp run without a board. Build and run each on Linux, for example `g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_alarm_command.cpp -o /tmp/test_alarm_command && /tmp/test_alarm_command`. The first three passed with no warnings on 15 November 2026 and again on 20 November 2026; all four passed with no warnings on 20 November 2026 after host_command.h was added; all five passed with no warnings on 25 November 2026 after bus_recovery.h was added.
 
 ## Verification status
 
-- Completed: the host tests above, with g++ 11.4.0. Three test programs until 20 November 2026; four since `test_host_command.cpp` was added.
+- Completed: the host tests above, with g++ 11.4.0. Three test programs until 20 November 2026; four since `test_host_command.cpp` was added; five since `test_bus_recovery.cpp` was added (25 November 2026).
 - Completed: compilation for the ESP32-S3 with `CDCOnBoot=default` and `CDCOnBoot=cdc`, `--warnings all`, no warnings (15 November, 8 MB options).
 - Completed on 17 November 2026: compilation with the 16 MB options above, no warnings, and upload to the board with every hash verified.
 - Completed on 20 November 2026: the three host tests then present (all but `test_host_command.cpp`) with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391518 bytes flash, 28752 bytes global RAM). No upload.
 - Completed on 25 November 2026, after the dust LED polarity fix (`ROOM_DUST_LED_ACTIVE_LOW`): all four host tests (the dust test now checks `dustLedLevel`), no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (397210 bytes flash, 30200 bytes global RAM). No upload.
+- Completed on 25 November 2026, after the I2C bus restart (`bus_recovery.h`, `startRoomSensor`, `restartRoomBus`): all five host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (397546 bytes flash, 30448 bytes global RAM). No upload. Not checked on hardware.
 - Completed on 20 November 2026, after the alarm LED moved to the onboard RGB LED (`LED_BUILTIN`): all four host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (391890 bytes flash, 29232 bytes global RAM). No upload.
 - Completed on 20 November 2026, after the BSEC state save and restore: all four host tests with g++ 11.4.0, no warnings, and compilation with the 16 MB options and `CDCOnBoot=default`, `--warnings all`, no warnings (397162 bytes flash, 30192 bytes global RAM). No upload. Not checked on hardware.
 - Completed on 17 November 2026, without sensors: clean boot, `bsec_initialization_failed` (`sensor_code` -2) every 3 s with no BME680, matching alarm replies, and a 60 s `monitor.py` run with the alarm confirmed at level 0.

@@ -13,6 +13,7 @@
 #include "bsec_serial_format.h"
 #include "sharp_dust.h"
 #include "alarm_command.h"
+#include "bus_recovery.h"
 
 const uint8_t roomBsecConfig[] = {
 #if ROOM_BME680_SUPPLY_MV == 3300
@@ -38,6 +39,14 @@ uint32_t roomLastStateSaveMs = 0;
 // Set when getState fails; saveBsecState waits ROOM_BSEC_STATE_RETRY_MS.
 bool roomStateSaveFailed = false;
 uint32_t roomStateFailedMs = 0;
+// I2C bus restart (bus_recovery.h). roomLastMeasurementAt is the last good
+// time: a valid reading or a successful sensor start.
+bool roomRestartedOnce = false;
+uint32_t roomLastRestartMs = 0;
+// RAM copy of the BSEC state, taken by getState just before a restart and
+// given to setState in the next successful start. Held until that start.
+static uint8_t roomHeldState[BSEC_MAX_STATE_BLOB_SIZE];
+bool roomStateHeld = false;
 
 // All call sites use constant protocol-safe diagnostics, not arbitrary text.
 void reportRoomError(const char* message) {
@@ -168,6 +177,12 @@ void printBsecVersion() {
   Serial.print(static_cast<unsigned>(roomSensor.version.minor_bugfix));
 }
 
+void printStateRestored(bool ok) {
+  Serial.print("{\"type\":\"bsec_state_restored\",\"ok\":");
+  Serial.print(ok ? "true" : "false");
+  Serial.println("}");
+}
+
 // Asks the host for the saved BSEC state and waits up to
 // ROOM_BSEC_STATE_WAIT_MS for one BSEC_STATE line. ALARM lines are applied
 // during the wait. Call after setConfig and before updateSubscription, the
@@ -198,10 +213,7 @@ void restoreBsecState() {
         static uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
         memset(state, 0, sizeof(state));
         memcpy(state, command.state, command.stateLength);
-        const bool ok = roomSensor.setState(state);
-        Serial.print("{\"type\":\"bsec_state_restored\",\"ok\":");
-        Serial.print(ok ? "true" : "false");
-        Serial.println("}");
+        printStateRestored(roomSensor.setState(state));
         return;
       }
     }
@@ -241,28 +253,33 @@ void saveBsecState() {
   roomLastStateSaveMs = now;
 }
 
-void setup() {
-  roomLastCommandMs = millis();
-  // Alarm outputs off before anything slow runs.
-  pinMode(ROOM_ALARM_LED_PIN, OUTPUT);
-  pinMode(ROOM_BUZZER_PIN, OUTPUT);
-  refreshAlarmOutputs();
-  Serial.begin(ROOM_SERIAL_BAUD);
-  // Tell the host the board restarted at level 0.
-  sendAlarmReply(0);
-  beginDust();
+// Starts the I2C bus and the BME680 with BSEC: begin at 0x76 then 0x77,
+// setConfig, state restore, updateSubscription, callback. The state comes
+// from the RAM copy when one is held (a restart), else from the host
+// (restoreBsecState, which waits up to ROOM_BSEC_STATE_WAIT_MS and services
+// ALARM lines). Returns false and reports the error when a step fails.
+// Bsec2::begin may be called again on the same object: it reuses its BSEC
+// instance and calls bsec_init, which clears the algorithm state; the state
+// restore after setConfig puts it back.
+bool startRoomSensor() {
+  roomConfigured = false;
   Wire.begin(ROOM_I2C_SDA_PIN, ROOM_I2C_SCL_PIN);
   if (!roomSensor.begin(BME68X_I2C_ADDR_LOW, Wire) &&
       !roomSensor.begin(BME68X_I2C_ADDR_HIGH, Wire)) {
+    roomStartupError = "bsec_initialization_failed";
     reportRoomError(roomStartupError);
-    return;
+    return false;
   }
   if (!roomSensor.setConfig(roomBsecConfig)) {
     roomStartupError = "bsec_configuration_failed";
     reportRoomError(roomStartupError);
-    return;
+    return false;
   }
-  restoreBsecState();
+  if (roomStateHeld) {
+    printStateRestored(roomSensor.setState(roomHeldState));
+  } else {
+    restoreBsecState();
+  }
   bsecSensor requested[] = {
     BSEC_OUTPUT_RAW_TEMPERATURE, BSEC_OUTPUT_RAW_PRESSURE,
     BSEC_OUTPUT_RAW_HUMIDITY, BSEC_OUTPUT_RAW_GAS,
@@ -273,11 +290,40 @@ void setup() {
                                      BSEC_SAMPLE_RATE_LP)) {
     roomStartupError = "bsec_subscription_failed";
     reportRoomError(roomStartupError);
-    return;
+    return false;
   }
   roomSensor.attachCallback(receiveRoomSample);
+  roomStateHeld = false;
   roomLastMeasurementAt = millis();
   roomConfigured = true;
+  return true;
+}
+
+// Restarts the I2C bus and the sensor. A running sensor first copies its
+// BSEC state to RAM (a failure only means the host path is used instead).
+// When the sensor is not running, an earlier copy stays held.
+void restartRoomBus() {
+  if (roomConfigured) roomStateHeld = roomSensor.getState(roomHeldState);
+  Serial.println("{\"type\":\"error\",\"message\":\"i2c_bus_restarted\"}");
+  Wire.end();
+  startRoomSensor();
+  roomRestartedOnce = true;
+  roomLastRestartMs = millis();
+}
+
+void setup() {
+  roomLastCommandMs = millis();
+  // Alarm outputs off before anything slow runs.
+  pinMode(ROOM_ALARM_LED_PIN, OUTPUT);
+  pinMode(ROOM_BUZZER_PIN, OUTPUT);
+  refreshAlarmOutputs();
+  Serial.begin(ROOM_SERIAL_BAUD);
+  // Tell the host the board restarted at level 0.
+  sendAlarmReply(0);
+  beginDust();
+  // The restart timer counts from here when the first start fails.
+  roomLastMeasurementAt = millis();
+  startRoomSensor();
 }
 
 void loop() {
@@ -286,6 +332,12 @@ void loop() {
   refreshAlarmOutputs();
   reportDust();
   delay(1);
+  // No valid reading (or no running sensor) for ROOM_BUS_RESTART_AFTER_MS:
+  // restart the bus, then at most every ROOM_BUS_RESTART_INTERVAL_MS.
+  if (roomBusRestartDue(millis(), roomLastMeasurementAt, roomLastRestartMs,
+                        roomRestartedOnce)) {
+    restartRoomBus();
+  }
   if (!roomConfigured) {
     reportRoomError(roomStartupError);
     return;

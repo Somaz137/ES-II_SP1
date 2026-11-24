@@ -45,6 +45,9 @@ constexpr unsigned long ROOM_SERIAL_BAUD = 115200;
 
 constexpr unsigned long ROOM_LP_INTERVAL_MS = 3000;
 constexpr unsigned long ROOM_NO_MEASUREMENT_MS = 2 * ROOM_LP_INTERVAL_MS;
+// The I2C bus restart times (ROOM_BUS_RESTART_AFTER_MS, 10 s, and
+// ROOM_BUS_RESTART_INTERVAL_MS, 30 s) are in bus_recovery.h, so its host test
+// can include them without this ESP32-S3-only header.
 
 // Serial bytes read for alarm commands in one loop pass. A command is 8 or 9
 // bytes. The rest stays in the driver's receive buffer for the next pass.
