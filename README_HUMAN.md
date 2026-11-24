@@ -19,8 +19,8 @@ It describes the project purpose, current code, and planned behavior.
 It contains no instructions for an AI assistant.
 
 **Current status:** The repository contains the monitor, SQLite storage, patient-limit rules, camera occupancy, a local dashboard, and a Sharp dust path.
-These parts exist in software. Automated tests and a simulator verify them. On 17 November 2026 the monitor ran for 60 s against the flashed board with no sensors attached. On 20 November 2026 the monitor and dashboard ran against the board on the bench with the BME680 and the dust sensor wired. BME680 temperature, humidity and pressure passed. The dust sensor gave no reading (the input read 0 V) and the gas reading is suspect. No part has run with a real camera.
-The local alarm is implemented on the host and in the sketch. It is checked with the simulator, host C++ tests, a compilation for the ESP32-S3, and the board's serial replies to `ALARM` commands (17 November). On 20 November the onboard RGB LED was off or white as commanded. No buzzer has been driven. The dashboard redesign is implemented on this branch as five pages: Overview, Trends, Events, Patient limits and System. It is checked with the simulator and screenshots, not on hardware. 7-day reading retention is implemented.
+These parts exist in software. Automated tests and a simulator verify them. On 17 November 2026 the monitor ran for 60 s against the flashed board with no sensors attached. On 20 November 2026 the monitor and dashboard ran against the board on the bench with the BME680 and the dust sensor wired. BME680 temperature, humidity and pressure passed. On 25 November 2026, with firmware `49029f2`, the dust sensor passed (892.7 to 1135.0 mV) and the dust estimate became current. The gas reading fails at the Bosch heater temperature (open decision). The Bosch index reached accuracy 3, but it has no meaning while the gas reading is stuck. The BME680 dropped off the I2C bus twice; the firmware bus restart recovered it once. No part has run with a real camera.
+The local alarm is implemented on the host and in the sketch. It is checked with the simulator, host C++ tests, a compilation for the ESP32-S3, and the board's serial replies to `ALARM` commands (17 November). On 20 November the onboard RGB LED was off or white as commanded. On 25 November the monitor raised the BME680 alert and the board confirmed level 1. No buzzer has been driven. The dashboard redesign is implemented on this branch as five pages: Overview, Trends, Events, Patient limits and System. It is checked with the simulator and screenshots, and on 20 November with the board (pages and `/api/room` HTTP 200). 7-day reading retention is implemented.
 Opt-in view-only online access is implemented (19 November): a Cloudflare quick tunnel to a second, view-only origin, with a password for controls. One real tunnel run on 19 November 2026 loaded the pages and refused control requests without sign-in. A signed-in control request through the real tunnel has not been tried.
 
 ## What the project does
@@ -34,7 +34,7 @@ The prototype uses one room, one ESP32-S3 board, one BME680, one Sharp dust sens
 The board is an ESP32-S3 with 16 MB flash and 8 MB embedded PSRAM, an N16R8-type module. esptool read these facts from the connected board on 17 November 2026. The documents assumed an N8R2 module until then. The user selected the ESP32-S3 on 15 November 2026. It supersedes the DOIT ESP32 DevKit V1.
 The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO5, dust LED drive GPIO4, and buzzer module GPIO7.
 The alarm LED is the onboard RGB LED (GPIO48 by default). It lit white as commanded on the bench on 20 November 2026. No buzzer is connected now, so GPIO7 drives nothing.
-The firmware uses these pins. On 20 November 2026 the BME680 readings arrived over GPIO8 and GPIO9 and the onboard RGB LED worked. The dust input on GPIO5 read 0 V, so the dust pins are not confirmed yet. GPIO7 is not checked. The exact development board model is not identified.
+The firmware uses these pins. On 20 November 2026 the BME680 readings arrived over GPIO8 and GPIO9 and the onboard RGB LED worked. On 25 November 2026 the dust pins were confirmed: GPIO4 drives sensor pin 3 directly (LOW turns the LED on), and GPIO5 reads the sensor through the divider. GPIO7 is not checked. The exact development board model is not identified.
 The user confirmed a 3.3 V sensor supply.
 The firmware configuration uses that value.
 The firmware compiles for the ESP32-S3. It was flashed on 17 November 2026. The board answered the alarm commands over USB. No sensor, LED, or buzzer was attached.
@@ -47,12 +47,12 @@ The project does not yet define those control functions.
 
 | Part | Role | Current state |
 |---|---|---|
-| BME680 | Measures temperature, humidity, pressure, and gas resistance | Experimental firmware exists. On 20 November 2026 temperature, humidity and pressure came every 3.000 s with plausible values. Gas is suspect: `gas_ohms` stayed at 12917166.00 for about 15 minutes. On 25 November 2026 a heater sweep showed real gas values at 200 to 260 °C. Most readings fail at 280 and 300 °C, and all fail at 320 °C. The Bosch index does not work with this module as it is (open decision). |
+| BME680 | Measures temperature, humidity, pressure, and gas resistance | Experimental firmware exists. On 20 November 2026 temperature, humidity and pressure came every 3.000 s with plausible values. Gas is suspect: `gas_ohms` stayed at 12917166.00 for about 15 minutes. On 25 November 2026 a heater sweep showed real gas values at 200 to 260 °C. Most readings fail at 280 and 300 °C, and all fail at 320 °C. The Bosch index does not work with this module as it is (open decision). It reached accuracy 3 in a monitor run on 25 November, but on a stuck gas reading, so it has no meaning. The module dropped off the I2C bus twice that day. |
 | Sharp GP2Y1010AU0F | Supplies a raw dust voltage | Experimental firmware exists. On 20 November 2026 every reading was `dust_input_at_zero` (the input read 0 V). Cause, found on 25 November 2026: the LED polarity. With firmware `49029f2` the sensor reads 892.7 to 1135.0 mV. |
-| ESP32-S3 | Reads the sensors, drives the local alarm and sends records through USB serial | Flashed on 17 November 2026. Serial link and alarm replies checked without sensors. On 20 November 2026 (firmware `1c74995`) the onboard RGB LED, the link-lost blink and the BME680 input were checked on the bench; the dust input read 0 V. No buzzer is connected, so it is not checked. |
+| ESP32-S3 | Reads the sensors, drives the local alarm and sends records through USB serial | Flashed on 17 November 2026. Serial link and alarm replies checked without sensors. On 20 November 2026 (firmware `1c74995`) the onboard RGB LED, the link-lost blink and the BME680 input were checked on the bench. Since 25 November 2026 it runs `49029f2`: readings and dust pass; the I2C bus restart recovered the BME680 once and failed the second time. No buzzer is connected, so it is not checked. |
 | Laptop | Runs the monitor, rules, storage, and dashboard | Implemented in software. Verified by tests and the simulator. On 20 November 2026 the monitor ran against the board on the bench: it raised the dust fault at 120 s and the board confirmed level 1. All five dashboard pages and `/api/room` returned HTTP 200. |
 | Camera | Supplies frames for occupancy detection | OpenCV people detector implemented. Not checked with a camera. |
-| Dashboard | Shows room status, trends, events, limits and the local alarm state, and accepts communication acknowledgments and alarm silence requests | Five pages implemented: Overview, Trends, Events, Patient limits and System. Checked with the simulator and screenshots, not on hardware. |
+| Dashboard | Shows room status, trends, events, limits and the local alarm state, and accepts communication acknowledgments and alarm silence requests | Five pages implemented: Overview, Trends, Events, Patient limits and System. Checked with the simulator and screenshots, and on 20 November 2026 with the board (pages and `/api/room` HTTP 200). |
 | Local alarm | Buzzer and LED on the ESP32 | Host side and sketch implemented. Checked with the simulator, host C++ tests and a compilation. Alarm LED: the onboard RGB LED (GPIO48 by default), off or white as commanded on the bench on 20 November 2026. Buzzer GPIO7: no buzzer is connected now. Buzzer polarity and GPIO7 not checked on the board. |
 
 The laptop performs the main project logic.
@@ -96,7 +96,7 @@ Each published record also goes to SQLite for the dashboard.
 The monitor checks the camera when `--camera` is given. Without it, occupancy is unknown in serial mode, so patient-limit alerts never start.
 The monitor reads acknowledgment and alarm silence requests from the dashboard at each fault check.
 The independent notification path is a local LED and buzzer on the ESP32. The monitor sends `ALARM,<level>` over USB serial and the board confirms it. Level 2 (LED and buzzer) means an unsilenced patient-limit alert. Level 1 (LED only) means a silenced limit alert or a communication, BME680 or dust alert. Level 0 is off. The dashboard shows whether the board confirmed the level. The sketch acts on the command: it sets the alarm LED and the buzzer output and replies. On 20 November 2026 the board replied to `ALARM,0`, `ALARM,1` and `ALARM,2`, and the onboard RGB LED was off or white as commanded. No buzzer is connected, so the buzzer output is not checked.
-The listed automated, virtual-serial, and simulator checks completed on Linux. Real ESP32 and sensor operation was partly checked on the bench on 20 November 2026: the alarm path, the LED and the BME680 temperature, humidity and pressure passed. The dust sensor gave no reading, the gas reading is suspect, and the buzzer is not connected.
+The listed automated, virtual-serial, and simulator checks completed on Linux. Real ESP32 and sensor operation was partly checked on the bench on 20 and 25 November 2026: the alarm path, the LED, the BME680 temperature, humidity and pressure, and the dust sensor passed. The gas reading fails at the Bosch heater temperature, and the buzzer is not connected.
 
 ## Software demo
 
@@ -221,7 +221,7 @@ The selected design uses status reports from Bosch BSEC software.
 Python does not declare readiness after a fixed waiting period.
 The new Python module can read these reports.
 The new firmware source prepares these reports.
-Compilation succeeded on Linux. On 20 November 2026 the BME680 ran on the bench, but the gas reading was suspect (the same `gas_ohms` value for about 15 minutes), so the IAQ values are probably not meaningful (an inference, not measured; see the hardware checklist). Real Bosch status changes are still to check.
+Compilation succeeded on Linux. On 20 November 2026 the BME680 ran on the bench, but the gas reading was stuck (the same `gas_ohms` value for about 15 minutes). On 25 November 2026 a heater sweep showed that the gas reading fails at the Bosch heater temperature. In a monitor run the same day the Bosch accuracy went to 2 and then 3. The dashboard then shows the index as current. The index has no meaning while the gas reading is stuck (open issue, no fix chosen). See the [25 November verification record](reference_files/LINUX_VERIFICATION_2026-11-25.md).
 The earlier firmware reports no BSEC status, so Python shows unknown until the new firmware supplies valid reports.
 
 BSEC reports initial stabilization and stabilization after power-on.
@@ -254,7 +254,7 @@ The monitor writes the state to a file next to the database, for example `room.b
 At start the board asks the laptop for the state and waits up to 10 seconds. The monitor sends the saved state if the file exists and the BSEC version matches. Otherwise it sends `BSEC_STATE,NONE` and logs why. Without a reply the board starts without a state.
 If the board cannot read its state, it reports `bsec_state_save_failed` and tries again after 60 seconds. The monitor logs this as an event, not as a sensor error. The monitor also logs this event when the laptop cannot write the state file. The event message tells the two causes apart.
 The System page shows "Bosch calibration saved: <time>, accuracy 3" or "not saved yet", and the result of the last restore. The Events page lists these events under "Bosch calibration".
-This is compiled and host-tested. It is not yet checked on hardware. The board on the bench still runs firmware `1c74995`, from before this feature, so it needs a new flash first.
+This is compiled and host-tested. The board has run firmware with this feature since 25 November 2026. On 25 November the board reached accuracy 3 and saved its state (`bsec_state_saved`, 02:41:50), but on a stuck gas reading. After an I2C bus restart it restored the state from its RAM copy. A restore from the laptop file after a board start is not checked.
 
 The user selected three-second BSEC low-power sampling.
 The new firmware source uses that mode.
@@ -280,7 +280,7 @@ The clean-air baseline is the lowest voltage of the last 24 hours. No estimate i
 A dust fault, a gap of more than six seconds, or a monitor restart starts the baseline again. The estimate is never negative.
 The word levels (low, raised, high) are project display defaults, not official categories or health standards.
 See [wiring, plan, calibration, and verification](docs/SHARP_DUST_INTEGRATION.md).
-Its wiring table uses the ESP32-S3 dust pins: GPIO5 (analog input) and GPIO4 (LED drive). The code compiles. Hardware timing remains pending. On 20 November 2026 every dust reading on the bench was `dust_input_at_zero` (the input read 0 V).
+Its wiring table uses the ESP32-S3 dust pins: GPIO5 (analog input) and GPIO4 (LED drive, active LOW, direct wiring). History: on 20 November 2026 every dust reading on the bench was `dust_input_at_zero`, because the firmware drove the LED with the wrong polarity. After the fix, on 25 November 2026, the sensor read 892.7 to 1135.0 mV and the estimate became current. The LED timing on an oscilloscope remains pending.
 
 ## Settings and timing
 
@@ -296,7 +296,7 @@ Its wiring table uses the ESP32-S3 dust pins: GPIO5 (analog input) and GPIO4 (LE
 | BME680 reading gap | 6 seconds | `reading_gap_limit_s` in `config/runtime.yaml`. Restarts sustained timers. |
 | Patient profiles | Apply valid changes during monitoring | Implemented as a YAML file beside the database. Checked in tests and the simulator. |
 | Sustained duration | Set in the patient profile | Implemented. No value is selected for real use. |
-| BSEC state save | At IAQ accuracy 3: once after start, then every 6 hours | Fixed in the firmware (`ROOM_BSEC_STATE_SAVE_MS`). Bosch's standard interval. Compiled; not checked on hardware. |
+| BSEC state save | At IAQ accuracy 3: once after start, then every 6 hours | Fixed in the firmware (`ROOM_BSEC_STATE_SAVE_MS`). Bosch's standard interval. The first save happened on the board on 25 November 2026 (on a stuck gas reading). The 6-hour repeat is not checked. |
 | BSEC state wait at board start | 10 seconds | Fixed in the firmware (`ROOM_BSEC_STATE_WAIT_MS`). Compiled; not checked on hardware. |
 | Alarm confirmation | 2 seconds | `alarm_confirm_timeout_s` in `config/runtime.yaml`. Must exceed the poll interval. The alarm shows as unreachable after it. |
 | Reading retention | 7 days | `readings_retention_days` in `config/runtime.yaml`, at least 1. The monitor prunes hourly. Events are kept. |
@@ -343,7 +343,8 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | `simulated_input.py` | Supplies simulated records for the demo. |
 | `dust.py` | Reads Sharp dust records and reports dust status. |
 | `dashboard.py`, `templates/`, `static/` | Serve the local dashboard. |
-| `firmware/sharp_dust.h` | Experimental dust acquisition. Compiled for the ESP32-S3. |
+| `firmware/sharp_dust.h` | Dust acquisition. Passed on the board on 25 November 2026 after the LED polarity fix. |
+| `firmware/bus_recovery.h` | The I2C bus restart rule: restart after 10 s with no valid reading, at most every 30 s. Tested on Linux with g++. Used by the sketch. |
 | `firmware/sharp_dust_limits.h` | Dust sample rule shared with a host test. |
 | `firmware/host_command.h` | Reads the host lines (`ALARM`, `BSEC_STATE`) with a fixed buffer and holds the BSEC state-save rule. Tested on Linux with g++. Used by the sketch. |
 | `firmware/alarm_command.h` | Alarm command parsing, bounded serial reading, LED and buzzer mapping, and reply formatting. Tested on Linux with g++. Used by the sketch. |
@@ -351,14 +352,17 @@ The test filenames remain unchanged so their original test cases are easy to tra
 | `firmware/README.md` | Explains firmware configuration and remaining hardware checks. |
 | `tools/read_sensor.py` | Prints JSON records from a selected serial port. It does not connect the monitoring components. |
 | `tools/check_setup.py` | Reports environment metadata. It does not prove that the application works. |
-| `tests/` | Contains twenty-three Python test files. The suite reported 752 passed on 23 November, on branch `feature/bsec-state`. See the verification records for earlier counts. |
-| `reference_files/` | Contains the course reference, implementation plan, Linux handoff, and VIGIL comparison. |
+| `tools/sensor_check.py` | Read-only bench check of the board: readings, gas change, dust input, Bosch accuracy and BSEC state lines. Stop the monitor first. |
+| `tests/` | Contains twenty-four Python test files. The suite reported 798 passed on 25 November, on branch `fix/dust-led-i2c-restart`. See the verification records for earlier counts. |
+| `reference_files/` | Contains the verification records (the newest is 25 November 2026), the Python file guide, the course reference, the historical implementation plan and Linux handoff, and the VIGIL comparison. |
 | `docs/superpowers/` | Contains detailed component designs and implementation checklists. |
 | `docs/SHARP_DUST_INTEGRATION.md` | Describes dust wiring, calibration, and checks. |
 
 ## Known limitations
 
-- Every new part is verified with tests and the simulator, and partly on the bench on 20 November 2026 (see the hardware checklist in `firmware/README.md`).
+- Every new part is verified with tests and the simulator, and partly on the bench on 20 and 25 November 2026 (see the hardware checklist in `firmware/README.md` and the [25 November verification record](reference_files/LINUX_VERIFICATION_2026-11-25.md)).
+- The BME680 gas reading fails at the Bosch heater temperature. The Bosch index can show as current (accuracy 3) while it has no meaning. The fix is an open decision. See the [decision record](docs/superpowers/specs/2026-11-25-bme680-gas-heater-decision.md).
+- The BME680 drops off the I2C bus at times. The firmware bus restart recovered it once and failed the second time (25 November 2026).
 - The occupancy detector can miss seated, lying, or occluded people. Unknown occupancy suppresses patient-limit alerts.
 - Raw readings older than 7 days are deleted. Events are never deleted. The dashboard shows the latest 50 events and pages to older ones.
 - Timing settings apply at monitor startup. The dashboard uses the values in the latest monitor status.
@@ -372,38 +376,45 @@ The test filenames remain unchanged so their original test cases are easy to tra
 
 These decisions are not implemented, except where an entry says so.
 
-- The board is an ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. The firmware uses them and compiles (15 November). They are not checked on hardware. Correction, 20 November 2026: the dust pins were swapped to match the wiring: dust analog input GPIO5, dust LED drive GPIO4. Correction, 20 November 2026: the alarm LED is now the onboard RGB LED (GPIO48 by default, not checked on the board), not GPIO6.
+- The board is an ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. The pins are I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. The firmware uses them and compiles (15 November). They are not checked on hardware. Correction, 20 November 2026: the dust pins were swapped to match the wiring: dust analog input GPIO5, dust LED drive GPIO4. Correction, 20 November 2026: the alarm LED is now the onboard RGB LED (GPIO48 by default), not GPIO6. It lit as commanded on 20 November 2026. Correction, 25 November 2026: GPIO4 drives the dust LED directly (LOW turns it on). Dust readings passed on the board.
 - Completion work builds on the current branch. The dust sensor stays.
 - The primary dashboard viewer is a caregiver at a desk screen.
 - The notification channel is a local alarm on the ESP32: a buzzer and an LED. The host side, the "Silence alarm" control and the sketch wiring were implemented on 15 November.
 - The buzzer sounds for limit alerts only: patient limits, and the air-quality and dust system limits. System faults light the LED and show on the dashboard without sound.
 - A dashboard "Silence alarm" button stops the buzzer for that alert. The LED stays on until the condition clears. The silence is logged. A new alert sounds again.
-- The buzzer is a 3-pin buzzer module driven from one GPIO. Correction, 20 November 2026: no external alarm LED and no buzzer are connected. The alarm LED is the onboard RGB LED (GPIO48 by default, not checked on the board). GPIO7 drives nothing for now.
+- The buzzer is a 3-pin buzzer module driven from one GPIO. Correction, 20 November 2026: no external alarm LED and no buzzer are connected. The alarm LED is the onboard RGB LED (GPIO48 by default). It lit as commanded on 20 November 2026. GPIO7 drives nothing for now.
 - Raw readings will be kept for 7 days. Event history is kept regardless. Implemented on 15 November.
-- The dashboard will be redesigned. The current page is a first draft. Implemented on this branch: five pages (Overview, Trends, Events, Patient limits, System), checked with the simulator and screenshots, not on hardware.
+- The dashboard will be redesigned. The current page is a first draft. Implemented on this branch: five pages (Overview, Trends, Events, Patient limits, System), checked with the simulator and screenshots, and on 20 November 2026 with the board (HTTP 200).
 - Air quality is Bosch's BSEC index and dust is an estimated concentration, both with words and an "estimate" label. Their limits are system setup. The profile has a short label. This replaces the raw-signals-only rule. Implemented on 15 November; tests and simulator only.
 
 ## What remains
+
+For the current list, see [Remaining work in README.md](README.md#remaining-work). New items from 25 November 2026:
+
+- BME680 gas: choose hardware option B or software option C. See the [decision record](docs/superpowers/specs/2026-11-25-bme680-gas-heater-decision.md). Decide what the dashboard shows while the index has no meaning.
+- BME680 I2C drop-outs: the firmware bus restart is not always enough.
+
+The older list below keeps its numbering. Items marked done or replaced are history.
 
 1. Identify the ESP32-S3 board model. Run the rest of the hardware checklist in the [firmware guide](firmware/README.md).
 2. Done on 17 November 2026: the USB port is the CH343 bridge, `/dev/ttyACM0`, with `CDCOnBoot=default`.
 3. Obtain the hardware. Check the wiring and the 3.3 V sensor supply.
 4. Check real readings with the laptop monitor. The firmware was uploaded on 17 November 2026, and the serial link and alarm protocol were checked without sensors.
 5. Check physical USB reconnection, sensor failures, units, and actual BSEC status transitions.
-6. Check dust timing with an oscilloscope and measure a clean-air baseline.
+6. Check dust timing with an oscilloscope. The automatic clean-air baseline formed on the board on 25 November 2026 (about 921.5 mV). It is not checked against a reference instrument.
 7. Check the camera and the occupancy detector with seated, lying, and occluded people.
 8. Check the local alarm on the real board: that GPIO7 is free, and the buzzer polarity once a buzzer is connected. Done on 20 November 2026: the onboard RGB LED was off or white as commanded, and the link-lost blink started and stopped.
 9. Check the five-page dashboard with the real board and sensors. It is checked only with the simulator and screenshots.
 10. Demonstrate normal operation, faults, and recovery with actual hardware.
 11. Check a real dust disconnect on the bench. The monitor applies a floor rule: a dust voltage below `dust.disconnected_below_mv` (100 mV), a 0 mV reading, or the board's `dust_input_at_zero` report count as "no reading". After 120 s with no reading at or above the floor, the dust status is not connected and the dust fault is on. On 20 November every reading was `dust_input_at_zero` and the monitor raised the dust fault at 120 s. Still to check: with the divider wired and no sensor, the input reads below 100 mV, and a connected sensor reads above it.
 12. Online access: send a signed-in control request (save limits, silence, acknowledge) through a real tunnel. Online access is implemented. One real tunnel run on 19 November 2026 loaded the pages and refused control requests without sign-in.
-13. BSEC state save and restore on the board. Flash the new firmware first (the board still runs `1c74995`). Then run to IAQ accuracy 3, wait for a save, power-cycle, and confirm the restore.
-14. Open items from the 20 November 2026 bench check:
-    - Dust: FAIL. Every reading was `dust_input_at_zero` (GPIO5 reads 0 V). The code reads the right pin. The cause is likely the wiring or the sensor power. Check with a meter: Vcc 5 V on sensor pins 6 and 1, ground on pins 2 and 4, Vo on pin 5, and the divider midpoint to GPIO5.
-    - Gas: SUSPECT. `gas_ohms` was 12917166.00 in every reading for about 15 minutes. Inference, not measured: by the BME68x formula this is a raw gas ADC of 0 at range 0 with the valid bits still set. The gas part may be faulty or not genuine. The IAQ values are then not meaningful.
+13. BSEC state restore from the laptop file on the board. The firmware is flashed and a save happened on 25 November 2026 (on a stuck gas reading). Still to check, after a gas fix: power-cycle and confirm the restore from the file.
+14. Items from the 20 November 2026 bench check (history; the 25 November results replace them):
+    - Dust: failed on 20 November (every reading `dust_input_at_zero`). Fixed on 25 November 2026: the cause was the LED polarity, not the wiring or the power. Dust now passes.
+    - Gas: stuck on 20 November (`gas_ohms` 12917166.00 for about 15 minutes). On 25 November a heater sweep showed real gas values at 200 to 260 °C and failures from 280 °C. Inference: the failure follows the heater drive (supply sag, or a contact or sensing layer that fails when hot). See the new BME680 gas item above.
     - Not done: the start-up line after a reset-button press (the window was missed), and the 10-minute gas run.
 
-The project contains a rule engine, occupancy detector, database, and dashboard in software. Its local alarm exists on the host and in the sketch. The onboard LED was driven on the bench on 20 November 2026. No buzzer has been driven yet.
+The project contains a rule engine, occupancy detector, database, and dashboard in software. Its local alarm exists on the host and in the sketch. The onboard LED was driven on the bench on 20 and 25 November 2026. No buzzer has been driven yet.
 It remains an educational prototype.
 
 ## How this project differs from VIGIL
@@ -421,7 +432,7 @@ This project monitors room conditions and uses a camera for occupancy.
 | Monitoring and dashboard | Separate monitor and web components | Same separation. The monitor writes SQLite and the dashboard reads it. |
 
 See the [VIGIL comparison](reference_files/VIGIL_COMPARISON.md) for source findings and differences.
-See the [implementation plan](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md) for detailed project status.
+See [README.md](README.md) for the current project status. The [implementation plan](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md) is history (15 to 19 November 2026).
 
 ## Reading note
 

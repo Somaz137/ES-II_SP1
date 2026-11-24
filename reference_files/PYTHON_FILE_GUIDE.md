@@ -2,13 +2,14 @@
 
 This guide explains the current files in simple terms.
 The main folder contains twenty-two application Python files.
-The project also contains two Python tools and twenty-three Python test files.
-The total is forty-seven Python files (counted on 23 November 2026, branch `feature/bsec-state`).
+The project also contains three Python tools and twenty-four Python test files.
+The total is forty-nine Python files (counted on 25 November 2026, branch `fix/dust-led-i2c-restart`).
 The six newest application files and three newest test files are on branch `feature/sharp-dust-integration`.
 They are verified only with automated tests and the simulator.
 The local alarm added `alarm.py`, `tests/test_alarm.py` and `tests/test_alarm_link.py` on branch `feature/local-alarm`. It is also verified only with tests and the simulator.
 The air-quality and dust-estimate step added `air_quality.py`, `tests/test_air_quality.py` and `tests/test_system_limits.py` on branch `feature/air-quality-dust-label`. It is verified only with tests and the simulator.
-The BSEC state save added `bsec_state_store.py` and `tests/test_bsec_state.py` on branch `feature/bsec-state` (20 November 2026). It is verified with tests and the simulator. The firmware side is compiled and host-tested, not checked on hardware.
+The BSEC state save added `bsec_state_store.py` and `tests/test_bsec_state.py` on branch `feature/bsec-state` (20 November 2026). It is verified with tests and the simulator. The firmware side is compiled and host-tested. On the board (25 November 2026) it reached accuracy 3 and saved its state, but on a stuck gas reading. A restore from the laptop file after a board start is not checked. See the [25 November verification record](LINUX_VERIFICATION_2026-11-25.md).
+The sensor check tool added `tools/sensor_check.py` and `tests/test_sensor_check.py` (25 November 2026). It ran on the board on 25 November 2026.
 
 ## Application files
 
@@ -58,6 +59,7 @@ Closing the dashboard does not stop monitoring.
 |---|---|
 | `tools/check_setup.py` | Reports Python package versions and visible devices. It does not prove that the complete application works. |
 | `tools/read_sensor.py` | Opens a selected serial port and prints received JSON records. It is a separate diagnostic tool. |
+| `tools/sensor_check.py` | Read-only bench check of the board's serial lines for a set time. Prints PASS, FAIL, NOT SEEN or INFO for readings, gas change, dust input, Bosch accuracy and BSEC state lines. Refuses to run when another program holds the port. |
 
 ## Test files
 
@@ -85,6 +87,7 @@ Closing the dashboard does not stop monitoring.
 | `tests/test_online_dashboard.py` | Checks that the online origin allows reading, refuses controls without sign-in or with a bad CSRF token, sends its headers, locks controls with words, rate-limits sign-in and shows no secret; and that the local origin is unchanged. |
 | `tests/test_alarm.py` | Checks alarm levels, command timing, confirmation, timeout, failed sends, reconnect, silence, and events. |
 | `tests/test_bsec_state.py` | Checks the BSEC state lines in the parser, that they do not reset the communication timer, the file write and rename, missing, damaged and mismatched files, one reply per request, the logged events, the simulated board, the System page row, and an impossible `saved_at` time. |
+| `tests/test_sensor_check.py` | Checks the sensor check tool: line counting, each check result, the stuck gas value, the dust floor, the port-holder check and the printed report. |
 | `tests/test_alarm_link.py` | Checks the simulated board and the alarm through the session and the monitor loop. Shows that failing, silent and raising transports change no reading, fault check, limit alert, event, or published status. |
 
 The test filenames describe the behavior under test.
@@ -100,18 +103,20 @@ On 19 November online access added 73 cases: 14 in `tests/test_online_settings.p
 
 On 20 November the BSEC state save added 64 cases: 58 in `tests/test_bsec_state.py` and 6 in `tests/test_serial_parser.py`. On 23 November the full suite reported 752 passed on branch `feature/bsec-state`.
 
+On 25 November the sensor check tool added `tests/test_sensor_check.py`. The full suite reported 798 passed on `feature/bsec-state` and on `fix/dust-led-i2c-restart`.
+
 ## Other important files
 
 | File or folder | Purpose |
 |---|---|
 | `config/alerts.yaml` | Stores communication and sensor-error waiting periods. |
-| `config/system.yaml` | Air-quality and dust limits (off as shipped), word bands and levels, dust sensitivity and baseline rule. |
+| `config/system.yaml` | Air-quality and dust limits (off as shipped), word bands and levels, dust sensitivity, baseline rule, and the dust floor `dust.disconnected_below_mv` (100 mV): a lower voltage is "no reading". |
 | `config/runtime.yaml` | Stores host polling, connection retry, and periodic fault-check intervals, and the optional timing keys, including the alarm confirmation timeout. |
 | `requirements.txt` | Lists the required Python packages and versions. |
 | `firmware/room_environment_safety_control_bme680.ino` | Runs on the ESP32. Reads the sensor and sends measurements or errors. Asks the laptop for the BSEC state at start and sends it at IAQ accuracy 3. |
 | `firmware/bsec_board_config.h` | Requires the ESP32-S3. Stores all board pins, the buzzer polarity, supply, and reporting intervals. |
 | `firmware/bsec_serial_format.h` | Converts firmware measurements and Bosch status into JSON text. |
-| `firmware/sharp_dust.h` | Experimental Sharp dust acquisition on GPIO4 and GPIO5. Compiled for the ESP32-S3. Not hardware-checked. |
+| `firmware/sharp_dust.h` | Sharp dust acquisition: LED drive GPIO4 (active LOW, direct wiring), analog input GPIO5. Passed on the board on 25 November 2026 after the LED polarity fix (60 of 60 records, 892.7 to 1135.0 mV). The LED timing is not checked on an oscilloscope. |
 | `firmware/sharp_dust_limits.h` | Pure dust sample rule: timing window, ADC limit, divider. |
 | `firmware/tests/test_sharp_dust_limits.cpp` | Checks `firmware/sharp_dust_limits.h` on a computer with g++. |
 | `templates/room.html` | Dashboard page layout and patient limits form. |
@@ -122,6 +127,8 @@ On 20 November the BSEC state save added 64 cases: 58 in `tests/test_bsec_state.
 | `firmware/tests/test_alarm_command.cpp` | Checks `firmware/alarm_command.h` on a computer with g++. |
 | `firmware/host_command.h` | Reads the host lines `ALARM,<0|1|2>`, `BSEC_STATE,<hex>` and `BSEC_STATE,NONE` with a fixed buffer (up to 511 characters), formats the BSEC state as hex, and holds the state-save rule (accuracy 3, then every 6 hours). Used by the sketch. |
 | `firmware/tests/test_host_command.cpp` | Checks `firmware/host_command.h` on a computer with g++. |
+| `firmware/bus_recovery.h` | The I2C bus restart rule (`roomBusRestartDue`): restart after 10 s with no valid reading, at most every 30 s. Used by the sketch. On the board on 25 November 2026 it recovered the BME680 once and failed the second time. |
+| `firmware/tests/test_bus_recovery.cpp` | Checks `firmware/bus_recovery.h` on a computer with g++. |
 | `tests/fixtures/bsec_reading.json` | Supplies an example reading for tests. It is not a physical measurement. |
 | `README.md` | Gives the project entry point and current status. |
 | `README_HUMAN.md` | Explains the system and its behavior for people. |

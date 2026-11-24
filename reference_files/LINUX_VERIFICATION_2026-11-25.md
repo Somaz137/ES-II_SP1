@@ -34,13 +34,45 @@ env/bin/python tools/sensor_check.py --port /dev/ttyACM0 --seconds <N> --log <sc
 | 02:18:18 | `f1a9dee` (restored) | Flash, then `sensor_check`, 60 s | Flash: 397210 bytes, upload exit 0, 4 of 4 hashes verified. Check: readings PASS (19, 3.0 s, no errors); gas FAIL (16 of 19 stuck); dust FAIL (52 to 62 mV, below the floor). |
 | About 02:24 | — | Flash `49029f2` | Compile exit 0, no warnings, 397546 bytes flash (12%), 30448 bytes globals (9%). Upload exit 0, "Hash of data verified." 4 times, hard reset through RTS. |
 | 02:24:59 to 02:27:56 | `49029f2` | `sensor_check`, 180 s | Exit 1, from gas only. 118 lines: 58 readings, 60 dust. Readings PASS: 58, mean 3.0 s, no sensor errors. Gas FAIL: 55 of 58 stuck, minimum 30399.80 ohm (real values 133538.53, 38634.82, 30399.80 ohm, 12 to 18 s after the reset). Dust PASS: 60 records, 0 `dust_input_at_zero`, 0 below the floor, 892.7 to 1135.0 mV, mean 1018.9 mV. Bosch accuracy highest 1, last index 50.1. 0 `i2c_bus_restarted`, 0 `bsec_measurement_unavailable`. |
-| From 02:28:21 | `49029f2` | `monitor.py --port /dev/ttyACM0` (PID 125021) and `dashboard.py` (PID 125022), from `wt-sensor-fixes`, local only | `/api/room` read at 02:31:34: serial connected, BME680 fresh, dust fresh (1055.5 mV, establishing baseline), air quality calibrating (accuracy 1), alarm confirmed at level 0. The monitor output from 02:28:22 to 02:40:12 (654 records) had no sensor error and no `i2c_bus_restarted` line. At 02:40 the dust estimate was current: baseline 921.5 mV, estimate 4.24 µg/m³, word "low". |
+| From 02:28:21 | `49029f2` | `monitor.py --port /dev/ttyACM0` (PID 125021) and `dashboard.py` (PID 125022), from `wt-sensor-fixes`, local only | Process start 02:28:21. First monitor record 02:28:22. `/api/room` read at 02:31:34: serial connected, BME680 fresh, dust fresh (1055.5 mV, establishing baseline), air quality calibrating (accuracy 1), alarm confirmed at level 0. The monitor output from 02:28:22 to 02:40:12 (654 records) had no sensor error and no `i2c_bus_restarted` line. At 02:40 the dust estimate was current: baseline 921.5 mV, estimate 4.24 µg/m³, word "low". The rest of this run is in [Monitor run, 02:28 to 02:59](#monitor-run-0228-to-0259). |
 
 Dust records from `49029f2`: the first record had 1000 samples and 2 rejected (probably a start-up window; inference). After that, 295 to 298 samples (297 in 54 records) and 2 to 5 rejected (3 in 54 records).
 
 Start-up lines and `bsec_state_request` were not in the logs. The board reset at the end of each upload, before the tool opened the port. Opening the CH343 port does not reset the board (20 November 2026). To capture these lines, the tool must listen before a reset.
 
 Inference about run 1: `sensor_code -2` is the BME68x communication-failure code (`BME68X_E_COM_FAIL`). After the flash (a full reset) the BME680 answered at once. So a sensor or bus state that a reset cleared is more likely than wiring. This was not proven.
+
+## Monitor run, 02:28 to 02:59
+
+Firmware `49029f2`. The monitor (PID 125021) and the dashboard (PID 125022) ran from `wt-sensor-fixes` with the default database `room.sqlite3`. The facts below come from the events and readings in that database (opened read-only) and from the scratch monitor log. Status as of 02:59. The run continued after that.
+
+| Time | What happened |
+|---|---|
+| 02:40:50 | Bosch accuracy 2. The first stored index value (200). |
+| 02:41:50 | Bosch accuracy 3. Event `bsec_state_saved`: "Bosch calibration saved (accuracy 3, BSEC 2.6.1.0)". The file is `room.bsec_state.json` in `wt-sensor-fixes` (git-ignored). |
+| 02:49:20 | Last BME680 reading before the first drop-out. Then `bsec_measurement_failed` and `bsec_measurement_unavailable`. |
+| 02:49:30 | `i2c_bus_restarted`, then `bsec_initialization_failed`. |
+| 02:50:00 | Second `i2c_bus_restarted`. The start succeeded. Event `bsec_state_restored` (from the RAM copy; no laptop request was made). |
+| 02:50:03 | Readings again. Gap 43 s. |
+| 02:56:48 | Last BME680 reading before the second drop-out. |
+| From 02:56:48 | Each bus restart (about every 30 s, 4 seen by 02:59) was followed by `bsec_initialization_failed`. |
+| 02:58:50 | Event "BME680 alert active." Alarm confirmed at level 1 (LED on, buzzer off). |
+
+Numbers from the database, 02:28:23 to 02:56:48:
+
+- Temperature: 556 stored readings. The only gap over 10 s is 02:49:20 to 02:50:03.
+- Gas: 552 of 556 stored readings were 12917166 ohm (stuck). The scratch monitor log shows the same pattern (about 1527 of 1544 records).
+- Bosch index: 307 stored values from 02:40:50. 272 round to 50. Short peaks after the first index (200 at 02:40:50, down to about 61 by 02:41:11) and after the bus restart (385 at 02:50:21, down to about 62 by 02:50:48).
+- Temperature, humidity and pressure were good while the sensor answered.
+- Dust stayed good for the whole run. The estimate was current from about 02:40 (baseline about 921.5 mV, about 4 µg/m³).
+
+Results:
+
+- The bus restart worked on the board once (02:49:20 to 02:50:03).
+- The bus restart did not recover the sensor the second time (from 02:56:48, as of 02:59).
+- The Bosch index reached accuracy 3, and the dashboard shows it as current. It has no meaning while the gas reading is stuck. This is an open issue. No fix is chosen. `tools/sensor_check.py` still reports the stuck gas.
+- Inference: the module drops off the bus, and a Wire restart is not always enough. This fits the supply or contact inference from the heater sweep. It is not proven.
+- Possible next diagnostics (not done): check whether SDA is held low, and try a bus clear (9 SCL pulses) before `Wire.begin`. Or a person checks the BME680 power and contacts (option B in the decision record).
 
 ## Diagnostic: dust LED and BME680
 
@@ -91,8 +123,8 @@ The dashboard showed "Dust alert cleared" at 01:42:32. The SQLite events of the 
 
 ## Not verified
 
-- The I2C bus restart on the board. The bus did not fail during the checks, so no `i2c_bus_restarted` line appeared.
-- The BSEC state save and restore on the board. Accuracy reached only 1.
+- A BSEC state restore from the laptop file after a board start. (The save at accuracy 3 and a restore from the RAM copy after a bus restart happened in the monitor run.)
+- A bus clear before `Wire.begin`, and the SDA level while the BME680 is off the bus.
 - A working gas reading under BSEC. It is blocked by the heater fault.
 - The start-up lines after a reset with the tool already listening.
 - The dust LED timing on an oscilloscope, and the GPIO4 voltage and current with a meter (also before `beginDust()` at boot).
@@ -101,4 +133,4 @@ The dashboard showed "Dust alert cleared" at 01:42:32. The SQLite events of the 
 
 ## Evidence notes
 
-The logs and reports are outside git: `wt-bsec-state/.superpowers/sdd/2026-11-25-sensor-check/` (`hardware-run-report.md`, `diagnostic-report.md`, `heater-sweep-report.md`, `hw-logs/`) and `wt-sensor-fixes/.superpowers/sdd/2026-11-25-dust-led-and-i2c-restart/` (`flash-report.md`). The diagnostic and sweep sketches and their raw logs are in a session scratch folder, which can be cleared. The numbers above are copied from those reports and logs. The monitor-output figures from 02:28 to 02:40 and the event times were read from the scratch monitor log and the SQLite file while this record was written.
+The logs and reports are outside git: `wt-bsec-state/.superpowers/sdd/2026-11-25-sensor-check/` (`hardware-run-report.md`, `diagnostic-report.md`, `heater-sweep-report.md`, `hw-logs/`) and `wt-sensor-fixes/.superpowers/sdd/2026-11-25-dust-led-and-i2c-restart/` (`flash-report.md`). The diagnostic and sweep sketches and their raw logs are in a session scratch folder, which can be cleared. The numbers above are copied from those reports and logs. The monitor-output figures from 02:28 to 02:59 and the event times were read from the scratch monitor log and the `wt-sensor-fixes` SQLite file (read-only) while this record was written. The `i2c_bus_restarted` and `bsec_initialization_failed` lines appear as the `diagnostic` field of the status records in the monitor log, not in the events table.

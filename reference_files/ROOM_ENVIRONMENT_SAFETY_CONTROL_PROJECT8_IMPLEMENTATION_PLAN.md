@@ -1,5 +1,7 @@
 # Room Environment Safety Control — Implementation Plan and Current Status
 
+> **Historical (15–19 November 2026).** Current state: [README.md](../README.md) and [reference_files/LINUX_VERIFICATION_2026-11-25.md](LINUX_VERIFICATION_2026-11-25.md).
+
 **Linux checks recorded:** See the [8 November verification record](LINUX_VERIFICATION_2026-11-08.md).
 The user completed Python test execution, firmware formatting, compilation, and the listed virtual-serial scenarios.
 Physical ESP32 and BME680 operation remains unverified.

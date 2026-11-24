@@ -16,7 +16,7 @@ With the normal firmware (Bosch BSEC2 1.10.2610, low-power configuration `bme680
 | Sensor check, 180 s | `49029f2` | 55 of 58 | 133538.53, 38634.82, 30399.80 ohm, 12 to 18 s after the reset |
 
 On 20 November 2026 (firmware `1c74995`) every reading for about 15 minutes was the same value.
-Bosch accuracy reached only 1 in these runs. The Bosch index cannot become current (accuracy 2 or 3) on a stuck gas signal. This is an inference from how BSEC uses the gas signal. It was not proven.
+Bosch accuracy reached only 1 in these short runs. In a longer monitor run (firmware `49029f2`, from 02:28:21) accuracy reached 2 at 02:40:50 and 3 at 02:41:50, and the board saved its state (`bsec_state_saved`, "accuracy 3, BSEC 2.6.1.0"). The gas reading stayed stuck: 552 of 556 stored gas readings from 02:28 to 02:56 were 12917166 ohm. The index stayed about 50 most of the time (272 of 307 stored index values round to 50), with short peaks after the first index (200 at 02:40:50) and after the I2C bus restart (385 at 02:50:21). So the Bosch index reaches accuracy 3 but has no meaning while the gas is stuck. The dashboard shows it as current. This is an open issue (no fix chosen).
 
 ## Findings
 
@@ -43,7 +43,7 @@ Heater sweep (forced mode, no BSEC, 540 s, 20 cycles of 9 steps, 178 measurement
 | 320 °C / 50 ms | 20 | 0 | 20 | — | range 0: 12917.2 kΩ |
 | 200 °C / 50 ms | 20 | 20 | 0 | 43.7 to 46.5 | — |
 
-- From 200 to 260 °C, 98 of 98 readings were real (18.4 to 46.5 kΩ).
+- From 200 to 260 °C, 78 of 78 readings were real (18.4 to 46.5 kΩ): 58 of 58 at 150 ms (200, 240 and 260 °C) and 20 of 20 at 200 °C / 50 ms.
 - The threshold is between 260 °C (res_heat 106, idac 182 to 183) and 280 °C (res_heat 112, idac 188).
 - At 320 °C a shorter heater time (100 ms, 50 ms) did not help. At 200 °C, 50 ms and 150 ms both worked.
 - No carry-over: after a 320 °C failure, the next 200 °C / 50 ms reading was real 20 of 20 times.
@@ -58,6 +58,7 @@ Heater sweep (forced mode, no BSEC, 540 s, 20 cycles of 9 steps, 178 measurement
 - Two causes fit the data: a supply sag at the higher heater current, or a contact or sensing layer that fails when it is hot. The data cannot separate these. A meter on the BME680 supply during a 320 °C measurement, or the same sweep on a known-good BME680, would separate them.
 - The BSEC configuration in use heats to about 320 °C. Reason: its readings show exactly 12917166 ohm (gas ADC 0 at range 0). In the sweep only the 320 °C steps gave this value. The 280 and 300 °C failures gave other values. The heater profile inside the Bosch configuration blob was not read.
 - So the Bosch air-quality index cannot work with this module as it is.
+- New evidence (25 November 2026, 02:49 to 02:59, firmware `49029f2`): the BME680 dropped off the I2C bus twice. At 02:49:20 it stopped; after two bus restarts it started again (02:50:03, from the RAM copy of the state). At 02:56:48 it stopped again; each restart after that (about every 30 s, 4 by 02:59) gave `bsec_initialization_failed`. Inference: a Wire restart is not always enough, and the drop-outs lean toward a hardware cause (supply or contacts). It is not proven. The sweep itself had no I2C errors.
 
 ## Options
 
@@ -73,7 +74,7 @@ A person does one of these:
 |---|---|
 | Cost | Parts and a person at the bench. No code change. |
 | Changes | Nothing in the code or the dashboard. BSEC and the Bosch index stay. |
-| Result if it works | Real gas values at 320 °C. The Bosch index can reach accuracy 3. The BSEC state save and restore check can then run. |
+| Result if it works | Real gas values at 320 °C. The Bosch index then has a meaning at accuracy 3. (Accuracy 3 and a state save already happened on 25 November on the stuck signal.) A restore from the laptop file can then be checked with a real state. If the cause is the supply or the contacts, the I2C drop-outs may also stop (inference). |
 | Risk | Items 1 and 2 help only if the cause is a supply sag. If the sensing element itself fails, only item 3 helps. |
 
 ### C: software
