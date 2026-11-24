@@ -36,7 +36,7 @@ So the hardware comes first. The dashboard already shows the Bosch index with a 
 - Product rules in the README Product section and `PRODUCT.md`: say it in words, never colour alone; never show a retained or estimated value as fresh; state facts, no medical judgement; patient limits are never invented.
 - No new Python packages. pyserial is already used (`tools/read_sensor.py`, `serial_transport.py`).
 - No build step, no CDN: plain Flask templates, CSS and JavaScript.
-- Only one program can open the serial port. The monitor must be stopped while the tool runs. Opening the CH343 port (`/dev/ttyACM0`) does not reset the board.
+- The running monitor does not lock the port (pyserial 3.5 opens without `flock`; `serial_transport.py` opens without `exclusive`). Two programs on one port each get only part of the lines. So the monitor must be stopped while the tool runs, and the tool looks in `/proc` for another program that holds the port before it opens it. Opening the CH343 port (`/dev/ttyACM0`) does not reset the board.
 - Status reports and docs in plain, short STE-style English.
 
 ## 6. Approaches considered
@@ -54,19 +54,21 @@ So the hardware comes first. The dashboard already shows the Bosch index with a 
 
 Command: `env/bin/python tools/sensor_check.py --port /dev/ttyACM0 [--seconds 120] [--breath] [--log FILE]`
 
-- `--port` is required. If the port cannot be opened, print one line that says the port is busy or missing and that the monitor must be stopped, then exit 2.
-- `--seconds` (default 120) is the listen time. The BME680 reports every 3 s, so 120 s gives about 40 readings. The dust timeout is 120 s, so the default covers one full dust window.
+- `--port` is required. If another program holds the port (found in `/proc/[pid]/fd`), or the port cannot be opened, print one line that says so and that the monitor must be stopped, then exit 2. The tool opens the port with `exclusive=True`, so two tool runs refuse each other.
+- `--seconds` (default 120, finite and more than 0) is the listen time. The BME680 reports every 3 s, so 120 s gives about 40 readings. The dust timeout is 120 s, so the default covers one full dust window.
 - Parsing reuses `serial_parser.parse_serial_line` for readings and BSEC messages, and `dust.parse_dust` for dust lines. The disconnect floor is read from `config/system.yaml` (`dust.disconnected_below_mv`) through the existing settings loader, not copied.
 - `--log FILE` writes every raw line with a timestamp, so the run can be analysed later.
 - `--breath`: after the main listen time, print "Breathe on the BME680 for 5 seconds now." and listen 30 s more. Report the lowest gas resistance in that window as a percentage of the median before it. This is information only, with no pass/fail threshold, because no threshold has been chosen.
 
-Summary lines at the end, each PASS, FAIL or NOT SEEN, with the numbers behind it:
+Before the summary, print the total line count (`Lines received: N.`); with 0 lines add "No lines came. Check that the cable is in the CH343 port and that the board runs."
+
+Summary lines at the end, each PASS, FAIL, NOT SEEN or INFO, with the numbers behind it:
 
 | Check | PASS when | Numbers printed |
 |---|---|---|
 | Readings arrive | at least one valid BME680 reading | count, mean interval |
-| Gas resistance changes | more than one distinct `gas_ohms` value among the valid readings, and not every reading is 12917166.00 | count of distinct values, min, max |
-| Dust input | at least one dust record with `sensor_mv` at or above the floor | dust records, `dust_input_at_zero` count, other dust errors, min and max mV |
+| Gas resistance changes | more than one distinct `gas_ohms` value among the valid readings, and no reading is 12917166.00 | count of readings at 12917166.00 (when any), count of distinct values, min, max |
+| Dust input | at least one dust record with `sensor_mv` at or above the floor | dust records, `dust_input_at_zero` count, each other dust error with its count, min and max mV |
 | Bosch accuracy | information only | highest `iaq_accuracy` seen, last `iaq` |
 | BSEC state messages | information only | `bsec_state_request`, `bsec_state_restored`, `bsec_state_save_failed` seen or not |
 

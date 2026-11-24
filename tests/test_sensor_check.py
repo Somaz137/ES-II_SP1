@@ -1,6 +1,10 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
+
+import pytest
+import serial
 
 from bsec_state_store import is_bsec_version
 
@@ -135,10 +139,84 @@ def test_report_format():
     assert report == "FAIL     Gas resistance changes: 1 distinct\n  Next step: Check it."
 
 
-# --- command line -----------------------------------------------------------
+def test_stuck_plus_one_outlier_fails():
+    result = gas_check([reading(12917166.0)] * 39 + [reading(13000000.0)])
+    assert result.verdict == "FAIL"
+    assert "39 of 40 readings match the stuck value of 20 November" in result.detail
+    assert result.next_step == sensor_check.GAS_NEXT_STEP
+    assert sensor_check.STUCK_TEXT in result.detail
 
-import pytest  # noqa: E402
-import serial  # noqa: E402
+
+def test_exit_code_one_fail_among_pass_is_1():
+    checks = [Check("a", "PASS", ""), Check("b", "FAIL", ""), Check("c", "PASS", ""),
+              Check("d", "INFO", "")]
+    assert sensor_check.exit_code(checks) == 1
+
+
+def test_one_valid_reading_count_is_singular():
+    assert gas_check([reading(40000.0)]).detail.startswith("1 valid reading,")
+    result = check(sensor_check.analyse(timed([reading(40000.0)]), 100), "Readings arrive")
+    assert result.detail.startswith("1 valid reading,")
+
+
+def test_one_dust_record_is_singular():
+    result = check(sensor_check.analyse(timed([dust(910.0)]), 100), "Dust input")
+    assert result.detail.startswith("1 dust record,")
+
+
+def test_other_dust_errors_are_named_with_counts():
+    line = '{"type":"dust_error","message":"dust_acquisition_unavailable"}'
+    result = check(sensor_check.analyse(timed([line] * 40), 100), "Dust input")
+    assert result.verdict == "FAIL"
+    assert "dust_acquisition_unavailable (40)" in result.detail
+    assert result.next_step == ("The board could not sample the dust input. "
+                                "Reset the board and run again.")
+
+
+def test_dust_errors_with_zero_reports_keep_meter_step():
+    line = '{"type":"dust_error","message":"dust_acquisition_unavailable"}'
+    result = check(sensor_check.analyse(timed([line, dust_zero()]), 100), "Dust input")
+    assert result.verdict == "FAIL"
+    assert "pins 6 and 1" in result.next_step
+
+
+def test_sensor_errors_without_readings_give_wiring_step():
+    line = '{"type":"error","message":"bsec_initialization_failed"}'
+    result = check(sensor_check.analyse(timed([line]), 100), "Readings arrive")
+    assert result.verdict == "NOT SEEN"
+    assert result.next_step == ("Check the BME680 wiring (I2C SDA GPIO8, SCL GPIO9) "
+                                "and its power.")
+
+
+def test_no_readings_without_errors_have_no_next_step():
+    result = check(sensor_check.analyse([], 100), "Readings arrive")
+    assert result.next_step is None
+
+
+def test_port_holders_finds_other_pid(tmp_path):
+    device = tmp_path / "ttyFAKE"
+    device.touch()
+    fd = tmp_path / "proc" / "4242" / "fd"
+    fd.mkdir(parents=True)
+    (fd / "3").symlink_to(device)
+    (tmp_path / "proc" / "self").mkdir()
+    assert sensor_check.port_holders(str(device), str(tmp_path / "proc")) == [4242]
+
+
+def test_own_pid_is_ignored(tmp_path):
+    device = tmp_path / "ttyFAKE"
+    device.touch()
+    fd = tmp_path / "proc" / str(os.getpid()) / "fd"
+    fd.mkdir(parents=True)
+    (fd / "3").symlink_to(device)
+    assert sensor_check.port_holders(str(device), str(tmp_path / "proc")) == []
+
+
+def test_port_holders_with_no_proc_is_empty(tmp_path):
+    assert sensor_check.port_holders("/dev/ttyFAKE", str(tmp_path / "none")) == []
+
+
+# --- command line -----------------------------------------------------------
 
 _CONFIG = str(Path(__file__).resolve().parent.parent / "config" / "system.yaml")
 
@@ -146,8 +224,8 @@ _CONFIG = str(Path(__file__).resolve().parent.parent / "config" / "system.yaml")
 class FakePort:
     """Read-only fake: no write method, so a write raises AttributeError."""
 
-    def __init__(self, texts, fail_after=None, error=None):
-        self.queue = [t.encode("utf-8") + b"\n" for t in texts]
+    def __init__(self, texts, fail_after=None, error=None, raw=None):
+        self.queue = list(raw) if raw is not None else [t.encode("utf-8") + b"\n" for t in texts]
         self.fail_after = fail_after
         self.error = error
         self.reads = 0
@@ -175,13 +253,13 @@ class FakeClock:
 def run(port, args, capsys):
     opened = []
 
-    def opener(name, baud, timeout):
-        opened.append((name, baud, timeout))
+    def opener(name, baud, timeout, exclusive):
+        opened.append((name, baud, timeout, exclusive))
         return port
 
     code = sensor_check.main(["--port", "/dev/ttyFAKE", "--config", _CONFIG, *args],
                              opener=opener, clock=FakeClock())
-    assert opened == [("/dev/ttyFAKE", 115200, 1)]
+    assert opened == [("/dev/ttyFAKE", 115200, 1, True)]
     return code, capsys.readouterr().out
 
 
@@ -206,7 +284,7 @@ def test_main_returns_1_on_stuck_gas(capsys):
 
 
 def test_busy_port_prints_one_line_and_exits_2(capsys):
-    def opener(name, baud, timeout):
+    def opener(name, baud, timeout, exclusive):
         raise serial.SerialException("[Errno 16] Device or resource busy")
 
     code = sensor_check.main(["--port", "/dev/ttyFAKE", "--config", _CONFIG],
@@ -214,6 +292,7 @@ def test_busy_port_prints_one_line_and_exits_2(capsys):
     out = capsys.readouterr().out
     assert code == 2
     assert "Stop the monitor first" in out
+    assert "only one program" not in out
     assert "Traceback" not in out
     assert len(out.strip().splitlines()) == 1
 
@@ -271,3 +350,62 @@ def test_seconds_must_be_positive(capsys):
     with pytest.raises(SystemExit) as stop:
         sensor_check.main(["--port", "/dev/ttyFAKE", "--seconds", "0"])
     assert stop.value.code == 2
+
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", "-1"])
+def test_seconds_must_be_finite(value, capsys):
+    with pytest.raises(SystemExit) as stop:
+        sensor_check.main(["--port", "/dev/ttyFAKE", "--seconds", value],
+                          opener=lambda *a, **k: pytest.fail("port opened"))
+    assert stop.value.code == 2
+    assert "--seconds" in capsys.readouterr().err
+
+
+def test_port_held_by_other_process_exits_2(tmp_path, capsys):
+    device = tmp_path / "ttyFAKE"
+    device.touch()
+    fd = tmp_path / "proc" / "4242" / "fd"
+    fd.mkdir(parents=True)
+    (fd / "5").symlink_to(device)
+    code = sensor_check.main(["--port", str(device), "--config", _CONFIG],
+                             opener=lambda *a, **k: pytest.fail("port opened"),
+                             clock=FakeClock(), proc=str(tmp_path / "proc"))
+    out = capsys.readouterr().out
+    assert code == 2
+    assert out.strip() == (f"{device} is open in another program (pid 4242). Stop the monitor "
+                           "first: two programs on one port each get only part of the lines.")
+
+
+def test_line_count_is_reported(capsys):
+    code, out = run(FakePort(varying()), ["--seconds", "20"], capsys)
+    assert "Lines received: 6." in out
+    assert out.index("Lines received: 6.") < out.index("Readings arrive")
+    assert "No lines came" not in out
+
+
+def test_no_lines_gives_cable_hint(capsys):
+    code, out = run(FakePort([]), ["--seconds", "3"], capsys)
+    assert ("Lines received: 0. No lines came. Check that the cable is in the CH343 port "
+            "and that the board runs.") in out
+
+
+def test_line_cut_at_timeout_is_joined(tmp_path, capsys):
+    text = reading(50000.0)
+    raw = [text[:20].encode(), b"", text[20:].encode() + b"\n"]
+    log = tmp_path / "run.log"
+    code, out = run(FakePort([], raw=raw), ["--seconds", "6", "--log", str(log)], capsys)
+    assert "Lines received: 1." in out
+    assert "1 valid reading," in out
+    logged = log.read_text(encoding="utf-8").splitlines()
+    assert len(logged) == 1 and logged[0].endswith(text)
+
+
+def test_bad_log_path_exits_2_and_closes_port(tmp_path, capsys):
+    port = FakePort(varying())
+    path = tmp_path / "no-dir" / "run.log"
+    code, out = run(port, ["--log", str(path)], capsys)
+    assert code == 2
+    assert out.strip().startswith(f"Cannot write {path}: ")
+    assert len(out.strip().splitlines()) == 1
+    assert port.closed

@@ -124,16 +124,18 @@ env/bin/python tools/sensor_check.py --port /dev/ttyACM0 [--seconds 120] [--brea
 
 The summary lines:
 
-- `Readings arrive`: PASS when at least one valid BME680 reading came. It gives the count and the mean interval.
-- `Gas resistance changes`: PASS when the valid readings have more than one `gas_ohms` value. FAIL when the value is constant. The text says when the value matches the stuck value of 20 November (12917166.00).
-- `Dust input`: PASS when at least one dust record is at or above the `dust.disconnected_below_mv` floor. A FAIL gives the meter checks.
+Each summary line has one of four verdicts: PASS, FAIL, NOT SEEN (no data to judge) or INFO (no pass or fail). Before the summary, the tool prints `Lines received: N.` When no line came, it adds: "No lines came. Check that the cable is in the CH343 port and that the board runs."
+
+- `Readings arrive`: PASS when at least one valid BME680 reading came. It gives the count and the mean interval. With sensor errors and no readings, the next step is to check the BME680 wiring (I2C SDA GPIO8, SCL GPIO9) and its power.
+- `Gas resistance changes`: PASS when the valid readings have more than one `gas_ohms` value and none is the stuck value of 20 November (12917166.00). FAIL when the value is constant, or when any reading matches the stuck value (a raw gas ADC of 0 is not a real measurement). The text gives how many readings match. NOT SEEN with fewer than 2 valid readings.
+- `Dust input`: PASS when at least one dust record is at or above the `dust.disconnected_below_mv` floor. A FAIL gives the meter checks. Other dust errors are named with their counts. When there are only such errors, the next step is to reset the board and run again.
 - `Bosch accuracy` and `BSEC state messages`: information only. When the board asks for its saved calibration, the tool does not send it. Run the monitor to restore it.
 
-Exit codes: 0 all checks pass, 1 a check failed or was not seen, 2 port or config error.
+Exit codes: 0 all checks pass, 1 a check failed or was not seen, 2 port, config or log file error.
 
 Run order:
 
-1. Stop the monitor (only one program can open the port). Run the tool with the current firmware.
+1. Stop the monitor. The monitor does not lock the port: two programs on one port each get only part of the lines. The tool refuses to run when another program holds the port. Run the tool with the current firmware.
 2. Do the meter checks and fix the wiring. Run the tool again.
 3. Flash the new firmware. Run the tool again. Then start the monitor for the BSEC restore check (README "Remaining work" item 11).
 
