@@ -2,18 +2,31 @@
 """Read-only bench check of the board's serial lines: does the gas reading change,
 does the dust input work. It never writes to the board.
 
-This part holds the analysis only. Each line is a (seconds, text) pair.
+Usage:
+    env/bin/python tools/sensor_check.py --port /dev/ttyACM0 [--seconds 120] [--breath] [--log FILE]
+
+Exit codes: 0 all checks pass, 1 a check failed or was not seen, 2 port or config error.
+The analysis works on (seconds, text) pairs. The serial loop only collects them.
 """
+import argparse
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime
 import json
 import statistics
 import sys
+import time
 from pathlib import Path
+
+import serial
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dust import parse_dust  # noqa: E402
 from serial_parser import parse_serial_line  # noqa: E402
+from settings import load_system_settings  # noqa: E402
+
+_DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "config" / "system.yaml"
+BREATH_SECONDS = 30
 
 # The constant gas resistance the board sent on 20 November.
 STUCK_GAS_OHMS = 12917166.0
@@ -177,3 +190,92 @@ def format_report(checks: list[Check]) -> str:
         if c.next_step:
             out.append(f"  Next step: {c.next_step}")
     return "\n".join(out)
+
+
+
+def listen(port, seconds: float, clock, log=None) -> tuple[list[tuple[float, str]], str | None]:
+    """Read lines for `seconds`. Return the lines and a stop note, or None for a full run."""
+    lines = []
+    start = clock()
+    try:
+        while clock() - start < seconds:
+            text = port.readline().decode("utf-8", errors="replace").strip()
+            if not text:
+                continue
+            lines.append((clock(), text))
+            if log is not None:
+                log.write(f"{datetime.now().isoformat(timespec='seconds')} {text}\n")
+    except KeyboardInterrupt:
+        return lines, f"Stopped early after {clock() - start:.0f} s."
+    except (serial.SerialException, OSError):
+        return lines, f"The port closed after {clock() - start:.0f} s."
+    return lines, None
+
+
+def _positive_seconds(value):
+    seconds = float(value)
+    if seconds <= 0:
+        raise argparse.ArgumentTypeError("must be more than 0")
+    return seconds
+
+
+def _arguments(argv):
+    parser = argparse.ArgumentParser(
+        description="Read the board's serial lines and check the gas and dust readings. "
+                    "This tool only reads; it sends nothing to the board.")
+    parser.add_argument("--port", required=True, help="serial port, for example /dev/ttyACM0")
+    parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--seconds", type=_positive_seconds, default=120.0,
+                        help="listen time in seconds (default 120)")
+    parser.add_argument("--breath", action="store_true",
+                        help="after the listen time, ask for a breath on the BME680 "
+                             f"and listen {BREATH_SECONDS} s more")
+    parser.add_argument("--log", metavar="FILE", help="write each line with a timestamp")
+    parser.add_argument("--config", default=str(_DEFAULT_CONFIG),
+                        help="system settings file (default config/system.yaml)")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None, opener=serial.Serial, clock=time.monotonic) -> int:
+    args = _arguments(argv)
+    try:
+        floor = float(load_system_settings(args.config)["dust"]["disconnected_below_mv"])
+    except Exception as error:  # noqa: BLE001 - any config problem ends the run
+        print(f"Cannot read {args.config}: {error}")
+        return 2
+    try:
+        port = opener(args.port, args.baud, timeout=1)
+    except (serial.SerialException, OSError) as error:
+        print(f"Cannot open {args.port}: {error}. Stop the monitor first: only one program "
+              "can open the port. Check that the cable is in the CH343 port.")
+        return 2
+    log = None
+    try:
+        if args.log:
+            log = open(args.log, "w", encoding="utf-8")
+        print(f"Listening on {args.port} for {args.seconds:g} s. "
+              "This tool only reads; it sends nothing to the board.")
+        lines, note = listen(port, args.seconds, clock, log)
+        if args.breath and note is None:
+            print("Breathe on the BME680 for 5 seconds now.")
+            during, note = listen(port, BREATH_SECONDS, clock, log)
+            change = breath_change(lines, during)
+            lines += during
+            if change is None:
+                print("INFO     Breath test: no gas readings to compare.")
+            else:
+                print(f"INFO     Breath test: lowest gas resistance {change:.0f}% "
+                      "of the value before.")
+        if note:
+            print(note)
+        checks = analyse(lines, floor)
+        print(format_report(checks))
+        return exit_code(checks)
+    finally:
+        if log is not None:
+            log.close()
+        port.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

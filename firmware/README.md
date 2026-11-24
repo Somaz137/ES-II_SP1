@@ -110,6 +110,33 @@ After flashing:
 10. Monitor and dashboard. Pass on 20 November 2026: `monitor.py` raised the dust fault at 120 s and sent level 1, and the board confirmed it (the user saw the LED white). All five dashboard pages and `/api/room` returned HTTP 200.
 11. BSEC state save and restore. Not done: it needs a new flash with the BSEC state firmware. Run to IAQ accuracy 3, wait for a save, power-cycle, and confirm the restore.
 
+### Sensor check
+
+`tools/sensor_check.py` reads the board's serial lines and checks the gas and dust readings. It only reads: it sends nothing to the board.
+
+```bash
+env/bin/python tools/sensor_check.py --port /dev/ttyACM0 [--seconds 120] [--breath] [--log FILE]
+```
+
+- `--seconds` is the listen time (default 120 s, one full dust window).
+- `--breath` asks you to breathe on the BME680 after the listen time, then listens 30 s more. It prints the lowest gas resistance as a percentage of the value before. This is information only: there is no pass or fail limit.
+- `--log FILE` writes each line with a timestamp.
+
+The summary lines:
+
+- `Readings arrive`: PASS when at least one valid BME680 reading came. It gives the count and the mean interval.
+- `Gas resistance changes`: PASS when the valid readings have more than one `gas_ohms` value. FAIL when the value is constant. The text says when the value matches the stuck value of 20 November (12917166.00).
+- `Dust input`: PASS when at least one dust record is at or above the `dust.disconnected_below_mv` floor. A FAIL gives the meter checks.
+- `Bosch accuracy` and `BSEC state messages`: information only. When the board asks for its saved calibration, the tool does not send it. Run the monitor to restore it.
+
+Exit codes: 0 all checks pass, 1 a check failed or was not seen, 2 port or config error.
+
+Run order:
+
+1. Stop the monitor (only one program can open the port). Run the tool with the current firmware.
+2. Do the meter checks and fix the wiring. Run the tool again.
+3. Flash the new firmware. Run the tool again. Then start the monitor for the BSEC restore check (README "Remaining work" item 11).
+
 ## Local alarm
 
 The host sends `ALARM,0` (LED and buzzer off), `ALARM,1` (LED only) or `ALARM,2` (LED and buzzer). See the [local alarm design](../docs/superpowers/specs/2026-11-15-local-alarm-design.md) and the [port design](../docs/superpowers/specs/2026-11-15-esp32-s3-port-design.md).

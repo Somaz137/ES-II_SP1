@@ -133,3 +133,141 @@ def test_report_format():
     report = sensor_check.format_report(
         [Check("Gas resistance changes", "FAIL", "1 distinct", "Check it.")])
     assert report == "FAIL     Gas resistance changes: 1 distinct\n  Next step: Check it."
+
+
+# --- command line -----------------------------------------------------------
+
+import pytest  # noqa: E402
+import serial  # noqa: E402
+
+_CONFIG = str(Path(__file__).resolve().parent.parent / "config" / "system.yaml")
+
+
+class FakePort:
+    """Read-only fake: no write method, so a write raises AttributeError."""
+
+    def __init__(self, texts, fail_after=None, error=None):
+        self.queue = [t.encode("utf-8") + b"\n" for t in texts]
+        self.fail_after = fail_after
+        self.error = error
+        self.reads = 0
+        self.closed = False
+
+    def readline(self):
+        if self.fail_after is not None and self.reads >= self.fail_after:
+            raise self.error
+        self.reads += 1
+        return self.queue.pop(0) if self.queue else b""
+
+    def close(self):
+        self.closed = True
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        self.now += 1.0
+        return self.now
+
+
+def run(port, args, capsys):
+    opened = []
+
+    def opener(name, baud, timeout):
+        opened.append((name, baud, timeout))
+        return port
+
+    code = sensor_check.main(["--port", "/dev/ttyFAKE", "--config", _CONFIG, *args],
+                             opener=opener, clock=FakeClock())
+    assert opened == [("/dev/ttyFAKE", 115200, 1)]
+    return code, capsys.readouterr().out
+
+
+def varying():
+    return [reading(50000.0 + i) for i in range(5)] + [dust(910.0)]
+
+
+def test_main_reports_and_returns_0_when_all_pass(capsys):
+    port = FakePort(varying())
+    code, out = run(port, ["--seconds", "20"], capsys)
+    assert code == 0
+    assert "This tool only reads; it sends nothing to the board." in out
+    assert "PASS     Gas resistance changes" in out
+    assert port.closed
+
+
+def test_main_returns_1_on_stuck_gas(capsys):
+    port = FakePort([reading(12917166.0)] * 4 + [dust(910.0)])
+    code, out = run(port, ["--seconds", "20"], capsys)
+    assert code == 1
+    assert "FAIL     Gas resistance changes" in out
+
+
+def test_busy_port_prints_one_line_and_exits_2(capsys):
+    def opener(name, baud, timeout):
+        raise serial.SerialException("[Errno 16] Device or resource busy")
+
+    code = sensor_check.main(["--port", "/dev/ttyFAKE", "--config", _CONFIG],
+                             opener=opener, clock=FakeClock())
+    out = capsys.readouterr().out
+    assert code == 2
+    assert "Stop the monitor first" in out
+    assert "Traceback" not in out
+    assert len(out.strip().splitlines()) == 1
+
+
+def test_port_closed_mid_run_still_prints_summary(capsys):
+    port = FakePort(varying(), fail_after=2, error=serial.SerialException("gone"))
+    code, out = run(port, ["--seconds", "10"], capsys)
+    assert "The port closed after" in out
+    assert "Readings arrive" in out
+    assert port.closed
+
+
+def test_ctrl_c_prints_summary(capsys):
+    port = FakePort(varying(), fail_after=2, error=KeyboardInterrupt())
+    code, out = run(port, ["--seconds", "10"], capsys)
+    assert "Stopped early after" in out
+    assert "Readings arrive" in out
+    assert "Gas resistance changes" in out
+    assert port.closed
+
+
+def test_breath_step_prints_percentage(capsys):
+    port = FakePort([reading(50000.0 + i) for i in range(12)])
+    code, out = run(port, ["--seconds", "10", "--breath"], capsys)
+    assert "Breathe on the BME680 for 5 seconds now." in out
+    assert "INFO     Breath test: lowest gas resistance" in out
+
+
+def test_breath_step_with_no_readings_says_so(capsys):
+    port = FakePort([])
+    code, out = run(port, ["--seconds", "3", "--breath"], capsys)
+    assert "INFO     Breath test: no gas readings to compare." in out
+
+
+def test_log_writes_each_line(tmp_path, capsys):
+    texts = varying()
+    log = tmp_path / "run.log"
+    run(FakePort(texts), ["--seconds", "20", "--log", str(log)], capsys)
+    logged = log.read_text(encoding="utf-8").splitlines()
+    assert len(logged) == len(texts)
+    for line, text in zip(logged, texts):
+        assert line.endswith(text)
+
+
+def test_bad_config_exits_2(tmp_path, capsys):
+    code = sensor_check.main(["--port", "/dev/ttyFAKE", "--config", str(tmp_path / "none.yaml")],
+                             opener=lambda *a, **k: pytest.fail("port opened"),
+                             clock=FakeClock())
+    out = capsys.readouterr().out
+    assert code == 2
+    assert out.startswith("Cannot read")
+
+
+def test_seconds_must_be_positive(capsys):
+    with pytest.raises(SystemExit) as stop:
+        sensor_check.main(["--port", "/dev/ttyFAKE", "--seconds", "0"])
+    assert stop.value.code == 2

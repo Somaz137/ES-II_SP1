@@ -279,6 +279,7 @@ Firmware configuration commands remain future work. The BSEC calibration state i
     - Dust: FAIL. Every reading was `dust_input_at_zero` (GPIO5 reads 0 V). The code reads the right pin. The cause is likely the wiring or the sensor power. Check with a meter: Vcc 5 V on sensor pins 6 and 1, ground on pins 2 and 4, Vo on pin 5, and the divider midpoint to GPIO5.
     - Gas: SUSPECT. `gas_ohms` was 12917166.00 in every reading for about 15 minutes. Inference, not measured: by the BME68x formula this is a raw gas ADC of 0 at range 0 with the valid bits still set. The gas part may be faulty or not genuine. The IAQ values are then not meaningful.
     - Not done: the start-up line after a reset-button press (the window was missed), and the 10-minute gas run.
+    - Run `tools/sensor_check.py` before and after the meter checks (see the firmware guide).
 
 Follow the course requirements and approved project decisions.
 Preserve the existing environment and required dependencies.
