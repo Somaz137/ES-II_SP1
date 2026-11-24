@@ -136,6 +136,7 @@ The smallest change. The alerts panel shows the alarm in words, for example "Loc
 `firmware/alarm_command.h` is pure C++11 with no Arduino dependency and no dynamic allocation:
 
 - `AlarmLineReader` collects characters into a fixed 32-byte buffer. It reports a level, an invalid line or no complete line. Over-long lines are discarded up to the next newline. A trailing `\r` is accepted.
+  - Note, 20 November 2026: the 32-byte buffer is no longer current. `AlarmLineReader` now reads through `HostLineReader` (`firmware/host_command.h`), which keeps up to 511 characters, so a `BSEC_STATE,<hex>` line fits. Longer lines are still discarded up to the next newline.
 - `parseAlarmCommand` accepts exactly `ALARM,0`, `ALARM,1` or `ALARM,2`.
 - `alarmOutputs` maps a level to LED and buzzer on/off.
 - `formatAlarmReply` writes `{"type":"alarm","state":<n>}` into a caller buffer.
@@ -153,4 +154,4 @@ The smallest change. The alerts panel shows the alarm in words, for example "Loc
 
 ## Open point
 
-When the USB link is down the host cannot command the LED or buzzer. The dashboard then shows the alarm as unreachable. A firmware fallback, for example the board lighting its LED when it stops hearing from the host, is a possible later decision for the user. It is not implemented.
+When the USB link is down the host cannot command the LED or buzzer. The dashboard then shows the alarm as unreachable. A firmware fallback, for example the board lighting its LED when it stops hearing from the host, is a possible later decision for the user. It is not implemented. Note, 20 November 2026: now implemented. After 30 s with no valid `ALARM` command the board blinks the LED and keeps the buzzer in its last state (see `firmware/README.md`).

@@ -6,7 +6,7 @@
   <table class="table path-table">
     <thead><tr><th scope="col">Part</th><th scope="col">State</th><th scope="col">Last update</th><th scope="col">Detail</th></tr></thead>
     <tbody>
-      {% for key, name in [("monitor", "Monitor program"), ("serial", "ESP32 link"), ("bme680", "BME680 sensor"), ("dust", "Dust sensor"), ("occupancy", "Camera"), ("profile", "Patient limits file"), ("alarm", "Local alarm")] %}
+      {% for key, name in [("monitor", "Monitor program"), ("serial", "ESP32 link"), ("bme680", "BME680 sensor"), ("dust", "Dust sensor"), ("occupancy", "Camera"), ("profile", "Patient limits file"), ("alarm", "Local alarm"), ("bsec_state", "Bosch calibration")] %}
       <tr id="path-{{ key }}"><th scope="row" class="part">{{ name }}</th><td><span class="chip" data-tone="none" data-cell="state">Unknown</span></td><td class="when" data-cell="when">—</td><td class="det" data-cell="detail">Waiting for the first monitor update</td></tr>
       {% endfor %}
     </tbody>

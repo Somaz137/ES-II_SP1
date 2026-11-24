@@ -192,7 +192,7 @@ SYSTEM_DEFAULTS = {
     },
     "dust": {
         "upper_limit": None, "hold_s": None, "sensitivity_mv_per_mg_m3": 5000,
-        "baseline_window_s": 86400, "baseline_min_s": 600,
+        "baseline_window_s": 86400, "baseline_min_s": 600, "disconnected_below_mv": 100,
         "levels": [{"up_to": 50, "word": "low"}, {"up_to": 150, "word": "raised"}, {"word": "high"}],
     },
 }
@@ -208,7 +208,8 @@ DEMO_SYSTEM_SETTINGS = {
 BASELINE_WINDOW_MAX_S = 7 * 86400
 _SYSTEM_KEYS = {"air_quality": {"upper_limit", "hold_s", "bands"},
                 "dust": {"upper_limit", "hold_s", "sensitivity_mv_per_mg_m3",
-                         "baseline_window_s", "baseline_min_s", "levels"}}
+                         "baseline_window_s", "baseline_min_s", "disconnected_below_mv",
+                         "levels"}}
 
 
 def _words(key, entries):
@@ -248,8 +249,11 @@ def validate_system_settings(data: object) -> None:
     _words("air_quality bands", data["air_quality"]["bands"])
     dust = data["dust"]
     _words("dust levels", dust["levels"])
-    for key in ("sensitivity_mv_per_mg_m3", "baseline_window_s", "baseline_min_s"):
+    for key in ("sensitivity_mv_per_mg_m3", "baseline_window_s", "baseline_min_s",
+                "disconnected_below_mv"):
         _positive(f"dust {key}", dust[key])
+    if dust["disconnected_below_mv"] > 5500:
+        raise ValueError("dust disconnected_below_mv must not exceed 5500 mV.")
     if dust["baseline_window_s"] > BASELINE_WINDOW_MAX_S:
         raise ValueError("dust baseline_window_s must not exceed 7 days.")
     if dust["baseline_min_s"] > dust["baseline_window_s"]:

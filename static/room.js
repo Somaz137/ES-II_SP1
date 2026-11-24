@@ -159,6 +159,10 @@ function restoredAt(events) {
   const found = (events || []).find(e => e.kind === "fault_ended" && e.message.startsWith("Communication"));
   return found ? " · contact restored " + clock(found.at) : " · contact restored";
 }
+// The dust fault text: a missing sensor (readings below the floor) or readings not arriving.
+function dustFault(dust) {
+  return dust?.status === "not_connected" ? `Dust sensor not connected (reading below ${dust.floor_mv}${NB}mV)` : null;
+}
 // What the last status before the monitor went quiet said; worded as past, never as current.
 function lastConfirmed(v) {
   const {status} = v;
@@ -166,7 +170,7 @@ function lastConfirmed(v) {
   const items = (status.limit_alerts || []).map(e => lower(condition(e, e.metric)));
   if (status.communication_alert_active && status.communication_timed_out) items.push("no contact with the ESP32");
   if (status.sensor_alert_active) items.push("BME680 readings not arriving");
-  if (status.dust?.alert_active) items.push("dust readings not arriving");
+  if (status.dust?.alert_active) items.push(dustFault(status.dust)?.replace(/^D/, "d") || "dust readings not arriving");
   const alarm = status.alarm;
   const sounding = alarm && alarm.state === "confirmed" && alarm.confirmed_level === 2 && !alarm.silenced;
   return "Last confirmed " + clock(status.updated_at) + ": " +
@@ -196,7 +200,7 @@ function renderAttention(v, failed) {
       redKeys.push("comm");
     }
     if (status.sensor_alert_active) { red.push("Sensor alert · BME680 readings are not arriving"); redKeys.push("bme"); }
-    if (status.dust?.alert_active) { red.push("Sensor alert · dust readings are not arriving"); redKeys.push("dust"); }
+    if (status.dust?.alert_active) { red.push("Sensor alert · " + (dustFault(status.dust) || "dust readings are not arriving")); redKeys.push("dust"); }
     if (status.profile_error) { red.push("The patient limits could not be loaded"); redKeys.push("profile"); }
     if (status.alarm?.state === "unreachable") { red.push("Local alarm unreachable · the LED and buzzer cannot be confirmed"); redKeys.push("alarm"); }
   }
@@ -338,9 +342,11 @@ function renderOverviewChart(v) {
 }
 
 const FAMILY = {limit: "Limit alert", communication: "Communication", sensor: "Sensor", alarm: "Alarm", profile: "Profile",
-  online: "Online access"};
-const FAMILY_TONE = {limit: "red", communication: "amber", sensor: "none", alarm: "red", profile: "none", online: "none"};
+  online: "Online access", calibration: "Bosch calibration"};
+const FAMILY_TONE = {limit: "red", communication: "amber", sensor: "none", alarm: "red", profile: "none", online: "none",
+  calibration: "none"};
 function family(event) {
+  if (event.kind.startsWith("bsec_state")) return "calibration";
   if (event.kind.startsWith("online")) return "online";
   if (event.kind.startsWith("limit")) return "limit";
   if (event.kind.startsWith("alarm")) return "alarm";
@@ -615,7 +621,7 @@ function renderSystem(v) {
   const d = h.dust;
   const baseline = status?.dust_ugm3 ? (status.dust_ugm3.state === "establishing_baseline" ? "Establishing baseline" : "Baseline established") : "—";
   pathRow("dust", !known(d) ? "none" : d.alert_active ? "red" : d.state === "fresh" ? "green" : "amber",
-    !known(d) ? unknown : d.alert_active ? "Readings missing, alert active" : d.state === "fresh" ? "Readings current" : "Readings " + word(d.state),
+    !known(d) ? unknown : d.alert_active ? (dustFault(status?.dust) || "Readings missing, alert active") : d.state === "fresh" ? "Readings current" : "Readings " + word(d.state),
     d.age_s == null ? "—" : ago(d.age_s), baseline);
   const o = h.occupancy;
   pathRow("occupancy", !known(o) ? "none" : o.state === "occupied" ? "green" : o.state === "unknown" ? "amber" : "none",
@@ -631,11 +637,19 @@ function renderSystem(v) {
   pathRow("alarm", known(a) ? alarm.tone : "none", known(a) ? alarm.chip : unknown,
     a.confirmation_age_s == null ? "—" : ago(a.confirmation_age_s),
     a.confirmed_level == null ? "No confirmation from the board" : `${ALARM_LEVEL[a.confirmed_level]}, confirmed by the board · level ${a.confirmed_level} of 2`);
+  // Wording from the server (dashboard.bsec_state_facts); the page adds the last board request.
+  const c = h.bsec_state;
+  const restore = c.last_restore_ok === true ? " · the board restored it" : c.last_restore_ok === false ? " · the board did not accept it" : "";
+  pathRow("bsec_state", !known(c) ? "none" : c.last_restore_ok === false ? "amber" : c.state === "saved" ? "green" : "none",
+    !known(c) ? unknown : c.state === "saved" ? "Saved" : c.state === "not_saved" ? "Not saved yet" : "Unknown",
+    c.saved_age_s == null ? "—" : ago(c.saved_age_s),
+    c.text + (c.last_reply_reason ? ` · last board request: ${c.last_reply_reason}` + restore : ""));
   const retained = current && status.measurement_current ? "" : status ? " (retained)" : "";
   const gas = status?.last_reading?.gas_ohms;
   $("gas_ohms").textContent = gas == null ? "—" : (gas / 1000).toFixed(1) + NB + "kΩ" + retained;
   const mv = status?.dust?.sensor_mv;
-  $("dust_mv").textContent = mv == null ? "—" : Math.round(mv) + NB + "mV" + (current ? "" : " (retained)");
+  $("dust_mv").textContent = mv == null ? "—" : Math.round(mv) + NB + "mV" +
+    (current && status.dust.status === "fresh" ? "" : " (retained)");
   const base = status?.dust_ugm3?.baseline_mv;
   $("dust-baseline").textContent = base == null ? (status ? "not established yet" : "—") : Math.round(base) + NB + "mV";
   const acc = status?.air_quality?.accuracy;

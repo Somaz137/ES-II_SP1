@@ -27,6 +27,8 @@ Thumbs.db
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
+*.bsec_state.json
+*.bsec_state.json.*.tmp
 
 /room.profile.yaml
 /room-demo.profile.yaml

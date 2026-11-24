@@ -12,7 +12,7 @@ from monitoring_state import (
 def run_monitor(
     transport, alert_settings, runtime_settings, publish,
     *, clock=time.monotonic, sleep=time.sleep, should_stop=lambda: False,
-    apply_controls=lambda state, now: state,
+    apply_controls=lambda state, now: state, dust_floor_mv=100.0,
 ):
     """Run until stopped; publish startup and changes without opening a camera.
 
@@ -24,7 +24,7 @@ def run_monitor(
     started = clock()
     state = create_monitoring_state(
         started, alert_settings["communication_timeout_s"],
-        alert_settings["sensor_error_timeout_s"],
+        alert_settings["sensor_error_timeout_s"], dust_floor_mv,
     )
     interval = runtime_settings["fault_check_interval_s"]
     next_check = started + interval

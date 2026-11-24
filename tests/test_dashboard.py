@@ -37,7 +37,7 @@ from status_output import status_record
 
 API_KEYS = {"status", "profile", "profile_error", "trends", "events", "events_has_more",
             "health", "timing", "online", "now"}
-HEALTH_KEYS = {"monitor", "serial", "bme680", "dust", "occupancy", "profile", "alarm"}
+HEALTH_KEYS = {"monitor", "serial", "bme680", "dust", "occupancy", "profile", "alarm", "bsec_state"}
 LINE = '{"type":"reading","temp_c":%s,"humidity_pct":48,"pressure_hpa":1008,"gas_ohms":12000}'
 
 

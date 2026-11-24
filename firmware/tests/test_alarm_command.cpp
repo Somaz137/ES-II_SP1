@@ -57,7 +57,7 @@ int main() {
   assert(feedLine(reader, "ALA\n") == ROOM_ALARM_INVALID);
   assert(feedLine(reader, "ALARM,0\n") == 0);
   // Over-long lines are discarded up to the newline; the next line works.
-  for (int i = 0; i < 100; ++i) assert(reader.feed('A') == ROOM_ALARM_NO_LINE);
+  for (int i = 0; i < ROOM_ALARM_LINE_MAX + 100; ++i) assert(reader.feed('A') == ROOM_ALARM_NO_LINE);
   assert(feedLine(reader, "ALARM,2\n") == ROOM_ALARM_INVALID);
   assert(feedLine(reader, "ALARM,2\n") == 2);
   // A line at the buffer limit is rejected and the reader recovers.
@@ -116,5 +116,67 @@ int main() {
   // A source that reports data but returns -1 ends the pass.
   BrokenSerial broken;
   assert(pumpAlarmInput(broken, pumpReader, 64, recordLevel) == 0);
+
+  // Link timeout: lost at exactly the timeout, in unsigned arithmetic.
+  assert(!alarmLinkLost(29999u, 0u, 30000u));
+  assert(alarmLinkLost(30000u, 0u, 30000u));
+  assert(!alarmLinkLost(130000u, 100001u, 30000u));
+  assert(alarmLinkLost(130001u, 100001u, 30000u));
+  // millis() wraps: 0xFFFFF000 to 0x00000FFF is 8191 ms, not lost.
+  assert(!alarmLinkLost(0x00000FFFu, 0xFFFFF000u, 30000u));
+  assert(alarmLinkLost(0xFFFFF000u + 30000u, 0xFFFFF000u, 30000u));
+
+  // Link lost, level 0: LED on 0-999 ms, off 1000-1999 ms, buzzer off.
+  for (uint32_t t = 0; t < 4000u; t += 250u) {
+    AlarmOutputs lost0 = alarmOutputsAt(0, true, t, 1000u);
+    assert(lost0.led == ((t / 1000u) % 2u == 0u));
+    assert(!lost0.buzzer);
+  }
+  assert(alarmOutputsAt(0, true, 999u, 1000u).led);
+  assert(!alarmOutputsAt(0, true, 1000u, 1000u).led);
+  assert(!alarmOutputsAt(0, true, 1999u, 1000u).led);
+  assert(alarmOutputsAt(0, true, 2000u, 1000u).led);
+  // Link lost, level 2: the LED blinks, the buzzer stays on.
+  assert(alarmOutputsAt(2, true, 500u, 1000u).led);
+  assert(!alarmOutputsAt(2, true, 1500u, 1000u).led);
+  assert(alarmOutputsAt(2, true, 500u, 1000u).buzzer);
+  assert(alarmOutputsAt(2, true, 1500u, 1000u).buzzer);
+  // Link lost, level 1: the LED blinks, the buzzer stays off.
+  assert(!alarmOutputsAt(1, true, 1500u, 1000u).led);
+  assert(!alarmOutputsAt(1, true, 1500u, 1000u).buzzer);
+  // Link up: outputs follow the level and ignore the time.
+  for (uint32_t t = 0; t < 4000u; t += 250u) {
+    AlarmOutputs steady1 = alarmOutputsAt(1, false, t, 1000u);
+    assert(steady1.led && !steady1.buzzer);
+    AlarmOutputs steady0 = alarmOutputsAt(0, false, t, 1000u);
+    assert(!steady0.led && !steady0.buzzer);
+    AlarmOutputs steady2 = alarmOutputsAt(2, false, t, 1000u);
+    assert(steady2.led && steady2.buzzer);
+  }
+
+  // Only valid commands reach the apply callback, which resets the link
+  // timer in the sketch. Malformed and overflowed lines never reach it.
+  AlarmLineReader linkReader;
+  assert(feedLine(linkReader, "ALARM,7\n") == ROOM_ALARM_INVALID);
+  assert(feedLine(linkReader, "HELLO\n") == ROOM_ALARM_INVALID);
+  FakeSerial noise("ALARM,7\nHELLO\nALARM,\r\n");
+  appliedCount = 0;
+  assert(pumpAlarmInput(noise, linkReader, 64, recordLevel) == 22);
+  assert(appliedCount == 0);
+  std::string overflowed(ROOM_ALARM_LINE_MAX + 5, 'A');
+  overflowed += "ALARM,2\n";
+  noise.load(overflowed.c_str());
+  // Each pass reads at most 64 bytes; no pass applies anything.
+  std::size_t pumped = 0;
+  while (noise.remaining() > 0) {
+    const std::size_t used = pumpAlarmInput(noise, linkReader, 64, recordLevel);
+    assert(used > 0 && used <= 64);
+    pumped += used;
+    assert(appliedCount == 0);
+  }
+  assert(pumped == overflowed.size());
+  noise.load("ALARM,1\n");
+  assert(pumpAlarmInput(noise, linkReader, 64, recordLevel) == 8);
+  assert(appliedCount == 1 && applied[0] == 1);
   return 0;
 }

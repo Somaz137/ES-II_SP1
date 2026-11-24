@@ -159,6 +159,38 @@ def aged(value, extra):
     return None if value is None else value + extra
 
 
+def bsec_saved_stamp(saved_at):
+    """Local "YYYY-MM-DD HH:MM" of a saved_at time, or None when it is not a usable time."""
+    if not isinstance(saved_at, (int, float)) or isinstance(saved_at, bool):
+        return None
+    try:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(saved_at))
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def bsec_state_word(block):
+    if not block:
+        return "unknown"
+    return "saved" if bsec_saved_stamp(block.get("saved_at")) is not None else "not_saved"
+
+
+def bsec_state_facts(block, now):
+    """The monitor's bsec_state block, its age and the System page wording."""
+    saved_at, accuracy = block.get("saved_at"), block.get("accuracy")
+    stamp = bsec_saved_stamp(saved_at) if block else None
+    saved = stamp is not None
+    if saved:
+        text = f"Bosch calibration saved: {stamp}, accuracy {accuracy}"
+    else:
+        text = "Bosch calibration not saved yet" if block else "Bosch calibration unknown"
+    return {"saved_at": saved_at if saved else None, "accuracy": accuracy,
+            "saved_age_s": now - saved_at if saved else None,
+            "last_request_at": block.get("last_request_at"),
+            "last_reply_reason": block.get("last_reply_reason"),
+            "last_restore_ok": block.get("last_restore_ok"), "text": text}
+
+
 def system_health(status, now):
     """Derive component states from the status; ages are recalculated to `now`."""
     if not status:
@@ -172,7 +204,8 @@ def system_health(status, now):
                 "occupancy": {**unknown, "source": None, "observation_age_s": None},
                 "profile": {**unknown, "error": None},
                 "alarm": {**unknown, "wanted_level": None, "confirmed_level": None, "silenced": None,
-                          "confirmation_age_s": None}}
+                          "confirmation_age_s": None},
+                "bsec_state": {**unknown, **bsec_state_facts({}, now)}}
     updated = status.get("updated_at")
     age = now - updated if isinstance(updated, (int, float)) else None
     current = age is not None and age <= effective_timing(status)["status_stale_after_s"]
@@ -187,6 +220,7 @@ def system_health(status, now):
                      "none" if monitoring.get("reason") == "no_profile" else "loaded")
     connected = status.get("transport_connected")
     alarm = status.get("alarm") if isinstance(status.get("alarm"), dict) else {}
+    bsec = status.get("bsec_state") if isinstance(status.get("bsec_state"), dict) else {}
     return {
         "monitor": {"state": "current" if current else "overdue", "updated_at": updated, "age_s": age},
         "serial": component("unknown" if connected is None else "connected" if connected else "disconnected",
@@ -206,6 +240,7 @@ def system_health(status, now):
         "alarm": component(alarm.get("state", "unknown"), wanted_level=alarm.get("wanted_level"),
                            confirmed_level=alarm.get("confirmed_level"), silenced=alarm.get("silenced"),
                            confirmation_age_s=aged(alarm.get("confirmation_age_s"), since)),
+        "bsec_state": component(bsec_state_word(bsec), **bsec_state_facts(bsec, now)),
     }
 
 
