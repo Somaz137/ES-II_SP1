@@ -491,7 +491,7 @@ Firmware configuration commands remain future work.
 - The BME680 gas reading fails at the Bosch heater temperature (25 November 2026). The Bosch index is therefore not usable with this module. See [BME680 gas: open decision](#bme680-gas-open-decision).
 - Open issue (no fix chosen): the Bosch index reaches accuracy 3 and the dashboard shows it as current, but it has no meaning while the gas reading is stuck. A meaningless value is shown as current. `tools/sensor_check.py` still reports the stuck gas.
 - Open issue: the BME680 drops off the I2C bus at times (25 November 2026). The firmware bus restart recovered it once and failed the second time. Inference: a Wire restart is not always enough. This fits the supply or contact inference from the heater sweep. It is not proven.
-- The occupancy detector (YOLOX) finds a person in clear view. It missed a person under a blanket in every frame on 27 November 2026 (0/12 twice) and found 4/12 on 20 November. It found a seated person in 9/12 frames. A missed patient gives "No person seen", and limit alerts then pause. A manual "Occupied" setting covers this for 15 minutes and starts the camera hold.
+- A patient fully under a blanket is not detected automatically. YOLOX missed a person under a blanket in every frame on 27 November 2026 (0/12 twice) and found 4/12 on 20 November. The user accepted this limitation on 27 November 2026 and chose no hardware change. The caregiver sets "Occupied" by hand. That setting starts the camera hold. A missed patient gives "No person seen", and limit alerts then pause. YOLOX found a seated person in 9/12 frames.
 - The detector cannot tell the patient from a visitor. Any person in view counts.
 - The occupancy design is on branch `feature/occupancy`. It is not merged to `main`.
 - In serial mode without `--camera`, Automatic occupancy stays unknown. Limit alerts can start only while a manual "Occupied" setting applies (15 minutes).
@@ -517,6 +517,8 @@ Firmware configuration commands remain future work.
 
 Later decisions are in the dated designs under `docs/superpowers/specs/`: dust disconnect and alarm link (20 November), BSEC state on the laptop (20 November), occupancy detector and override (20 and 23 November, implemented 27 November on `feature/occupancy`), sensor check (25 November) and the BME680 gas heater (25 November, open).
 
+Decision 27 November 2026: no hardware change for occupancy. A patient fully under a blanket is not detected automatically. The caregiver sets "Occupied" by hand.
+
 ## Remaining work
 
 1. BME680 gas: choose option B (hardware) or C (software). See [BME680 gas: open decision](#bme680-gas-open-decision). After a hardware change, run `tools/sensor_check.py` again.
@@ -524,7 +526,7 @@ Later decisions are in the dated designs under `docs/superpowers/specs/`: dust d
 3. BME680 drop-outs on the I2C bus: the restart recovered the sensor once and failed the second time. Possible next diagnostics (not done): check whether SDA is held low, and try a bus clear (9 SCL pulses) before `Wire.begin`. Or a person checks the BME680 power and contacts (option B).
 4. Identify the ESP32-S3 board model. Run the rest of the hardware checklist in the [firmware guide](firmware/README.md#hardware-checklist).
 5. Dust hardware follow-ups (also the floating-input note above): check the LED pulse width (0.32 ms), the sample point (0.28 ms) and the 10 ms period on an oscilloscope. Measure the GPIO4 voltage and current with a meter, also in the boot window before `beginDust()`. Check a real dust disconnect: with the divider wired and no sensor, the input reads below 100 mV.
-6. Run the occupancy branch `feature/occupancy` with a real camera and the board for a longer time, and check seated, lying and occluded people in a real room. Merge it to `main` after the review. The blanket case relies on the manual "Occupied" setting. No threshold passed the rule.
+6. Run the occupancy branch `feature/occupancy` with a real camera and the board for a longer time, and check seated and partly covered people in a real room. Merge it to `main` after the review. A patient fully under a blanket is an accepted limitation (27 November 2026). No other detector or sensor is planned.
 7. Agree on real patient limits for any demonstration.
 8. Check the local alarm buzzer when one is connected: GPIO7 free, buzzer polarity, and whether it needs a tone.
 9. Check the five-page dashboard with the real board and sensors over a longer run.
