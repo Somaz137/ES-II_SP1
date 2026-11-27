@@ -1,6 +1,6 @@
 # Occupancy: pretrained person detector, entry confirmation, hold and manual override
 
-Date: 20 November 2026. Status: design, for approval.
+Date: 20 November 2026. Status: implemented (27 November 2026) on branch `feature/occupancy`, bench result: YOLOX passed standing 12/12, sitting 9/12 and lying 11/12, and failed lying under a blanket (4/12 on 20 November, 0/12 twice on 27 November). No threshold from 0.50 to 0.25 passed, so `person_confidence` stays 0.5 and a manual "Occupied" setting covers the blanket case.
 
 ## Intent
 

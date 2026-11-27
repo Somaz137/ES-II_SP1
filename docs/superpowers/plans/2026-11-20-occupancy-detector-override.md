@@ -259,10 +259,10 @@ Rule (from the spec, section 2):
 ### Task 6: Documentation
 
 **Files:**
-- Modify: `README.md`, `README_HUMAN.md`, `reference_files/PYTHON_FILE_GUIDE.md`
+- Modify: `README.md`, `reference_files/PYTHON_FILE_GUIDE.md` (README_HUMAN.md removed 27 November 2026)
 - Modify: `docs/superpowers/specs/2026-11-20-occupancy-detector-override-design.md` (the status line only: implemented, with the date and the bench result)
 
-- [ ] **Step 1:** In both READMEs, replace the HOG description with these items:
+- [ ] **Step 1:** In `README.md` (README_HUMAN.md removed 27 November 2026), replace the HOG description with these items:
   - the detector and its licence, and the model download step
   - the confirmation and hold rule with the default values
   - the override and its 15-minute expiry
@@ -273,5 +273,5 @@ Rule (from the spec, section 2):
   - the gate failure on the blanket (4/12), the chosen threshold and the scores that justify it (Task 5b), and the MediaPipe comparison counts
   - option C: a manual "Occupied" starts the camera hold, and after it expires the camera needs only one sighting per 15 minutes
 - [ ] **Step 2:** In `PYTHON_FILE_GUIDE.md`, add `person_detector.py`, `occupancy_rule.py`, `occupancy_override.py` and the three tools (`get_person_model.py`, `occupancy_bench.py`, `mediapipe_person.py`), and record the new test count.
-- [ ] **Step 3:** Run the full suite and record the count. Run `grep -n "HOG" README.md README_HUMAN.md`. Each hit must be a history or comparison line, not a description of the current detector.
+- [ ] **Step 3:** Run the full suite and record the count. Run `grep -n "HOG" README.md`. Each hit must be a history or comparison line, not a description of the current detector.
 - [ ] **Step 4: Commit** with the message `docs: occupancy detector, confirmation, hold and override`.

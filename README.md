@@ -38,7 +38,10 @@ status_output.py      the status record the monitor publishes
 dashboard.py          Flask pages on 127.0.0.1:5000 and GET /api/room
 
 alarm.py              alarm level 0/1/2, silence, confirmation -> ALARM line to the board
-occupancy.py          camera check every 60 s (OpenCV people detector, no frame saved)
+occupancy.py          camera check every 10 s (YOLOX person detector, no frame saved)
+person_detector.py    YOLOX person model on OpenCV (cv2.dnn)
+occupancy_rule.py     confirmation and hold rule (pure logic)
+occupancy_override.py manual occupancy setting, 15-minute expiry
 bsec_state_store.py   keeps the Bosch calibration state in a file, sends it back at board start
 online_tunnel.py      optional Cloudflare quick tunnel to a view-only copy of the dashboard
 ```
@@ -72,13 +75,16 @@ Every entry below exists on this branch, except `config/online_secret.yaml`, whi
 | `room_store.py` | SQLite store and the patient profile file. | You change storage. |
 | `status_output.py` | Builds the published status record. | You add a status field. |
 | `alarm.py` | Alarm level, silence and board confirmation (pure logic). | You change the local alarm. |
-| `occupancy.py` | Camera check with OpenCV's default people detector. Saves no frame. | You change occupancy. |
+| `occupancy.py` | Camera worker: one check every 10 s, one frame at a time. Saves no frame. | You change occupancy. |
+| `person_detector.py` | YOLOX person detector on `cv2.dnn`. Checks the model file and its SHA-256. | You change the detector. |
+| `occupancy_rule.py` | The confirmation and hold rule. Pure logic, no clock reads. | You change when the room counts as occupied. |
+| `occupancy_override.py` | The manual occupancy setting: reads the stored request, applies its expiry, logs changes, starts the camera hold. | You change the override. |
 | `bsec_state_store.py` | The Bosch calibration state file `<database name>.bsec_state.json`, replies to the board's requests. | You change the BSEC save or restore. |
 | `online_auth.py` | Online password file, sign-in rate limit, CSRF tokens. | You change online sign-in. |
 | `online_tunnel.py` | Starts and watches `cloudflared`. | You change online access. |
 | `settings.py` | Loads and checks the three YAML files. Holds the defaults and the demo values. | You add a setting. |
 | `simulated_input.py` | Simulated board records for `--demo`. | You change the demo. |
-| `config/runtime.yaml` | Host timing: fault check 5 s, serial retry 5 s, poll 0.05 s, reading gap 6 s, dashboard overdue 15 s and refresh 10 s, camera 60 s, retention 7 days, alarm confirmation 2 s, online access options. | You tune host timing. |
+| `config/runtime.yaml` | Host timing: fault check 5 s, serial retry 5 s, poll 0.05 s, reading gap 6 s, dashboard overdue 15 s and refresh 10 s, camera 10 s, occupancy rule and override keys, person confidence, retention 7 days, alarm confirmation 2 s, online access options. | You tune host timing. |
 | `config/alerts.yaml` | Communication timeout and sensor-error timeout (both 120 s). | You change the fault timeouts. |
 | `config/system.yaml` | Air-quality and dust limits (off as shipped), word bands, dust sensitivity, baseline rule, the 100 mV dust floor. | You set system limits. |
 | `config/online_secret.yaml` | Not in git. Created by `dashboard.py --set-password`. Holds the online password hash. | Never edit it by hand. |
@@ -124,14 +130,18 @@ Freshness rules (from `config/runtime.yaml`, `config/alerts.yaml` and the code):
 | Sensor timeout (`sensor_error_timeout_s`) | 120 s | 120 s of BME680 errors raises the BME680 alert. 120 s with no dust reading at or above the floor raises the dust alert. |
 | Communication timeout (`communication_timeout_s`) | 120 s | 120 s with no reading, sensor error or dust line raises the communication alert. |
 | Fault check (`fault_check_interval_s`) | 5 s | Timers, dashboard requests and the alarm resend run at this interval. |
-| Camera (`camera_interval_s`) | 60 s | One camera check every 60 s. An observation older than 65 s becomes unknown. |
+| Camera (`camera_interval_s`) | 10 s | One camera check every 10 s. The camera counts as working while a check other than "failed" is at most 30 s old (3 intervals). |
+| Occupancy confirmation (`occupancy_confirm_s`, `occupancy_confirm_fraction`) | 120 s, 0.75 | The room becomes occupied when 75 % of the checks in the last 120 s saw a person (9 of 12 at a 10 s interval). The window must be full. |
+| Occupancy hold (`occupancy_hold_s`) | 900 s | Occupied stays until no check has seen a person for 900 s. |
+| Occupancy override (`occupancy_override_s`) | 900 s | A manual setting applies for 900 s, then the camera decides again. |
+| Person confidence (`person_confidence`) | 0.5 | The lowest person score that counts as a sighting. It must be more than 0 and less than 1. |
 | Dashboard refresh (`dashboard_refresh_s`) | 10 s | The page reloads its data every 10 s. |
 | Monitor overdue (`status_stale_after_s`) | 15 s | A monitor status older than 15 s shows as "Monitor overdue". |
 | Alarm confirmation (`alarm_confirm_timeout_s`) | 2 s | With no board reply in 2 s the alarm shows as unreachable. |
 | Reading retention (`readings_retention_days`) | 7 days | The monitor deletes older readings every hour. Events are kept. |
 
 The laptop settings do not change the board's acquisition timing. A future option is to read an acquisition interval from the laptop YAML and send it to the board at start-up. No command format or firmware part is chosen for it. Do not add a YAML field that seems to set the board's sampling without that path, because changing the host poll delay does not change the sensor's sampling.
-A fault check detects a timeout up to about 5 s after the duration ends. Processing delays add more. Camera checks and dashboard refreshes have their own intervals. Unknown occupancy can delay a limit alert until the next camera check.
+A fault check detects a timeout up to about 5 s after the duration ends. Processing delays add more. Camera checks and dashboard refreshes have their own intervals. Unknown occupancy or an unconfirmed entry can delay a limit alert. Entry needs about 90 s of sightings at the defaults.
 The camera interval does not set a capture frame rate or a buffering policy. Those stay open.
 
 ## Alerts and states
@@ -163,15 +173,41 @@ Local alarm levels (`alarm.py`, `firmware/alarm_command.h`):
 - Link lost: when the board gets no valid `ALARM` command for 30 s, the LED blinks (1 s on, 1 s off). The buzzer keeps its last state. The next valid command ends the blink.
 - No buzzer is connected now. On this bench, level 2 therefore gives only the LED.
 
-Occupancy (this branch, `occupancy.py` and `monitor.py`):
+Occupancy (branch `feature/occupancy`, not yet merged to `main`):
+
+The camera worker (`occupancy.py`) opens the camera, reads one frame, releases it and runs the YOLOX person detector every 10 s. It keeps no frame. The rule (`occupancy_rule.py`) turns the check results into a state. A manual setting (`occupancy_override.py`) can replace that state.
 
 | State | When | Effect |
 |---|---|---|
-| Occupied | The result of the latest camera check is "person found", and that check is no older than 65 s (`occupancy.current`). In `--demo` the room is always occupied. | Limit checks run. |
-| Unknown | The latest check found no person (a newer check with no person replaces an older "person found"), a failed capture, a latest check older than 65 s, or no `--camera` option. | Patient-limit, air-quality and dust-limit checks pause. Running breaches end with an event. Faults do not depend on occupancy. |
+| Occupied | A person was seen in at least 75 % of the checks in the last 120 s (the window must be full), or a manual "Occupied" applies. It stays occupied until no check has seen a person for 900 s (the hold). In `--demo` the room is always occupied. | Limit checks run. |
+| No person seen | The camera works, but the room is not confirmed as occupied. The page shows the progress, for example "person seen in 7 of 12 checks". | Patient-limit, air-quality and dust-limit checks pause. Running breaches end with an event. Faults do not depend on occupancy. |
+| Unknown | The camera does not work (no check other than "failed" for 30 s) and no hold applies, or there is no `--camera` option. | The same pause as "No person seen". |
+| Not occupied | Only a manual setting gives this state. | The same pause. The reason text says "Set to not occupied by hand". |
 
-The dashboard has text for "Not occupied", but the monitor on this branch never sends that state.
-A new occupancy design (a new detector, a hold time, a "No person seen" state and a manual override) is in progress on branch `feature/occupancy`. It is not on this branch. See the [occupancy design](docs/superpowers/specs/2026-11-20-occupancy-detector-override-design.md).
+- **Camera failure.** A failed check (no frame, a detector error or a missing model) counts as "not seen". The monitor prints the reason once on stderr. While the room is occupied, a camera failure does not end occupancy. The room stays occupied until 900 s after the last sighting. The page says that the camera is not working and shows the time of the last sighting. After the hold the state is unknown.
+- **Manual override.** The Overview page has three buttons: Automatic (camera), Occupied and Not occupied. A manual setting applies for 900 s (`occupancy_override_s`). Then the camera decides again, and the event log records the return. The page says who set it ("on this computer" or "online"), when, and when it returns to the camera. A stored setting that has not expired applies again after a monitor restart. Online, the sign-in and CSRF rules apply.
+- **A manual "Occupied" starts the camera hold.** The rule treats it as a sighting at the time of the setting. This does not add a check to the 120 s window. After the setting expires, the room stays occupied while the camera has seen the person once in the last 900 s. Without a sighting, the hold ends when the setting ends. A caregiver who sees a patient under a blanket sets "Occupied" once. After that, the camera needs one sighting per 15 minutes.
+- **Visitors.** The detector finds people. It cannot tell the patient from a visitor.
+- **Detector.** YOLOX from the OpenCV zoo (`object_detection_yolox_2022nov.onnx`, COCO class 0 "person"), licence Apache 2.0. `tools/get_person_model.py` downloads it to `models/` (git-ignored) and checks the pinned SHA-256. Run it once before the first camera run: `env/bin/python tools/get_person_model.py`. Without the model file, every check fails. The monitor prints the reason once on stderr, and the System page shows the last check as failed.
+- **System page.** The Camera row shows the model, the result of the last check (seen, no person seen or failed) and the time of the last sighting.
+
+Bench results (laptop webcam, threshold 0.5, 12 frames each, no frame stored):
+
+| Run | YOLOX | HOG (old detector) |
+|---|---|---|
+| Standing (20 November 2026) | 12/12 | 2/12 |
+| Sitting (20 November) | 9/12 | 3/12 |
+| Lying (20 November) | 11/12 | 0/12 |
+| Lying under a blanket (20 November) | 4/12, gate fail (frames near overexposed, mean brightness about 235) | 0/12 |
+| Empty room (20 November) | 0/12 | 0/12 |
+| Lying under a blanket, run 1 (27 November) | 0/12, top score 0.040 to 0.263 | 0/12 |
+| Lying under a blanket, run 2 (27 November) | 0/12, top score 0.028 to 0.201 | 0/12 |
+| Lying without a blanket (27 November) | 12/12, top score 0.589 to 0.765 | 0/12 |
+| Empty room (27 November) | 0/12, highest top score 0.054 | 0/12 |
+
+- **Threshold.** The 27 November session tried thresholds from 0.50 down to 0.25. None passes the rule (at least 9 of 12 blanket frames, and an empty-room maximum 0.10 below the threshold). At 0.25 at most 1 of 12 blanket frames passed. `person_confidence` therefore stays at 0.5.
+- **MediaPipe comparison (bench only, not in production).** MediaPipe found the person under the blanket in 0/12 and 1/12 frames and lying in 12/12. On the empty room it gave 5/12 false sightings (top score up to 1.000). The project does not switch to it. A frame takes about 140 to 150 ms with YOLOX and about 12 ms with MediaPipe.
+- **Result.** YOLOX finds a standing or lying person in clear view. It can miss a person under a blanket or in a near-overexposed frame, and it found a seated person in 9 of 12 frames. The manual "Occupied" setting covers the blanket case. The 20 November numbers come from the [design](docs/superpowers/specs/2026-11-20-occupancy-detector-override-design.md). The 27 November raw output is not in git.
 
 Communication details:
 
@@ -187,7 +223,7 @@ Other states on the dashboard:
 
 - **Calibrating** (air quality): Bosch accuracy is 0 or 1. The page shows no index value. The air-quality check pauses.
 - **Establishing baseline** (dust): fewer than 10 minutes of unbroken fresh dust records. The page shows no estimate. The dust check pauses. A dust fault, a gap over 6 s or a monitor restart starts the baseline again.
-- **Limit monitoring off or paused**: no profile, no limits, a reading that is not current, or unknown occupancy. The page says which.
+- **Limit monitoring off or paused**: no profile, no limits, a reading that is not current, or occupancy that is not confirmed (no person seen, unknown, or set to not occupied by hand). The page says which.
 
 Bosch status labels (`gas_readiness.py`):
 
@@ -234,7 +270,7 @@ The monitor needs an explicit port (`--port`) or `--demo`. It keeps one state ac
 The serial reader is non-blocking and keeps partial lines. Overlong or invalid UTF-8 input does not reset communication. After a missed periodic check, the monitor uses the current monotonic time and does not replay old times. The OS, the port or the output can delay checks. This is not a real-time guarantee.
 The terminal shows JSON records with the last complete reading, its age and its receipt time. The calendar time is an estimate from the computer clock at start. It is not the time the board measured the room. An old reading keeps its original receipt time.
 
-Both programs must use the same `--db` file (default `room.sqlite3`). Without `--camera`, occupancy is always unknown, so limit alerts never start.
+Both programs must use the same `--db` file (default `room.sqlite3`). Without `--camera`, the camera state is always unknown, so limit alerts start only while a manual "Occupied" setting applies. Before the first camera run, download the person model with `python tools/get_person_model.py`.
 
 **Run the host from a checkout that matches the firmware.** On 25 November 2026 a "Dust alert cleared" event at 01:42 was false. The monitor ran from a folder on branch `feature/occupancy`. That host code has no 100 mV floor, so it accepted 7 to 18 mV records as dust readings. On `feature/bsec-state` and later, a value below 100 mV is "no reading".
 
@@ -277,7 +313,7 @@ The board runs firmware `49029f2` (branch `fix/dust-led-i2c-restart`) since 25 N
 | I2C bus restart (`i2c_bus_restarted`) | Worked once: the BME680 stopped at 02:49:20, two restarts, start succeeded, `bsec_state_restored` from the RAM copy, readings again at 02:50:03 (gap 43 s). Failed the second time: the BME680 stopped at 02:56:48, and each restart (about every 30 s) gave `bsec_initialization_failed`. BME680 alert at 02:58:50 (status at 02:59). | 25 Nov |
 | BSEC state restore from the laptop file after a board start | Not checked | — |
 | Buzzer, GPIO7, buzzer polarity | Not checked: no buzzer connected | — |
-| Camera and occupancy detector | Not checked with a real camera on this branch | — |
+| Camera and occupancy detector (YOLOX) | Bench check with the laptop webcam: lying 12/12, empty room 0/12, lying under a blanket 0/12 (see the bench table). Not checked in the running monitor on the board, with a seated or occluded patient or in a real room. | 20 and 27 Nov |
 | Dust LED timing on an oscilloscope; GPIO4 voltage and current with a meter | Not checked | — |
 | Signed-in control request through a real tunnel | Pass: save limits, silence alarm and acknowledge got HTTP 403 without sign-in and HTTP 303 after sign-in with the CSRF token. The test used a scratch database and a temporary password. | 20 Nov |
 
@@ -455,7 +491,9 @@ Firmware configuration commands remain future work.
 - The BME680 gas reading fails at the Bosch heater temperature (25 November 2026). The Bosch index is therefore not usable with this module. See [BME680 gas: open decision](#bme680-gas-open-decision).
 - Open issue (no fix chosen): the Bosch index reaches accuracy 3 and the dashboard shows it as current, but it has no meaning while the gas reading is stuck. A meaningless value is shown as current. `tools/sensor_check.py` still reports the stuck gas.
 - Open issue: the BME680 drops off the I2C bus at times (25 November 2026). The firmware bus restart recovered it once and failed the second time. Inference: a Wire restart is not always enough. This fits the supply or contact inference from the heater sweep. It is not proven.
-- The occupancy detector is OpenCV's default people detector, trained on upright pedestrians. It can miss seated, lying or occluded people. Unknown occupancy suppresses limit alerts. It has not been checked with a camera on this branch.
+- The occupancy detector (YOLOX) finds a person in clear view. It missed a person under a blanket in every frame on 27 November 2026 (0/12 twice) and found 4/12 on 20 November. It found a seated person in 9/12 frames. A missed patient gives "No person seen", and limit alerts then pause. A manual "Occupied" setting covers this for 15 minutes and starts the camera hold.
+- The detector cannot tell the patient from a visitor. Any person in view counts.
+- The occupancy design is on branch `feature/occupancy`. It is not merged to `main`.
 - In serial mode without `--camera`, occupancy is always unknown, so limit alerts never start.
 - Readings older than 7 days are deleted hourly. Events are never deleted. The event list shows the latest 50 events and pages to older ones.
 - The independent notification path is a local LED and buzzer on the ESP32, commanded by the host over USB. The LED lit as commanded on 20 November 2026. No buzzer is connected now. GPIO7 and the buzzer polarity are not checked on hardware.
@@ -477,7 +515,7 @@ Firmware configuration commands remain future work.
 - The dashboard is redesigned as five pages (Overview, Trends, Events, Patient limits, System).
 - Air quality is shown as Bosch's index and dust as an estimated concentration, both with words. Their limits are system setup. The profile has a short label. Implemented on 15 November. This replaces the earlier raw-signals-only rule.
 
-Later decisions are in the dated designs under `docs/superpowers/specs/`: dust disconnect and alarm link (20 November), BSEC state on the laptop (20 November), occupancy detector and override (20 and 23 November), sensor check (25 November) and the BME680 gas heater (25 November, open).
+Later decisions are in the dated designs under `docs/superpowers/specs/`: dust disconnect and alarm link (20 November), BSEC state on the laptop (20 November), occupancy detector and override (20 and 23 November, implemented 27 November on `feature/occupancy`), sensor check (25 November) and the BME680 gas heater (25 November, open).
 
 ## Remaining work
 
@@ -486,7 +524,7 @@ Later decisions are in the dated designs under `docs/superpowers/specs/`: dust d
 3. BME680 drop-outs on the I2C bus: the restart recovered the sensor once and failed the second time. Possible next diagnostics (not done): check whether SDA is held low, and try a bus clear (9 SCL pulses) before `Wire.begin`. Or a person checks the BME680 power and contacts (option B).
 4. Identify the ESP32-S3 board model. Run the rest of the hardware checklist in the [firmware guide](firmware/README.md#hardware-checklist).
 5. Dust hardware follow-ups (also the floating-input note above): check the LED pulse width (0.32 ms), the sample point (0.28 ms) and the 10 ms period on an oscilloscope. Measure the GPIO4 voltage and current with a meter, also in the boot window before `beginDust()`. Check a real dust disconnect: with the divider wired and no sensor, the input reads below 100 mV.
-6. Check camera capture and the occupancy detector with seated, lying and occluded people. The occupancy plan on `feature/occupancy` continues with its Task 1b.
+6. Run the occupancy branch `feature/occupancy` with a real camera and the board for a longer time, and check seated, lying and occluded people in a real room. Merge it to `main` after the review. The blanket case relies on the manual "Occupied" setting. No threshold passed the rule.
 7. Agree on real patient limits for any demonstration.
 8. Check the local alarm buzzer when one is connected: GPIO7 free, buzzer polarity, and whether it needs a tone.
 9. Check the five-page dashboard with the real board and sensors over a longer run.

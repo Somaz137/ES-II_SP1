@@ -10,6 +10,7 @@ The local alarm added `alarm.py`, `tests/test_alarm.py` and `tests/test_alarm_li
 The air-quality and dust-estimate step added `air_quality.py`, `tests/test_air_quality.py` and `tests/test_system_limits.py` on branch `feature/air-quality-dust-label`. It is verified only with tests and the simulator.
 The BSEC state save added `bsec_state_store.py` and `tests/test_bsec_state.py` on branch `feature/bsec-state` (20 November 2026). It is verified with tests and the simulator. The firmware side is compiled and host-tested. On the board (25 November 2026) it reached accuracy 3 and saved its state, but on a stuck gas reading. A restore from the laptop file after a board start is not checked. See the [25 November verification record](LINUX_VERIFICATION_2026-11-25.md).
 The sensor check tool added `tools/sensor_check.py` and `tests/test_sensor_check.py` (25 November 2026). It ran on the board on 25 November 2026.
+The occupancy work on branch `feature/occupancy` (27 November 2026, not yet merged to `main`) added `person_detector.py`, `occupancy_rule.py`, `occupancy_override.py`, `tools/get_person_model.py`, `tools/occupancy_bench.py`, `tools/mediapipe_person.py` and five test files. It also changed `occupancy.py`. On that branch the main folder has 25 application Python files, `tools/` has six, and `tests/` has 29 Python files.
 
 ## Application files
 
@@ -32,7 +33,10 @@ The sensor check tool added `tools/sensor_check.py` and `tests/test_sensor_check
 | `room_session.py` | Applies patient limits and the sustained duration, and the air-quality and dust system limits with their own hold times. Requires occupied status and a fresh reading. Publishes the air-quality and dust-estimate states. Logs alert, fault and profile-change events. Runs the local alarm after the limit state is built and logs silence and alarm reachability events. |
 | `alarm.py` | Decides the local alarm level (0 off, 1 LED, 2 LED and buzzer), applies silence to the limit alerts shown, and tracks whether the board confirmed the level. Has no I/O. |
 | `bsec_state_store.py` | Keeps the board's Bosch BSEC calibration state in `<database name>.bsec_state.json` next to the database. Writes a temporary file and renames it. Answers each board request with one line: `BSEC_STATE,<hex>` when the file exists and the BSEC version matches, otherwise `BSEC_STATE,NONE` with the reason (no saved state, version mismatch, file damaged). Reports saves, replies and restore results as events and a status block for the System page. |
-| `occupancy.py` | Checks one camera frame every 60 seconds with OpenCV's default people detector. Saves no frames. |
+| `occupancy.py` | Camera worker on branch `feature/occupancy`. Checks one camera frame every 10 seconds with the YOLOX person detector (`person_detector.py`), feeds the result to the occupancy rule, and records a failed check once with its reason. Saves no frames. |
+| `person_detector.py` | YOLOX person detector on `cv2.dnn` (OpenCV zoo model, Apache 2.0). Checks the model file and its pinned SHA-256, letterboxes the frame, decodes the output, keeps class 0 (person) above the confidence after non-maximum suppression. Keeps no frame. |
+| `occupancy_rule.py` | Pure rule: check results with times in, automatic state out. Entry needs 75 % sightings in a full 120 s window. The hold lasts 900 s from the last sighting. Reports occupied, not seen or unknown, with the confirmation progress. No I/O and no clock reads. |
+| `occupancy_override.py` | The manual occupancy setting: parses the stored request, applies it until 900 s after it was set, logs set, cleared and expired events, and tells the camera rule about a manual "Occupied" so the hold starts. |
 | `simulated_input.py` | Produces simulated BME680 records with a Bosch index (calibrating at start, then a scripted episode) and dust records with a scripted episode for `--demo` and echoes alarm commands like the board would. Like the firmware it asks for the BSEC state at start, confirms a `BSEC_STATE,<hex>` reply, and sends one stand-in state line (not a real Bosch state) after 60 s. Tests can make it silent or failing. It is not a hardware driver. |
 | `dashboard.py` | Serves the local dashboard on 127.0.0.1. Reads SQLite. Saves patient limits, acknowledgment requests, and alarm silence requests. Reports alarm health and the Bosch calibration row (saved time and accuracy, or not saved yet, and the last request result). With `--online` also serves the view-only online origin (sign-in, CSRF, protective headers) and starts the tunnel; `--set-password` writes the online password hash. |
 | `online_auth.py` | Writes and reads the git-ignored online password file (werkzeug hash and session key), limits failed sign-ins in memory, and makes and compares CSRF tokens. |
@@ -59,6 +63,9 @@ Closing the dashboard does not stop monitoring.
 |---|---|
 | `tools/check_setup.py` | Reports Python package versions and visible devices. It does not prove that the complete application works. |
 | `tools/read_sensor.py` | Opens a selected serial port and prints received JSON records. It is a separate diagnostic tool. |
+| `tools/get_person_model.py` | Downloads the YOLOX person model (and with `--mediapipe` the MediaPipe model for the bench) from the OpenCV zoo to `models/` and checks the pinned SHA-256. |
+| `tools/occupancy_bench.py` | Captures live webcam frames, one per second, and prints the YOLOX result and top score per frame (and HOG and MediaPipe results for comparison). Stores no frame. |
+| `tools/mediapipe_person.py` | MediaPipe person detector on `cv2.dnn`. Used by the bench only. No production module imports it. |
 | `tools/sensor_check.py` | Read-only bench check of the board's serial lines for a set time. Prints PASS, FAIL, NOT SEEN or INFO for readings, gas change, dust input, Bosch accuracy and BSEC state lines. Refuses to run when another program holds the port. |
 
 ## Test files
@@ -88,6 +95,11 @@ Closing the dashboard does not stop monitoring.
 | `tests/test_alarm.py` | Checks alarm levels, command timing, confirmation, timeout, failed sends, reconnect, silence, and events. |
 | `tests/test_bsec_state.py` | Checks the BSEC state lines in the parser, that they do not reset the communication timer, the file write and rename, missing, damaged and mismatched files, one reply per request, the logged events, the simulated board, the System page row, and an impossible `saved_at` time. |
 | `tests/test_sensor_check.py` | Checks the sensor check tool: line counting, each check result, the stuck gas value, the dust floor, the port-holder check and the printed report. |
+| `tests/test_person_detector.py` | Checks the model file and hash check, the YOLOX decoding, the threshold and the person class. |
+| `tests/test_occupancy_rule.py` | Checks entry confirmation, the hold, camera failure, the progress counts and the manual hold start. |
+| `tests/test_occupancy_override.py` | Checks request parsing, expiry, the events and the camera hold start. |
+| `tests/test_occupancy_bench.py` | Checks the bench tool output without a camera. |
+| `tests/test_mediapipe_person.py` | Checks the MediaPipe bench detector decoding. |
 | `tests/test_alarm_link.py` | Checks the simulated board and the alarm through the session and the monitor loop. Shows that failing, silent and raising transports change no reading, fault check, limit alert, event, or published status. |
 
 The test filenames describe the behavior under test.
@@ -104,6 +116,8 @@ On 19 November online access added 73 cases: 14 in `tests/test_online_settings.p
 On 20 November the BSEC state save added 64 cases: 58 in `tests/test_bsec_state.py` and 6 in `tests/test_serial_parser.py`. On 23 November the full suite reported 752 passed on branch `feature/bsec-state`.
 
 On 25 November the sensor check tool added `tests/test_sensor_check.py`. The full suite reported 798 passed on `feature/bsec-state` and on `fix/dust-led-i2c-restart`.
+
+On 27 November the occupancy work added five test files (49 cases) and changed existing ones. The full suite reported 876 passed on `feature/occupancy`.
 
 ## Other important files
 
