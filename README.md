@@ -234,7 +234,7 @@ The board runs firmware `49029f2` (branch `fix/dust-led-i2c-restart`) since 25 N
 | Buzzer, GPIO7, buzzer polarity | Not checked: no buzzer connected | — |
 | Camera and occupancy detector | Not checked with a real camera on this branch | — |
 | Dust LED timing on an oscilloscope; GPIO4 voltage and current with a meter | Not checked | — |
-| Signed-in control request through a real tunnel | Not checked | — |
+| Signed-in control request through a real tunnel | Pass: save limits, silence alarm and acknowledge got HTTP 403 without sign-in and HTTP 303 after sign-in with the CSRF token. The test used a scratch database and a temporary password. | 20 Nov |
 
 Read the [25 November verification record](reference_files/LINUX_VERIFICATION_2026-11-25.md) for the numbers, commands and flash sizes.
 
@@ -277,7 +277,7 @@ Verification records:
 | Sensor check, old firmware (believed `1c74995`) | Readings NOT SEEN (40 × `bsec_measurement_unavailable`, sensor_code -2), dust FAIL (41 × `dust_input_at_zero`) (25 November). |
 | Bench check, firmware `1c74995` | Pass: alarm replies, LED, link-lost blink, dust fault through the monitor, dashboard pages, BME680 temperature, humidity and pressure. Dust and gas failed then (20 November). |
 | Local alarm demo | With `--demo`, the simulated board confirmed level 2 during the limit alert, level 1 after "Silence alarm", and level 0 after the alert ended (15 November). |
-| Online access, real tunnel | Pages loaded. Control requests without sign-in were refused. No signed-in control request was sent (19 November). |
+| Online access, real tunnel | Pages loaded. Control requests without sign-in were refused (19 November). Through a real quick tunnel, save limits, silence alarm and acknowledge got HTTP 403 without sign-in and HTTP 303 after sign-in with the CSRF token. The profile file changed, and the event log recorded the profile change, the silence and the acknowledgment. The test used a scratch database and a temporary password (20 November). |
 | Communication and sensor faults | Virtual serial checks of missing communication, recovery, repeated sensor errors and sensor-error recovery (8 November). |
 
 These checks do not establish physical sensor accuracy, calibration, camera detection or room safety.
@@ -439,7 +439,7 @@ Later decisions are in the dated designs under `docs/superpowers/specs/`: dust d
 8. Check the local alarm buzzer when one is connected: GPIO7 free, buzzer polarity, and whether it needs a tone.
 9. Check the five-page dashboard with the real board and sensors over a longer run.
 10. Check the Bosch word bands and the Sharp sensitivity against the datasheets.
-11. Online access: send a signed-in control request (save limits, silence, acknowledge) through a real tunnel.
+11. Done 20 November 2026: online access with a signed-in control request through a real tunnel. Save limits, silence alarm and acknowledge were refused without sign-in (HTTP 403) and accepted after sign-in (HTTP 303).
 12. Demonstrate the complete system with actual hardware.
 13. Small follow-ups in code comments (dated text, no behaviour change): `firmware/bsec_board_config.h` line 10 still says "Not yet checked against the physical board". `GAS_NEXT_STEP` in `tools/sensor_check.py` says "faulty or non-genuine gas sensor"; the heater sweep points to a heater-drive threshold instead.
 
