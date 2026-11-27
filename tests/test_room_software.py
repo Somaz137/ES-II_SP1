@@ -168,6 +168,34 @@ def test_limit_monitoring_reasons(tmp_path):
     assert fresh.step(0, 24)["limit_monitoring"]["state"] == "off"
 
 
+def test_occupancy_pause_reasons_are_split(tmp_path):
+    room = Room(tmp_path)
+    room.store.save_profile({"limits": {"temp_c": [20, 27]}, "hold_s": 9})
+    assert room.step(0, 24, "not_seen")["limit_monitoring"] == {
+        "state": "paused", "reason": "occupancy_not_seen",
+        "message": "No person seen. Limit monitoring is paused."}
+    assert room.step(3, 24, "not_occupied")["limit_monitoring"] == {
+        "state": "paused", "reason": "occupancy_manual",
+        "message": "Set to not occupied by hand. Limit monitoring is paused."}
+    assert room.step(6, 24, "unknown")["limit_monitoring"]["reason"] == "occupancy_unknown"
+
+
+def test_alert_end_texts_name_each_occupancy_cause(tmp_path):
+    room = active_alert_room(tmp_path)
+    room.step(6, 31, "not_seen")
+    assert "because no person is seen." in room.store.events()[0]["message"]
+    room = active_alert_room(tmp_path / "b")
+    room.step(6, 31, "not_occupied")
+    assert "because the room was set to not occupied by hand." in room.store.events()[0]["message"]
+
+
+def test_note_event_is_logged_on_the_next_update(tmp_path):
+    room = Room(tmp_path)
+    room.session.note_event("occupancy_override_set", "Occupancy set to occupied by hand at 14:02.")
+    room.step(0, 24)
+    assert room.store.events()[0]["kind"] == "occupancy_override_set"
+
+
 def active_alert_room(tmp_path):
     room = Room(tmp_path, {"limits": {"temp_c": [20, 27]}, "hold_s": 3})
     room.step(0, 31)

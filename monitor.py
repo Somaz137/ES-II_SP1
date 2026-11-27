@@ -14,6 +14,7 @@ from room_store import DEFAULT_DB, DEMO_DB, RoomStore
 from room_session import RoomSession
 from simulated_input import SimulatedTransport
 from occupancy import CameraOccupancy
+from occupancy_override import OverrideTracker
 from monitoring_state import acknowledge_monitoring_communication
 from monitoring_loop import run_monitor
 from serial_transport import SerialTransport
@@ -73,6 +74,9 @@ def main():
     mono_origin, utc_origin = time.monotonic(), time.time()
 
     camera = CameraOccupancy(args.camera, runtime) if args.camera is not None else None
+    override = OverrideTracker(store, session, camera, runtime["occupancy_override_s"])
+    # A manual setting made while the monitor was stopped applies at start if it has not expired.
+    override.poll(time.time(), time.monotonic(), log=False)
     last_ack = store.read("communication_ack")
     last_silence = store.read("alarm_silence")
     displayed_alert = None
@@ -84,6 +88,7 @@ def main():
         if silence != last_silence:
             last_silence = silence
             session.silence_alarm(silence, time.time())
+        override.poll(time.time(), now)
         session.alarm_fault_check()
         request = store.read("communication_ack")
         if request != last_ack:
@@ -105,8 +110,10 @@ def main():
             displayed_alert = None
         record["communication_alert_id"] = displayed_alert
         snapshot = camera.snapshot(now) if camera else None
-        occupancy = "occupied" if args.demo else snapshot["state"] if camera else "unknown"
-        record["occupancy_source"] = "simulated" if args.demo else "camera" if camera else "none"
+        automatic = "occupied" if args.demo else snapshot["state"] if camera else "unknown"
+        occupancy, manual, info = override.resolve(automatic, time.time())
+        record["occupancy_source"] = manual or ("simulated" if args.demo else "camera" if camera else "none")
+        record["occupancy_override"] = info
         record["occupancy_camera"] = snapshot
         last_check = camera.last_check_at if camera else None
         record["occupancy_observation_age_s"] = None if last_check is None else now - last_check

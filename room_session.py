@@ -26,6 +26,19 @@ BME_CHECKED = PATIENT + ("air_quality",)
 SECTION = {"air_quality": "air_quality", "dust_ugm3": "dust"}
 
 
+# Occupancy that pauses limit checks: (reason code, page text, alert-end cause). Anything else is unknown.
+OCCUPANCY_PAUSE = {
+    "not_seen": ("occupancy_not_seen", "No person seen", "because no person is seen"),
+    "not_occupied": ("occupancy_manual", "Set to not occupied by hand",
+                     "because the room was set to not occupied by hand"),
+}
+OCCUPANCY_UNKNOWN = ("occupancy_unknown", "Occupancy is unknown", "because occupancy is unknown")
+
+
+def occupancy_pause(occupancy):
+    return OCCUPANCY_PAUSE.get(occupancy, OCCUPANCY_UNKNOWN)
+
+
 def quantity(metric, value):
     unit = LIMITED[metric][1]
     return f"{value:.6g} {unit}" if unit else f"{value:.6g}"
@@ -70,6 +83,10 @@ class RoomSession:
         self.previous_faults = set()
         self.pending_events = []
         self.next_prune = None
+
+    def note_event(self, kind, message):
+        """Queue an event; it is logged on the next update."""
+        self.pending_events.append((kind, message))
 
     def note_acknowledgment(self):
         """Record that a person acknowledged the communication alert; logged on the next update."""
@@ -197,8 +214,8 @@ class RoomSession:
             check = check_state("paused", "reading_not_current",
                                 "The BME680 reading is not current. The air quality check is paused.")
         elif occupancy != "occupied":
-            check = check_state("paused", "occupancy_unknown",
-                                "Occupancy is unknown. The air quality check is paused.")
+            reason, subject, _ = occupancy_pause(occupancy)
+            check = check_state("paused", reason, f"{subject}. The air quality check is paused.")
         elif state == "calibrating":
             check = check_state("paused", "calibrating",
                                 "The Bosch index is calibrating. The air quality check is paused.")
@@ -249,9 +266,9 @@ class RoomSession:
                                    f"because dust readings were more than {format_duration(self.gap_s)} apart",
                                    "The sustained timer restarts.", dust_at, group)
         if current and occupancy != "occupied":
-            events += self.end_all("limit_reset_occupancy", "because occupancy is unknown",
-                                   "The dust check is paused.", now, group)
-            check = check_state("paused", "occupancy_unknown", "Occupancy is unknown. The dust check is paused.")
+            reason, subject, because = occupancy_pause(occupancy)
+            events += self.end_all("limit_reset_occupancy", because, "The dust check is paused.", now, group)
+            check = check_state("paused", reason, f"{subject}. The dust check is paused.")
         elif current and value is None:
             events += self.end_all("limit_reset_estimate", "because the dust baseline is not established",
                                    "The dust check is paused.", now, group)
@@ -294,7 +311,8 @@ class RoomSession:
         if not good:
             return "paused", "reading_not_current", "The BME680 reading is not current. Limit monitoring is paused."
         if occupancy != "occupied":
-            return "paused", "occupancy_unknown", "Occupancy is unknown. Limit monitoring is paused."
+            reason, subject, _ = occupancy_pause(occupancy)
+            return "paused", reason, f"{subject}. Limit monitoring is paused."
         if profile_error:
             return ("running", "profile_invalid",
                     "The patient profile file is invalid. Monitoring continues on the last valid profile.")
@@ -334,7 +352,7 @@ class RoomSession:
             events += self.end_all("limit_reset_reading", "because readings are not current",
                                    "Limit monitoring is paused.", now, BME_CHECKED)
         elif occupancy != "occupied":
-            events += self.end_all("limit_reset_occupancy", "because occupancy is unknown",
+            events += self.end_all("limit_reset_occupancy", occupancy_pause(occupancy)[2],
                                    "Limit monitoring is paused.", now, BME_CHECKED)
         elif bme_new:
             if self.last_bme is not None and bme_at - self.last_bme > self.gap_s:
