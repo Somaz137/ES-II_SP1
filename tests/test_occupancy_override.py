@@ -134,3 +134,18 @@ def test_no_camera_is_harmless():
     tracker = OverrideTracker(FakeStore(request("occupied", 990)), FakeSession(), None, 900)
     tracker.poll(1000, 5)
     assert tracker.resolve("unknown", 1000)[0] == "occupied"
+
+
+def test_expiry_event_shows_set_at_plus_duration_not_publish_time():
+    store, session = FakeStore(), FakeSession()
+    tracker = OverrideTracker(store, session, None, 900)
+    base = 1_700_000_000
+    store.value = request("occupied", base, "1")
+    tracker.poll(base, 1)
+    tracker.resolve("unknown", base)
+    tracker.resolve("unknown", base + 900 + 600)
+    kind, text = session.events[-1]
+    assert kind == "occupancy_override_expired"
+    due = time.strftime("%H:%M", time.localtime(base + 900))
+    late = time.strftime("%H:%M", time.localtime(base + 1500))
+    assert f"expired at {due}" in text and f"expired at {late}" not in text

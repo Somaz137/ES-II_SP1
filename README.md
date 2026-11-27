@@ -141,7 +141,7 @@ Freshness rules (from `config/runtime.yaml`, `config/alerts.yaml` and the code):
 | Reading retention (`readings_retention_days`) | 7 days | The monitor deletes older readings every hour. Events are kept. |
 
 The laptop settings do not change the board's acquisition timing. A future option is to read an acquisition interval from the laptop YAML and send it to the board at start-up. No command format or firmware part is chosen for it. Do not add a YAML field that seems to set the board's sampling without that path, because changing the host poll delay does not change the sensor's sampling.
-A fault check detects a timeout up to about 5 s after the duration ends. Processing delays add more. Camera checks and dashboard refreshes have their own intervals. Unknown occupancy or an unconfirmed entry can delay a limit alert. Entry needs about 90 s of sightings at the defaults.
+A fault check detects a timeout up to about 5 s after the duration ends. Processing delays add more. Camera checks and dashboard refreshes have their own intervals. Unknown occupancy or an unconfirmed entry can delay a limit alert. Entry needs at least about 110 s of sightings at the defaults.
 The camera interval does not set a capture frame rate or a buffering policy. Those stay open.
 
 ## Alerts and states

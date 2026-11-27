@@ -80,5 +80,5 @@ class OverrideTracker:
             self.session.note_event(
                 "occupancy_override_expired",
                 f"The manual setting {WORDS[override['mode']]} (set at {clock_text(override['set_at'])}) "
-                f"expired at {clock_text(wall)}. Occupancy returns to the camera.")
+                f"expired at {clock_text(override['set_at'] + self.duration_s)}. Occupancy returns to the camera.")
         return occupancy, source, info

@@ -369,8 +369,8 @@ function renderOverviewChart(v) {
 }
 
 const FAMILY = {limit: "Limit alert", communication: "Communication", sensor: "Sensor", alarm: "Alarm", profile: "Profile",
-  online: "Online access", calibration: "Bosch calibration"};
-const FAMILY_TONE = {limit: "red", communication: "amber", sensor: "none", alarm: "red", profile: "none", online: "none",
+  occupancy: "Occupancy", online: "Online access", calibration: "Bosch calibration"};
+const FAMILY_TONE = {limit: "red", communication: "amber", sensor: "none", alarm: "red", profile: "none", occupancy: "none", online: "none",
   calibration: "none"};
 function family(event) {
   if (event.kind.startsWith("bsec_state")) return "calibration";
@@ -379,6 +379,7 @@ function family(event) {
   if (event.kind.startsWith("alarm")) return "alarm";
   if (event.kind.startsWith("profile")) return "profile";
   if (event.kind.startsWith("communication")) return "communication";
+  if (event.kind.startsWith("occupancy")) return "occupancy";
   return event.message.startsWith("Communication") ? "communication" : "sensor";
 }
 function renderRecent(v) {
@@ -660,8 +661,9 @@ function renderSystem(v) {
     o.observation_age_s == null ? "—" : ago(o.observation_age_s),
     o.source === "simulated" ? "Simulated occupancy, no camera in use" : o.source === "none" ? "No camera configured" :
     o.source === "camera" || manual
-      ? `Model YOLOX (OpenCV zoo) · checks every ${timing.camera_interval_s} s, images are not stored` +
-        (cam ? ` · last check ${CHECK_RESULT[cam.last_result] || "not made yet"}${cam.last_check_at != null ? " at " + clock(cam.last_check_at) : ""} · ${sighting}` : "") : "—");
+      ? (cam ? `Model YOLOX (OpenCV zoo) · checks every ${timing.camera_interval_s} s, images are not stored` +
+          ` · last check ${CHECK_RESULT[cam.last_result] || "not made yet"}${cam.last_check_at != null ? " at " + clock(cam.last_check_at) : ""} · ${sighting}`
+        : "No camera configured") : "—");
   const p = h.profile;
   pathRow("profile", !known(p) ? "none" : p.state === "loaded" ? "green" : p.state === "error" ? "red" : "amber",
     !known(p) ? unknown : p.state === "loaded" ? "Loaded" : p.state === "error" ? "Could not be read" : "No limits saved",
