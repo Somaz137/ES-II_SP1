@@ -1,4 +1,5 @@
 """Camera occupancy checks: one YOLOX person check per interval, no frame retention."""
+import sys
 from threading import Event, Lock, Thread
 import time
 
@@ -14,6 +15,7 @@ class CameraOccupancy:
                                   timing["occupancy_confirm_fraction"], timing["occupancy_hold_s"])
         self.detector = detector
         self.last_check_at = None
+        self.last_error = None
         self.lock = Lock()
         self.stop = Event()
         self.worker = Thread(target=self.run, daemon=True)
@@ -41,8 +43,6 @@ class CameraOccupancy:
 
     def check_once(self, open_capture, detector, at):
         """One check: grab a frame, classify it, release it. The frame is never kept."""
-        import cv2
-
         result = "failed"
         capture = frame = None
         try:
@@ -50,20 +50,36 @@ class CameraOccupancy:
             ok, frame = capture.read()
             if ok and frame is not None:
                 result = "seen" if detector.detect(frame) else "not_seen"
-        except cv2.error:
-            pass
+        except Exception as error:  # any capture or detector failure is one failed check
+            self.report(error)
         finally:
             frame = None
             if capture is not None:
                 capture.release()
         self.record(result, at)
 
+    def report(self, error):
+        """Print the reason on stderr once per kind of failure (stdout carries the status lines)."""
+        reason = f"{type(error).__name__}: {error}"
+        if reason != self.last_error:
+            self.last_error = reason
+            print(f"Camera check failed: {reason}", file=sys.stderr, flush=True)
+
     def run(self):
         import cv2
         from person_detector import PersonDetector
 
-        detector = self.detector or PersonDetector(self.confidence)
+        detector, failure = self.detector, None
+        if detector is None:
+            try:
+                detector = PersonDetector(self.confidence)
+            except Exception as error:
+                failure = error
         while not self.stop.is_set():
             started = time.monotonic()
-            self.check_once(cv2.VideoCapture, detector, started)
+            if failure is not None:
+                self.report(failure)
+                self.record("failed", started)
+            else:
+                self.check_once(cv2.VideoCapture, detector, started)
             self.stop.wait(max(0, self.interval_s - (time.monotonic() - started)))

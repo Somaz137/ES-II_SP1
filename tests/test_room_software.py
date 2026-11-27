@@ -1,3 +1,4 @@
+import time
 from types import SimpleNamespace
 
 from monitoring_state import create_monitoring_state, process_serial_line
@@ -382,3 +383,45 @@ def test_camera_worker_records_results_without_keeping_frames():
     assert Capture.released == 3
     assert [c[1] for c in camera.rule._checks] == [True, False, False]
     assert camera.last_check_at == 5
+
+
+def test_camera_detector_error_records_failed_and_releases(capsys):
+    from occupancy import CameraOccupancy
+
+    class Capture:
+        released = False
+
+        def read(self):
+            return True, "frame"
+
+        def release(self):
+            Capture.released = True
+
+    class Detector:
+        def detect(self, frame):
+            raise RuntimeError("inference broke")
+
+    camera = CameraOccupancy(0, CAMERA_TIMING, detector=Detector())
+    camera.check_once(lambda index: Capture(), Detector(), 3)
+    assert Capture.released and camera.last_check_at == 3
+    assert camera.rule._last_ok_at is None and [c[1] for c in camera.rule._checks] == [False]
+    assert "inference broke" in capsys.readouterr().err
+
+
+def test_camera_model_load_failure_records_failed_and_names_reason(monkeypatch, capsys):
+    import person_detector
+    from occupancy import CameraOccupancy
+
+    def broken(confidence):
+        raise OSError("cannot load model")
+
+    monkeypatch.setattr(person_detector, "PersonDetector", broken)
+    timing = {**CAMERA_TIMING, "camera_interval_s": 0.01, "occupancy_confirm_s": 0.1}
+    camera = CameraOccupancy(0, timing)
+    with camera:
+        deadline = time.monotonic() + 2
+        while camera.last_check_at is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.05)
+    assert camera.last_check_at is not None and camera.rule._last_ok_at is None
+    assert capsys.readouterr().err.count("cannot load model") == 1
