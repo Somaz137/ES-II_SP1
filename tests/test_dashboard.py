@@ -494,3 +494,10 @@ def test_health_occupancy_entry_reports_manual_and_camera(app_store):
     store.write("status", {"updated_at": time.time(), "occupancy": "unknown"})
     health = client.get("/api/room").json["health"]["occupancy"]
     assert health["override"] is None and health["camera"] is None
+
+
+def test_system_row_script_shows_last_check_result_and_last_sighting():
+    from pathlib import Path
+    script = (Path(__file__).resolve().parents[1] / "static/room.js").read_text(encoding="utf-8")
+    assert "cam.last_result" in script and "cam.last_check_at" in script
+    assert "last person seen" in script and "no person seen yet" in script

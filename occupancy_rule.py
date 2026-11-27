@@ -18,6 +18,8 @@ class OccupancyRule:
         self._last_ok_at = None  # last check that was not "failed"
         self._last_seen_at = None
         self._entered = False
+        self._last_result = None
+        self._last_check_at = None
 
     def _window(self, now):
         return [c for c in self._checks if c[0] > now - self.confirm_s]
@@ -29,6 +31,7 @@ class OccupancyRule:
         if self._entered and at - self._last_seen_at >= self.hold_s:
             self._entered = False
         seen = result == "seen"
+        self._last_result, self._last_check_at = result, at
         self._checks.append((at, seen))
         while self._checks and self._checks[0][0] <= at - self.confirm_s:
             self._checks.popleft()
@@ -64,6 +67,8 @@ class OccupancyRule:
             "state": state,
             "camera_working": working,
             "last_seen_at": self._last_seen_at,
+            "last_result": self._last_result,
+            "last_check_at": self._last_check_at,
             "seen": seen,
             "checks": len(window),
             "needed": self.needed,

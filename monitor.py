@@ -109,7 +109,7 @@ def main():
         else:
             displayed_alert = None
         record["communication_alert_id"] = displayed_alert
-        snapshot = camera.snapshot(now) if camera else None
+        snapshot = camera.snapshot(now, time.time()) if camera else None
         automatic = "occupied" if args.demo else snapshot["state"] if camera else "unknown"
         occupancy, manual, info = override.resolve(automatic, time.time())
         record["occupancy_source"] = manual or ("simulated" if args.demo else "camera" if camera else "none")

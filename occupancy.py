@@ -37,9 +37,15 @@ class CameraOccupancy:
         with self.lock:
             self.rule.assume_occupied(at)
 
-    def snapshot(self, now):
+    def snapshot(self, now, wall=None):
+        """The rule state. With `wall` (clock time of `now`), the times are clock times, not monotonic."""
         with self.lock:
-            return self.rule.state(now)
+            state = self.rule.state(now)
+        if wall is not None:
+            for key in ("last_seen_at", "last_check_at"):
+                if state[key] is not None:
+                    state[key] = wall - (now - state[key])
+        return state
 
     def check_once(self, open_capture, detector, at):
         """One check: grab a frame, classify it, release it. The frame is never kept."""

@@ -136,6 +136,7 @@ function alarmState(v) {
   if (level === 1) return {tone: "amber", text: "Alarm: LED on, buzzer off", chip: "LED on"};
   return {tone: "green", text: "Alarm off", chip: "Off"};
 }
+const CHECK_RESULT = {seen: "person seen", not_seen: "no person seen", failed: "failed"};
 function occupancyView(status, current, since) {
   if (!current) return {text: "Occupancy unknown", tone: "amber"};
   const occ = status.occupancy, over = status.occupancy_override, cam = status.occupancy_camera;
@@ -660,7 +661,7 @@ function renderSystem(v) {
     o.source === "simulated" ? "Simulated occupancy, no camera in use" : o.source === "none" ? "No camera configured" :
     o.source === "camera" || manual
       ? `Model YOLOX (OpenCV zoo) · checks every ${timing.camera_interval_s} s, images are not stored` +
-        (cam ? ` · last check ${cam.camera_working ? "worked" : "failed"} · ${sighting}` : "") : "—");
+        (cam ? ` · last check ${CHECK_RESULT[cam.last_result] || "not made yet"}${cam.last_check_at != null ? " at " + clock(cam.last_check_at) : ""} · ${sighting}` : "") : "—");
   const p = h.profile;
   pathRow("profile", !known(p) ? "none" : p.state === "loaded" ? "green" : p.state === "error" ? "red" : "amber",
     !known(p) ? unknown : p.state === "loaded" ? "Loaded" : p.state === "error" ? "Could not be read" : "No limits saved",

@@ -378,6 +378,17 @@ def test_camera_feeds_rule():
     assert camera.snapshot(110)["state"] == "occupied"
 
 
+def test_camera_snapshot_gives_clock_times_when_asked():
+    from occupancy import CameraOccupancy
+
+    camera = CameraOccupancy(0, CAMERA_TIMING, detector=object())
+    camera.record("seen", 100)
+    camera.record("not_seen", 110)
+    snap = camera.snapshot(120, wall=5000)
+    assert snap["last_seen_at"] == 4980 and snap["last_check_at"] == 4990 and snap["last_result"] == "not_seen"
+    assert camera.snapshot(120)["last_seen_at"] == 100
+
+
 def test_camera_assume_occupied_reaches_rule():
     from occupancy import CameraOccupancy
 

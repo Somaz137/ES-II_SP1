@@ -122,3 +122,14 @@ def test_assume_earlier_than_last_sighting_keeps_later():
     rule = entered_rule()
     rule.assume_occupied(50)
     assert rule.state(110)["last_seen_at"] == 110
+
+
+def test_state_reports_the_last_check_result_and_time():
+    rule = make()
+    assert rule.state(0)["last_result"] is None and rule.state(0)["last_check_at"] is None
+    rule.add("seen", 10)
+    rule.add("not_seen", 20)
+    s = rule.state(25)
+    assert s["last_result"] == "not_seen" and s["last_check_at"] == 20 and s["last_seen_at"] == 10
+    rule.add("failed", 30)
+    assert rule.state(30)["last_result"] == "failed"
