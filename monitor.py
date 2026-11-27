@@ -42,6 +42,11 @@ def main():
             import cv2
         except ImportError:
             parser.error("Camera mode needs the project's pinned OpenCV package.")
+        from person_detector import ModelError, check_model
+        try:
+            check_model()
+        except ModelError as error:
+            parser.error(str(error))
     if args.baud <= 0:
         parser.error("--baud must be positive")
     if args.demo:
@@ -67,7 +72,7 @@ def main():
         store.save_profile({"limits": {"temp_c": [20, 27]}, "hold_s": 9})
     mono_origin, utc_origin = time.monotonic(), time.time()
 
-    camera = CameraOccupancy(args.camera, runtime["camera_interval_s"]) if args.camera is not None else None
+    camera = CameraOccupancy(args.camera, runtime) if args.camera is not None else None
     last_ack = store.read("communication_ack")
     last_silence = store.read("alarm_silence")
     displayed_alert = None
@@ -99,9 +104,12 @@ def main():
         else:
             displayed_alert = None
         record["communication_alert_id"] = displayed_alert
-        occupancy = "occupied" if args.demo else camera.current(now) if camera else "unknown"
+        snapshot = camera.snapshot(now) if camera else None
+        occupancy = "occupied" if args.demo else snapshot["state"] if camera else "unknown"
         record["occupancy_source"] = "simulated" if args.demo else "camera" if camera else "none"
-        record["occupancy_observation_age_s"] = camera.observation_age(now) if camera else None
+        record["occupancy_camera"] = snapshot
+        last_check = camera.last_check_at if camera else None
+        record["occupancy_observation_age_s"] = None if last_check is None else now - last_check
         # Replies to BSEC state requests go out through the same send path as ALARM commands.
         session.pending_events.extend(bsec.handle(state, now, time.time(), connection))
         record["bsec_state"] = bsec.block()

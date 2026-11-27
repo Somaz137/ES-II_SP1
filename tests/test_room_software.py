@@ -335,12 +335,50 @@ def test_missing_profile_file_validates_legacy_profile(tmp_path):
         store.load_profile()
 
 
-def test_camera_interval_is_configurable_and_reports_observation_age():
+CAMERA_TIMING = dict(camera_interval_s=10, occupancy_confirm_s=120, occupancy_confirm_fraction=0.75,
+                     occupancy_hold_s=900, occupancy_override_s=900, person_confidence=0.5)
+
+
+def test_camera_feeds_rule():
     from occupancy import CameraOccupancy
 
-    camera = CameraOccupancy(0, interval_s=10)
-    assert camera.current(100) == "unknown" and camera.observation_age(100) is None
-    camera.observation = ("occupied", 100)
-    assert camera.current(115) == "occupied" and camera.observation_age(115) == 15
-    assert camera.current(115.5) == "unknown"
-    assert CameraOccupancy(0).interval_s == 60
+    camera = CameraOccupancy(0, CAMERA_TIMING, detector=object())
+    assert camera.snapshot(0)["state"] == "unknown"
+    for step in range(12):
+        camera.record("seen", step * 10)
+    assert camera.snapshot(110)["state"] == "occupied"
+
+
+def test_camera_assume_occupied_reaches_rule():
+    from occupancy import CameraOccupancy
+
+    camera = CameraOccupancy(0, CAMERA_TIMING, detector=object())
+    camera.assume_occupied(0)
+    assert camera.snapshot(0)["state"] == "occupied"
+
+
+def test_camera_worker_records_results_without_keeping_frames():
+    from occupancy import CameraOccupancy
+
+    class Capture:
+        released = 0
+
+        def __init__(self, frame):
+            self.frame = frame
+
+        def read(self):
+            return (self.frame is not None), self.frame
+
+        def release(self):
+            Capture.released += 1
+
+    class Detector:
+        def detect(self, frame):
+            return frame == "person"
+
+    camera = CameraOccupancy(0, CAMERA_TIMING, detector=Detector())
+    for frame in ("person", "empty", None):
+        camera.check_once(lambda index, frame=frame: Capture(frame), Detector(), 5)
+    assert Capture.released == 3
+    assert [c[1] for c in camera.rule._checks] == [True, False, False]
+    assert camera.last_check_at == 5

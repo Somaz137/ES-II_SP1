@@ -10,8 +10,19 @@ reading_gap_limit_s: 6
 status_stale_after_s: 15
 # Dashboard page refresh; must not exceed the staleness limit.
 dashboard_refresh_s: 10
-# Camera check interval; an observation expires 5 seconds after it.
-camera_interval_s: 60
+# Camera check interval in seconds.
+camera_interval_s: 10
+# Occupancy rule (all optional; the values shown are the defaults).
+# Window in which the checks are counted (not shorter than camera_interval_s).
+# occupancy_confirm_s: 120
+# Part of the checks in the window that must see a person (more than 0, at most 1).
+# occupancy_confirm_fraction: 0.75
+# Seconds that "occupied" holds after the last sighting.
+# occupancy_hold_s: 900
+# Seconds that a manual "Occupied" overrides the camera.
+# occupancy_override_s: 900
+# Person detector confidence (more than 0, less than 1).
+# person_confidence: 0.5
 # Raw reading retention in days (at least 1). Events are never pruned.
 readings_retention_days: 7
 # Wait for the board to confirm an alarm command before the alarm shows as unreachable.

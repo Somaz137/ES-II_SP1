@@ -55,9 +55,14 @@ RUNTIME_DEFAULTS = {
     "reading_gap_limit_s": 6,
     "status_stale_after_s": 15,
     "dashboard_refresh_s": 10,
-    "camera_interval_s": 60,
+    "camera_interval_s": 10,
     "readings_retention_days": 7,
     "alarm_confirm_timeout_s": 2,
+    "occupancy_confirm_s": 120,
+    "occupancy_confirm_fraction": 0.75,
+    "occupancy_hold_s": 900,
+    "occupancy_override_s": 900,
+    "person_confidence": 0.5,
 }
 
 
@@ -177,6 +182,12 @@ def validate_runtime_settings(data: object) -> None:
                          "the board's reply is read at a later poll.")
     if merged["readings_retention_days"] < 1:
         raise ValueError("readings_retention_days must be at least 1 for the 24-hour trend.")
+    if merged["occupancy_confirm_s"] < merged["camera_interval_s"]:
+        raise ValueError("occupancy_confirm_s must not be shorter than camera_interval_s.")
+    if not 0 < merged["occupancy_confirm_fraction"] <= 1:
+        raise ValueError("occupancy_confirm_fraction must be more than 0 and at most 1.")
+    if not 0 < merged["person_confidence"] < 1:
+        raise ValueError("person_confidence must be more than 0 and less than 1.")
     validate_online_settings(data)
 
 
