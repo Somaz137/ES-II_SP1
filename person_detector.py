@@ -24,17 +24,16 @@ class ModelError(Exception):
     pass
 
 
-def check_model(path: Path | None = None) -> None:
-    """Raise ModelError when the model file is missing or its SHA-256 is not MODEL_SHA256."""
+def check_model(path: Path | None = None, sha256: str = MODEL_SHA256, hint: str = "Run: env/bin/python tools/get_person_model.py") -> None:
+    """Raise ModelError when the model file is missing or its SHA-256 is not sha256 (default MODEL_SHA256)."""
     path = Path(MODEL_PATH if path is None else path)
-    hint = "Run: env/bin/python tools/get_person_model.py"
     if not path.is_file():
         raise ModelError(f"Person model not found at {path}. {hint}")
     digest = hashlib.sha256()
     with path.open("rb") as model_file:
         for chunk in iter(lambda: model_file.read(1 << 20), b""):
             digest.update(chunk)
-    if digest.hexdigest() != MODEL_SHA256:
+    if digest.hexdigest() != sha256:
         raise ModelError(f"Person model at {path} has the wrong SHA-256. {hint}")
 
 
