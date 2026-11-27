@@ -1,3 +1,4 @@
+import re
 import time
 
 import pytest
@@ -112,7 +113,8 @@ def test_api_returns_alert_profile_trends_and_health(app_store):
     assert health["bme680"]["state"] == "fresh" and health["bme680"]["measurement_current"]
     assert health["dust"]["state"] == "fresh"
     assert health["occupancy"] == {"state": "occupied", "reported_state": "occupied",
-                                   "source": "camera", "observation_age_s": pytest.approx(4, abs=2)}
+                                   "source": "camera", "observation_age_s": pytest.approx(4, abs=2),
+                                       "override": None, "camera": None}
     assert health["profile"] == {"state": "loaded", "reported_state": "loaded", "error": None}
 
 
@@ -446,3 +448,49 @@ def test_store_trends_default_matches_the_24_hour_window(tmp_path):
     assert [bucket["avg"] for bucket in store.trends(now)["temp_c"]] == [21.0]
     week = store.trends(now, span_s=7 * 86400, bucket_s=600)["temp_c"]
     assert [bucket["avg"] for bucket in week] == [22.0, 21.0]
+
+
+def test_occupancy_override_is_stored_for_the_monitor(app_store):
+    client, store = app_store
+    before = time.time()
+    assert client.post("/occupancy", data={"mode": "occupied"}).status_code == 303
+    stored = store.read("occupancy_override")
+    assert stored["mode"] == "occupied" and stored["set_from"] == "local" and stored["id"]
+    assert before - 1 <= stored["set_at"] <= time.time() + 5
+
+
+def test_occupancy_override_rejects_unknown_mode(app_store):
+    client, store = app_store
+    assert client.post("/occupancy", data={"mode": "maybe"}).status_code == 400
+    assert client.post("/occupancy", data={}).status_code == 400
+    assert store.read("occupancy_override") is None
+
+
+def test_cross_site_occupancy_post_is_refused(app_store):
+    client, store = app_store
+    assert client.post("/occupancy", data={"mode": "occupied"},
+                       headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
+    assert store.read("occupancy_override") is None
+
+
+def test_overview_has_occupancy_control(app_store):
+    client, _ = app_store
+    page = client.get("/").get_data(as_text=True)
+    assert 'action="/occupancy"' in page
+    for value, label in (("auto", "Automatic (camera)"), ("occupied", "Occupied"), ("not_occupied", "Not occupied")):
+        assert re.search(rf'<button[^>]*name="mode"[^>]*value="{value}"[^>]*>\s*{re.escape(label)}\s*</button>', page)
+    assert "disabled" not in re.search(r'<form[^>]*action="/occupancy".*?</form>', page, re.S).group(0)
+
+
+def test_health_occupancy_entry_reports_manual_and_camera(app_store):
+    client, store = app_store
+    override = {"mode": "occupied", "set_at": 100.0, "set_from": "online", "expires_at": 1000.0}
+    camera = {"state": "occupied", "camera_working": True, "last_seen_at": 5.0, "seen": 9, "checks": 12,
+              "needed": 9, "held": False}
+    store.write("status", {"updated_at": time.time(), "occupancy": "occupied", "occupancy_source": "manual",
+                           "occupancy_override": override, "occupancy_camera": camera})
+    health = client.get("/api/room").json["health"]["occupancy"]
+    assert health["source"] == "manual" and health["override"] == override and health["camera"] == camera
+    store.write("status", {"updated_at": time.time(), "occupancy": "unknown"})
+    health = client.get("/api/room").json["health"]["occupancy"]
+    assert health["override"] is None and health["camera"] is None

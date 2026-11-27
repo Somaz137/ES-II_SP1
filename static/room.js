@@ -136,18 +136,44 @@ function alarmState(v) {
   if (level === 1) return {tone: "amber", text: "Alarm: LED on, buzzer off", chip: "LED on"};
   return {tone: "green", text: "Alarm off", chip: "Off"};
 }
+function occupancyView(status, current, since) {
+  if (!current) return {text: "Occupancy unknown", tone: "amber"};
+  const occ = status.occupancy, over = status.occupancy_override, cam = status.occupancy_camera;
+  if (status.occupancy_source === "manual" && over) {
+    const who = over.set_from === "online" ? "online" : "on this computer";
+    const word = over.mode === "occupied" ? "Occupied" : "Not occupied";
+    return {text: `${word}: set by hand ${who} at ${clock(over.set_at)}. Returns to the camera at ${clock(over.expires_at)}.`,
+      tone: over.mode === "occupied" ? "green" : "amber"};
+  }
+  const age = status.occupancy_observation_age_s;
+  const how = age != null ? " · checked " + ago(age + since) :
+    status.occupancy_source === "simulated" ? " · simulated" : status.occupancy_source === "none" ? " · no camera" : "";
+  if (occ === "occupied") {
+    const held = cam && cam.held && !cam.camera_working ? ` · camera not working, held from last sighting at ${clock(cam.last_seen_at)}` : "";
+    return {text: "Occupied" + (held || how), tone: "green"};
+  }
+  if (occ === "not_seen") {
+    const seen = cam && cam.seen > 0 ? ` · person seen in ${cam.seen} of ${cam.checks} checks` : "";
+    return {text: "No person seen" + seen + how, tone: "amber"};
+  }
+  if (occ === "unknown") return {text: "Occupancy unknown" + how, tone: "amber"};
+  return {text: "Not occupied" + how, tone: "none"};
+}
 function renderTop(v) {
   const {status, current, since, profile} = v;
   $("profile-label").textContent = "Room 01" + (profile?.label ? " · " + profile.label : "");
   if (!status) { setTone($("connection-dot"), "none"); $("connection").textContent = "Waiting for monitor"; }
   else if (current) { setTone($("connection-dot"), "green"); $("connection").textContent = "Monitor live · " + ago(since); }
   else { setTone($("connection-dot"), "red"); $("connection").textContent = "Monitor overdue · last update " + ago(since); }
-  const occ = current ? status.occupancy : "unknown";
-  const age = status?.occupancy_observation_age_s;
-  const how = !current ? "" : age != null ? " · checked " + ago(age + since) :
-    status.occupancy_source === "simulated" ? " · simulated" : status.occupancy_source === "none" ? " · no camera" : "";
-  $("occupancy").textContent = (occ === "occupied" ? "Occupied" : occ === "unknown" ? "Occupancy unknown" : "Not occupied") + how;
-  setTone($("occupancy-dot"), occ === "occupied" ? "green" : occ === "unknown" ? "amber" : "none");
+  const occ = occupancyView(status, current, since);
+  $("occupancy").textContent = occ.text;
+  setTone($("occupancy-dot"), occ.tone);
+  const detail = $("occupancy-detail");
+  if (detail) {
+    detail.textContent = occ.text;
+    const mode = current && status.occupancy_override ? status.occupancy_override.mode : "auto";
+    document.querySelectorAll("#occupancy-form button[name=mode]").forEach(b => b.setAttribute("aria-pressed", String(b.value === mode)));
+  }
   const alarm = alarmState(v);
   setTone($("alarm-dot"), alarm.tone);
   $("alarm").textContent = alarm.text;
@@ -623,12 +649,18 @@ function renderSystem(v) {
   pathRow("dust", !known(d) ? "none" : d.alert_active ? "red" : d.state === "fresh" ? "green" : "amber",
     !known(d) ? unknown : d.alert_active ? (dustFault(status?.dust) || "Readings missing, alert active") : d.state === "fresh" ? "Readings current" : "Readings " + word(d.state),
     d.age_s == null ? "—" : ago(d.age_s), baseline);
-  const o = h.occupancy;
-  pathRow("occupancy", !known(o) ? "none" : o.state === "occupied" ? "green" : o.state === "unknown" ? "amber" : "none",
-    !known(o) ? unknown : o.state === "occupied" ? "Room occupied" : o.state === "unknown" ? "Occupancy unknown" : "Room not occupied",
+  const o = h.occupancy, cam = o.camera;
+  const oTone = !known(o) ? "none" : o.state === "occupied" ? "green" : o.state === "not_occupied" ? "none" : "amber";
+  const sighting = cam && cam.last_seen_at != null ? "last person seen " + clock(cam.last_seen_at) : "no person seen yet";
+  const manual = o.source === "manual" && o.override;
+  pathRow("occupancy", oTone,
+    !known(o) ? unknown : manual ? (o.override.mode === "occupied" ? "Occupied, set by hand" : "Not occupied, set by hand")
+      : o.state === "occupied" ? "Room occupied" : o.state === "not_seen" ? "No person seen" : o.state === "unknown" ? "Occupancy unknown" : "Room not occupied",
     o.observation_age_s == null ? "—" : ago(o.observation_age_s),
-    o.source === "camera" ? `Checks every ${timing.camera_interval_s} s, images are not stored` :
-    o.source === "simulated" ? "Simulated occupancy, no camera in use" : o.source === "none" ? "No camera configured" : "—");
+    o.source === "simulated" ? "Simulated occupancy, no camera in use" : o.source === "none" ? "No camera configured" :
+    o.source === "camera" || manual
+      ? `Model YOLOX (OpenCV zoo) · checks every ${timing.camera_interval_s} s, images are not stored` +
+        (cam ? ` · last check ${cam.camera_working ? "worked" : "failed"} · ${sighting}` : "") : "—");
   const p = h.profile;
   pathRow("profile", !known(p) ? "none" : p.state === "loaded" ? "green" : p.state === "error" ? "red" : "amber",
     !known(p) ? unknown : p.state === "loaded" ? "Loaded" : p.state === "error" ? "Could not be read" : "No limits saved",

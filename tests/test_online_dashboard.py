@@ -359,3 +359,28 @@ def test_online_origin_refuses_retry_and_stop_even_signed_in(tmp_path):
     for path in ("/online/retry", "/online/stop"):
         assert client.post(path, data={"csrf_token": token}, base_url=BASE).status_code == 403
     assert tunnel.calls == []
+
+
+def test_online_occupancy_override_needs_sign_in_and_records_online(online):
+    client, store = online[0], online[1]
+    assert client.post("/occupancy", data={"mode": "occupied"}, base_url=BASE).status_code == 403
+    token = csrf(client)
+    assert client.post("/occupancy", data={"mode": "occupied", "csrf_token": token},
+                       base_url=BASE).status_code == 403
+    assert store.read("occupancy_override") is None
+    sign_in(client)
+    token = csrf(client, "/")
+    assert client.post("/occupancy", data={"mode": "not_occupied", "csrf_token": token},
+                       base_url=BASE).status_code == 303
+    stored = store.read("occupancy_override")
+    assert stored["mode"] == "not_occupied" and stored["set_from"] == "online"
+
+
+def test_online_occupancy_buttons_are_disabled_until_sign_in(online):
+    client = online[0]
+    page = client.get("/", base_url=BASE).get_data(as_text=True)
+    form = re.search(r'<form[^>]*action="/occupancy".*?</form>', page, re.S).group(0)
+    assert form.count("disabled") == 3
+    sign_in(client)
+    page = client.get("/", base_url=BASE).get_data(as_text=True)
+    assert "disabled" not in re.search(r'<form[^>]*action="/occupancy".*?</form>', page, re.S).group(0)

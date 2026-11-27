@@ -9,9 +9,11 @@ import threading
 import math
 from pathlib import Path
 import time
+from uuid import uuid4
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
 
+from occupancy_override import MODES
 from online_auth import (SECRET_FILE, LoginLimiter, check_password, new_csrf_token, prompt_password, read_secret,
                          tokens_match, write_secret)
 
@@ -201,7 +203,8 @@ def system_health(status, now):
                 "bme680": {**unknown, "measurement_current": False, "measurement_age_s": None,
                            "alert_active": None},
                 "dust": {**unknown, "age_s": None, "alert_active": None},
-                "occupancy": {**unknown, "source": None, "observation_age_s": None},
+                "occupancy": {**unknown, "source": None, "observation_age_s": None, "override": None,
+                              "camera": None},
                 "profile": {**unknown, "error": None},
                 "alarm": {**unknown, "wanted_level": None, "confirmed_level": None, "silenced": None,
                           "confirmation_age_s": None},
@@ -235,7 +238,8 @@ def system_health(status, now):
         "dust": component(dust.get("status", "unknown"), age_s=aged(dust.get("age_s"), since),
                           alert_active=dust.get("alert_active")),
         "occupancy": component(status.get("occupancy", "unknown"), source=status.get("occupancy_source"),
-                               observation_age_s=aged(status.get("occupancy_observation_age_s"), since)),
+                               observation_age_s=aged(status.get("occupancy_observation_age_s"), since),
+                               override=status.get("occupancy_override"), camera=status.get("occupancy_camera")),
         "profile": component(profile_state, error=status.get("profile_error")),
         "alarm": component(alarm.get("state", "unknown"), wanted_level=alarm.get("wanted_level"),
                            confirmed_level=alarm.get("confirmed_level"), silenced=alarm.get("silenced"),
@@ -520,6 +524,16 @@ def create_app(path=DEFAULT_DB, *, demo=False, online=False, secret=None, tunnel
         if request.form.get("token") != current:
             abort(409, description="The active limit alerts changed. Reload the page and try again.")
         store.write("alarm_silence", current)
+        return redirect(back(), code=303)
+
+    @app.post("/occupancy")
+    def occupancy():
+        """Store a manual occupancy request for the monitor; mode auto returns to the camera."""
+        mode = request.form.get("mode")
+        if mode not in MODES:
+            abort(400, description="Unknown occupancy setting. Nothing was changed.")
+        store.write("occupancy_override", {"mode": mode, "set_at": time.time(),
+                                           "set_from": "online" if online else "local", "id": uuid4().hex})
         return redirect(back(), code=303)
 
     return app

@@ -11,6 +11,20 @@
   </article>
   {% endfor %}
 </section>
+<section class="card occ-card" aria-label="Room occupancy">
+  <div class="occ-text">
+    <h2>Room occupancy</h2>
+    <p class="meta" id="occupancy-detail">Waiting for the monitor</p>
+  </div>
+  <form class="seg" id="occupancy-form" action="/occupancy" method="post" role="group" aria-label="Set room occupancy">
+    <input type="hidden" name="next" value="{{ request.path }}">
+    {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endif %}
+    {% for value, label in [("auto", "Automatic (camera)"), ("occupied", "Occupied"), ("not_occupied", "Not occupied")] %}
+    <button type="submit" name="mode" value="{{ value }}" data-control aria-pressed="{{ 'true' if value == 'auto' else 'false' }}"{% if locked %} disabled{% endif %}>{{ label }}</button>
+    {% endfor %}
+  </form>
+  {% if locked %}<p class="meta occ-lock">Sign in to change room occupancy.</p>{% endif %}
+</section>
 <section class="cols">
   <article class="card chart-card">
     <div class="card-head">

@@ -143,6 +143,10 @@ input { caret-color: var(--primary); }
 .range-tick[data-edge="start"] { transform: none; }
 .range-tick[data-edge="end"] { transform: translateX(-100%); }
 .meta { font-size: var(--s12); color: var(--muted); }
+.occ-card { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 16px; }
+.occ-card .seg button:disabled { opacity: .55; cursor: not-allowed; }
+.occ-card .seg button:disabled:hover { color: var(--muted); background: none; }
+.occ-lock { flex-basis: 100%; }
 .cols { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
 .chart { position: relative; width: 100%; height: 276px; }
 .chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
