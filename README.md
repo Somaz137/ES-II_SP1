@@ -181,7 +181,7 @@ The camera worker (`occupancy.py`) opens the camera, reads one frame, releases i
 |---|---|---|
 | Occupied | A person was seen in at least 75 % of the checks in the last 120 s (the window must be full), or a manual "Occupied" applies. It stays occupied until no check has seen a person for 900 s (the hold). In `--demo` the room is always occupied. | Limit checks run. |
 | No person seen | The camera works, but the room is not confirmed as occupied. The page shows the progress, for example "person seen in 7 of 12 checks". | Patient-limit, air-quality and dust-limit checks pause. Running breaches end with an event. Faults do not depend on occupancy. |
-| Unknown | The camera does not work (no check other than "failed" for 30 s) and no hold applies, or there is no `--camera` option. | The same pause as "No person seen". |
+| Unknown | The camera does not work (no check other than "failed" for 30 s) and no hold applies, or there is no `--camera` option and no manual setting. | The same pause as "No person seen". |
 | Not occupied | Only a manual setting gives this state. | The same pause. The reason text says "Set to not occupied by hand". |
 
 - **Camera failure.** A failed check (no frame, a detector error or a missing model) counts as "not seen". The monitor prints the reason once on stderr. While the room is occupied, a camera failure does not end occupancy. The room stays occupied until 900 s after the last sighting. The page says that the camera is not working and shows the time of the last sighting. After the hold the state is unknown.
@@ -494,7 +494,7 @@ Firmware configuration commands remain future work.
 - The occupancy detector (YOLOX) finds a person in clear view. It missed a person under a blanket in every frame on 27 November 2026 (0/12 twice) and found 4/12 on 20 November. It found a seated person in 9/12 frames. A missed patient gives "No person seen", and limit alerts then pause. A manual "Occupied" setting covers this for 15 minutes and starts the camera hold.
 - The detector cannot tell the patient from a visitor. Any person in view counts.
 - The occupancy design is on branch `feature/occupancy`. It is not merged to `main`.
-- In serial mode without `--camera`, occupancy is always unknown, so limit alerts never start.
+- In serial mode without `--camera`, Automatic occupancy stays unknown. Limit alerts can start only while a manual "Occupied" setting applies (15 minutes).
 - Readings older than 7 days are deleted hourly. Events are never deleted. The event list shows the latest 50 events and pages to older ones.
 - The independent notification path is a local LED and buzzer on the ESP32, commanded by the host over USB. The LED lit as commanded on 20 November 2026. No buzzer is connected now. GPIO7 and the buzzer polarity are not checked on hardware.
 - When the USB link is down the host cannot command the LED or buzzer. The dashboard then shows the alarm as unreachable. After 30 s without a valid command the board blinks the LED and keeps the buzzer in its last state. The blink was seen on the bench on 20 November 2026. The buzzer part is not checked.
