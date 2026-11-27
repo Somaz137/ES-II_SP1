@@ -8,6 +8,11 @@ The laptop runs the monitor, a local Flask dashboard and a SQLite store. A webca
 The monitor commands a local alarm on the board: an LED and a buzzer.
 This is a course project. It is not a medical device. The project supplies no patient limits.
 
+The prototype covers one room, one ESP32-S3 board, one BME680, one Sharp dust sensor and one camera. The laptop does the main logic. The board reads the sensors, drives the local alarm and sends records.
+The name does not mean automatic control of fans, heaters or other equipment. The project defines no such control.
+Several rooms, extra sensor buses and hubs, and an NVIDIA Jetson Nano were discussed and are deferred. Do not add them without a decision.
+The target is an Ubuntu 22.04 laptop with Python 3.10.12. The repository is https://github.com/Somaz137/ES-II_SP1.
+
 ## How it works
 
 ```text
@@ -81,7 +86,7 @@ Every entry below exists on this branch, except `config/online_secret.yaml`, whi
 | `static/` | `room.js` (page logic), `chart.js` (the project's own SVG line charts), `room.css`. | You change page behaviour or style. |
 | `firmware/` | The ESP32-S3 sketch, its headers and host tests. See the [firmware guide](firmware/README.md). | You change or flash the board. |
 | `firmware/*.ino` | The sketch: BSEC set-up, readings, errors, dust report, alarm outputs, BSEC state, I2C bus restart. | You change board behaviour. |
-| `firmware/*.h` | `bsec_board_config.h` (pins, polarity, intervals), `bus_recovery.h` (I2C restart rule), `alarm_command.h`, `host_command.h`, `bsec_serial_format.h`, `sharp_dust.h`, `sharp_dust_limits.h`. | You change one board rule. |
+| `firmware/*.h` | `bsec_board_config.h` (pins, polarity, intervals, the 3.3 V supply `ROOM_BME680_SUPPLY_MV`, the chip check that rejects any chip but the ESP32-S3), `bus_recovery.h` (I2C restart after 10 s with no valid reading, at most every 30 s), `alarm_command.h` (command parsing, bounded serial read, LED and buzzer mapping, reply), `host_command.h` (host lines `ALARM` and `BSEC_STATE` in a fixed buffer, and the BSEC state-save rule), `bsec_serial_format.h`, `sharp_dust.h`, `sharp_dust_limits.h` (dust sample rule shared with a host test). | You change one board rule. |
 | `firmware/tests/` | Five C++ host tests, built with g++ on Linux (no board). | You change a header. |
 | `tools/sensor_check.py` | Read-only bench check of the board's serial lines: readings, gas change, dust input. | You test the board. |
 | `tools/read_sensor.py` | Prints the board's records from a serial port. | You want raw lines. |
@@ -90,8 +95,7 @@ Every entry below exists on this branch, except `config/online_secret.yaml`, whi
 | `docs/SHARP_DUST_INTEGRATION.md` | Dust wiring, acquisition, estimate and baseline. | You touch the dust sensor. |
 | `docs/superpowers/specs/` | Designs, one file per feature, with dates. | You need the reason for a rule. |
 | `docs/superpowers/plans/` | Implementation plans for those designs. | You continue a feature. |
-| `reference_files/` | Verification records per date, the Python file guide, the course reference, the implementation plan, the Linux handoff and the VIGIL comparison. | You need evidence or history. |
-| `README_HUMAN.md` | A longer guide for people. | You want more background. |
+| `reference_files/` | Verification records per date, the Python file guide, the course reference, the implementation plan and the VIGIL comparison. | You need evidence or history. |
 | `DESIGN.md`, `.impeccable/design.json` | The dashboard design system. | You change the page look. |
 | `requirements.txt` | Pinned Python packages. | You set up the environment. |
 
@@ -108,6 +112,10 @@ The host stores temperature, humidity, pressure, gas resistance, the Bosch index
 The dust estimate is `max(0, sensor_mv - baseline_mv) * 1000 / 5000` µg/m³. The baseline is the lowest fresh voltage in the last 24 hours. The estimate appears only after 10 minutes of unbroken fresh dust records.
 Raw gas resistance is not a calibrated concentration. The dust estimate is not PM2.5.
 
+The host accepts a BME680 reading only when `temp_c`, `humidity_pct`, `pressure_hpa` and `gas_ohms` are all finite numbers. It rejects missing values, numeric text, Boolean values and nonfinite numbers. This check proves the record structure. It does not prove patient safety or measurement accuracy.
+The firmware sends each new BSEC measurement once. A failure gives an error line. The firmware never repeats an old measurement. The BSEC wrapper converts pressure to hPa before its callback, and the sketch uses that value without a second division. Check this again if the wrapper changes. The firmware sets no custom temperature compensation.
+The dust estimate uses Sharp's typical sensitivity, 0.5 V per 0.1 mg/m³. The word levels (low, raised, high) are project display defaults. They are not official categories or health standards. Dust lines count as communication but do not replace BME680 readings.
+
 Freshness rules (from `config/runtime.yaml`, `config/alerts.yaml` and the code):
 
 | Rule | Value | Effect |
@@ -122,7 +130,9 @@ Freshness rules (from `config/runtime.yaml`, `config/alerts.yaml` and the code):
 | Alarm confirmation (`alarm_confirm_timeout_s`) | 2 s | With no board reply in 2 s the alarm shows as unreachable. |
 | Reading retention (`readings_retention_days`) | 7 days | The monitor deletes older readings every hour. Events are kept. |
 
-The laptop settings do not change the board's acquisition timing.
+The laptop settings do not change the board's acquisition timing. A future option is to read an acquisition interval from the laptop YAML and send it to the board at start-up. No command format or firmware part is chosen for it. Do not add a YAML field that seems to set the board's sampling without that path, because changing the host poll delay does not change the sensor's sampling.
+A fault check detects a timeout up to about 5 s after the duration ends. Processing delays add more. Camera checks and dashboard refreshes have their own intervals. Unknown occupancy can delay a limit alert until the next camera check.
+The camera interval does not set a capture frame rate or a buffering policy. Those stay open.
 
 ## Alerts and states
 
@@ -163,11 +173,42 @@ Occupancy (this branch, `occupancy.py` and `monitor.py`):
 The dashboard has text for "Not occupied", but the monitor on this branch never sends that state.
 A new occupancy design (a new detector, a hold time, a "No person seen" state and a manual override) is in progress on branch `feature/occupancy`. It is not on this branch. See the [occupancy design](docs/superpowers/specs/2026-11-20-occupancy-detector-override-design.md).
 
+Communication details:
+
+- A recognized error line proves communication but gives no fresh measurement.
+- Unreadable or unknown input is ignored. Timeout checks continue.
+- The dashboard shows the acknowledge button only after contact is back and while the monitor status is current. The monitor applies the acknowledgment at its next fault check. The event history records the acknowledgment and the cleared alert as two entries.
+- The communication tracker also supports an acknowledgment during an outage. It dismisses the alert and starts another 120 s wait. The dashboard does not offer this. An acknowledgment never changes the real last-contact time.
+- Before the first complete reading, the state has no values and no measurement time. The status is "waiting for the first measurement". Recognized errors change the input status even then. The 120 s communication wait still runs from the start of the monitor.
+- An incomplete reading counts as communication and as a sensor error. The sensor alert still waits the full error time. The dashboard shows the previous values with the time of the last BME680 reading and labels the latest input status. When the monitor status is older than 15 s, it labels the values as retained. It must not show retained values as fresh.
+- Expected Bosch warm-up does not start a sensor-error wait. Real communication loss or measurement errors follow the normal fault rules.
+
 Other states on the dashboard:
 
 - **Calibrating** (air quality): Bosch accuracy is 0 or 1. The page shows no index value. The air-quality check pauses.
 - **Establishing baseline** (dust): fewer than 10 minutes of unbroken fresh dust records. The page shows no estimate. The dust check pauses. A dust fault, a gap over 6 s or a monitor restart starts the baseline again.
 - **Limit monitoring off or paused**: no profile, no limits, a reading that is not current, or unknown occupancy. The page says which.
+
+Bosch status labels (`gas_readiness.py`):
+
+- BSEC reports `stabilization_status` and `run_in_status`. 0 means it continues. Both must be 1 for `warmup_complete`. This status does not prove that calibration finished or that the room is safe.
+- `iaq_accuracy` gives the calibration labels `stabilizing`, `calibration_required`, `calibrating` and `calibrated`. They describe the Bosch report. They do not certify accuracy.
+- Missing or invalid status gives "unknown". A complete reading stays usable when its gas status is unknown. Firmware that sends no BSEC status gives "unknown" too.
+- Gas status is unavailable when communication times out or the latest input has measurement errors.
+- Bosch describes accuracy 0 as run-in ongoing and 1 as low accuracy. The word bands are the commonly cited Bosch bands. No Bosch document on this machine lists them, so they are not checked.
+- Bosch's datasheet (revision 1.9) lists 1 Hz continuous mode for short tests only. Low-power mode updates every 3 s. The user chose low-power mode. See the [BSEC status design](docs/superpowers/specs/2026-11-08-bsec-status-design.md).
+
+## Set up the laptop
+
+Use the existing project environment (`env/bin/python`). Do not recreate, rename or upgrade it. Do not recreate the removed setup installer. Ask before you add a dependency that `requirements.txt` does not list.
+The pinned packages are numpy 1.26.4, opencv-python 4.11.0.86, pyserial 3.5, Flask 3.0.3, PyYAML 6.0.1 and pytest 8.2.0. Python is 3.10.12.
+
+```text
+python tools/check_setup.py
+python -m pytest
+```
+
+`check_setup.py` prints platform, Python, package and device facts. Read each CHECK and NOT INSTALLED line. The script does not fail its exit code on a version mismatch, and package metadata does not prove an import works. A missing USB device or camera does not block the tests. Check that pytest reports 8.2.0 before you call a run pinned-environment verification. If a version differs, report it and ask before you reinstall or upgrade.
 
 ## Run it
 
@@ -188,6 +229,10 @@ With the board:
 python monitor.py --port /dev/ttyACM0 [--camera 0] [--db FILE]
 python dashboard.py [--db FILE]
 ```
+
+The monitor needs an explicit port (`--port`) or `--demo`. It keeps one state across connection failures and retries the same port every 5 s. A retry does not reset the 120 s communication timer. Opening a port can reset some ESP32 boards. On this board, opening the CH343 port does not reset it (checked 20 November 2026). Fault checks continue during silence, also when the port cannot open.
+The serial reader is non-blocking and keeps partial lines. Overlong or invalid UTF-8 input does not reset communication. After a missed periodic check, the monitor uses the current monotonic time and does not replay old times. The OS, the port or the output can delay checks. This is not a real-time guarantee.
+The terminal shows JSON records with the last complete reading, its age and its receipt time. The calendar time is an estimate from the computer clock at start. It is not the time the board measured the room. An old reading keeps its original receipt time.
 
 Both programs must use the same `--db` file (default `room.sqlite3`). Without `--camera`, occupancy is always unknown, so limit alerts never start.
 
@@ -215,7 +260,7 @@ The board is an ESP32-S3 (QFN56, revision v0.2) with 16 MB flash and 8 MB embedd
 | Alarm LED | Onboard RGB LED (`LED_BUILTIN`, GPIO48 by default) | Lit white as commanded (20 November 2026). |
 | Buzzer module | GPIO7 | No buzzer connected. GPIO7 drives nothing. |
 
-Build options: `esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. ESP32 core 3.3.12, BSEC2 1.10.2610, BME68x 1.3.40408.
+Build options: `esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. ESP32 core 3.3.12, BSEC2 1.10.2610 (algorithm 2.6.1.0), BME68x 1.3.40408, arduino-cli 1.5.1. The sketch compiles for `CDCOnBoot=default` and `CDCOnBoot=cdc`. The sensor supply is 3.3 V (`ROOM_BME680_SUPPLY_MV 3300`). Check the supply again if the breakout changes. See the [ESP32-S3 port design](docs/superpowers/specs/2026-11-15-esp32-s3-port-design.md).
 The board runs firmware `49029f2` (branch `fix/dust-led-i2c-restart`) since 25 November 2026.
 
 | Item | Result on the board | Date |
@@ -235,6 +280,8 @@ The board runs firmware `49029f2` (branch `fix/dust-led-i2c-restart`) since 25 N
 | Camera and occupancy detector | Not checked with a real camera on this branch | — |
 | Dust LED timing on an oscilloscope; GPIO4 voltage and current with a meter | Not checked | — |
 | Signed-in control request through a real tunnel | Pass: save limits, silence alarm and acknowledge got HTTP 403 without sign-in and HTTP 303 after sign-in with the CSRF token. The test used a scratch database and a temporary password. | 20 Nov |
+
+Sharp dust note from 17 November 2026: with no dust sensor attached, the floating input read about 870 to 930 mV. The firmware sent these as normal dust records. A disconnected sensor then looked like a working one. The 100 mV floor rule does not catch a floating input at that level. Candidate fixes (not decided): a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. See the [dust integration](docs/SHARP_DUST_INTEGRATION.md).
 
 Read the [25 November verification record](reference_files/LINUX_VERIFICATION_2026-11-25.md) for the numbers, commands and flash sizes.
 
@@ -284,7 +331,7 @@ These checks do not establish physical sensor accuracy, calibration, camera dete
 
 ## Start here
 
-- [Human guide](README_HUMAN.md): project purpose and behaviour.
+- [BSEC status design](docs/superpowers/specs/2026-11-08-bsec-status-design.md): the Bosch status protocol and manufacturer sources.
 - [Room software design](docs/superpowers/specs/2026-11-15-room-software-design.md): storage, rules, occupancy and dashboard as built.
 - [Local alarm design](docs/superpowers/specs/2026-11-15-local-alarm-design.md): alarm levels, serial command, silence and reachability.
 - [Dashboard data contract](docs/superpowers/specs/2026-11-15-dashboard-data-contract-design.md): the dashboard response, alert text, events, timing and retention.
@@ -296,7 +343,7 @@ These checks do not establish physical sensor accuracy, calibration, camera dete
 - [Manual reference](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md): course requirements and source pointers.
 - [Python requirements](requirements.txt): package versions.
 
-History only (15 to 19 November 2026, not current guidance): the [implementation plan](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md) and the [Linux handoff](reference_files/LINUX_AI_HANDOFF.md).
+History only (15 to 19 November 2026, not current guidance): the [implementation plan](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md). The former human guide and Linux handoff were folded into this file and removed on 27 November 2026.
 Older preparation notes and component checklists describe the state before the recorded Linux sessions.
 Do not repeat completed checks without a change, failure or specific open concern.
 
@@ -381,7 +428,10 @@ Decision of 15 November 2026. It replaces the earlier rule that gas resistance a
 - Their limits are system setup in `config/system.yaml`, not dashboard controls. Each has an upper limit and a hold time. The shipped file leaves both off. The project supplies no values. The word bands and levels there are display defaults, not health standards. The Bosch bands and the Sharp sensitivity are not checked against a datasheet on this machine.
 - Their alerts follow the patient-limit rule (sustained, occupied, current reading), sound the buzzer and can be silenced. A calibrating index or a missing baseline pauses that check, with a stated reason.
 - `monitor.py --demo` uses demonstration limits (air quality 150 for 30 s, dust 100 µg/m³ for 30 s) so the simulator shows both alerts. They are not recommendations.
-- The patient profile has an optional short label, for example "Bed 3", set in the limits form. No patient name is stored.
+- The patient profile has an optional short label, for example "Bed 3", set in the limits form. It has at most 40 characters and no line breaks. No patient name is stored.
+- Only temperature, humidity and pressure can have patient limits. Gas resistance and dust voltage cannot. Each enabled measurement has a lower and upper limit. One sustained duration applies to all, and no value is selected for real use.
+- Alert text states the measurement, direction, configured limit, value and duration. A breach that has not yet lasted the sustained duration shows as pending. An alert that stops for another reason logs that reason: changed limits, unknown occupancy or readings that are no longer current.
+- Frames of the camera stay in memory and are never saved.
 - With the BME680 on the bench, the index reached accuracy 3 on 25 November 2026 and shows as current, but it has no meaning while the gas reading is stuck (open issue). See [BME680 gas: open decision](#bme680-gas-open-decision).
 
 See the [design](docs/superpowers/specs/2026-11-15-air-quality-dust-label-design.md).
@@ -393,6 +443,8 @@ Patient-limit alerts require occupied status and a fresh BME680 reading at most 
 Unknown occupancy, a stale reading, or a gap of more than six seconds between readings restarts the timer.
 A changed profile restarts all timers. An invalid profile file keeps the last valid profile and shows a profile fault.
 Communication, BME680, dust and profile fault alerts do not depend on occupancy.
+
+Technical settings load once at monitor start. Patient profiles apply while the monitor runs. The settings loader checks these rules: `status_stale_after_s` must exceed `fault_check_interval_s` plus the poll interval, `dashboard_refresh_s` must not exceed `status_stale_after_s`, `alarm_confirm_timeout_s` must exceed the poll interval, and `readings_retention_days` must be at least 1. The two board constants `ROOM_BSEC_STATE_SAVE_MS` (6 h) and `ROOM_BSEC_STATE_WAIT_MS` (10 s) are fixed in the firmware.
 
 The timing values are optional keys in `config/runtime.yaml`. An older three-key file still loads with the defaults. Demo mode uses the same defaults. The dashboard reads the effective values from the monitor status.
 Laptop YAML does not control ESP32 acquisition timing.
@@ -433,7 +485,7 @@ Later decisions are in the dated designs under `docs/superpowers/specs/`: dust d
 2. Bosch index shown as current while the gas is stuck: decide what the dashboard shows (open issue, no fix chosen). After a gas fix, confirm a restore from the laptop file after a power cycle. The save and the RAM restore happened on 25 November.
 3. BME680 drop-outs on the I2C bus: the restart recovered the sensor once and failed the second time. Possible next diagnostics (not done): check whether SDA is held low, and try a bus clear (9 SCL pulses) before `Wire.begin`. Or a person checks the BME680 power and contacts (option B).
 4. Identify the ESP32-S3 board model. Run the rest of the hardware checklist in the [firmware guide](firmware/README.md#hardware-checklist).
-5. Dust hardware follow-ups: check the LED pulse width (0.32 ms), the sample point (0.28 ms) and the 10 ms period on an oscilloscope. Measure the GPIO4 voltage and current with a meter, also in the boot window before `beginDust()`. Check a real dust disconnect: with the divider wired and no sensor, the input reads below 100 mV.
+5. Dust hardware follow-ups (also the floating-input note above): check the LED pulse width (0.32 ms), the sample point (0.28 ms) and the 10 ms period on an oscilloscope. Measure the GPIO4 voltage and current with a meter, also in the boot window before `beginDust()`. Check a real dust disconnect: with the divider wired and no sensor, the input reads below 100 mV.
 6. Check camera capture and the occupancy detector with seated, lying and occluded people. The occupancy plan on `feature/occupancy` continues with its Task 1b.
 7. Agree on real patient limits for any demonstration.
 8. Check the local alarm buzzer when one is connected: GPIO7 free, buzzer polarity, and whether it needs a tone.
@@ -451,3 +503,18 @@ Do not recreate the removed setup installer.
 Ask before adding unspecified dependencies, algorithms, services or hardware procedures.
 Use the [VIGIL comparison](reference_files/VIGIL_COMPARISON.md) for verified reference behaviour.
 The original course PDFs and VIGIL archive are not included in this repository.
+
+## How this project differs from VIGIL
+
+VIGIL is the reference program for camera-based bed posture and fall monitoring. This project monitors room conditions and uses the camera only for occupancy.
+
+| Topic | VIGIL reference | This project |
+|---|---|---|
+| Main input | Camera posture classifications | BME680 and dust measurements, plus camera occupancy |
+| Uncertain input | Occlusion keeps the last committed state | An incomplete reading keeps the last complete values and time |
+| Configuration | Loads settings at start | Technical settings load at start. Patient profiles change during monitoring. |
+| Gas warm-up | No equivalent | Python reads Bosch status reports. |
+| Communication acknowledgment | Recorded in the database | The dashboard writes a request to SQLite. The monitor applies it. |
+| Monitoring and dashboard | Separate components | The same split. The monitor writes SQLite and the dashboard reads it. |
+
+Do not copy VIGIL's posture thresholds, Jetson wiring, installer, security issue or alarm lifecycle. The original VIGIL source is not in this repository.

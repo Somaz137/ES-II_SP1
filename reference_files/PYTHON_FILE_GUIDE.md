@@ -131,7 +131,6 @@ On 25 November the sensor check tool added `tests/test_sensor_check.py`. The ful
 | `firmware/tests/test_bus_recovery.cpp` | Checks `firmware/bus_recovery.h` on a computer with g++. |
 | `tests/fixtures/bsec_reading.json` | Supplies an example reading for tests. It is not a physical measurement. |
 | `README.md` | Gives the project entry point and current status. |
-| `README_HUMAN.md` | Explains the system and its behavior for people. |
 | `reference_files/` | Stores the manual reference, project plan, handoff, comparisons, and verification records. |
 | `docs/superpowers/` | Stores detailed component designs and implementation checklists. |
 | `docs/SHARP_DUST_INTEGRATION.md` | Describes dust wiring, the estimate and baseline, and checks. |

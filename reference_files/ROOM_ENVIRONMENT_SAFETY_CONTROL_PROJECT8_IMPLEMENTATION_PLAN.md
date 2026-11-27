@@ -89,9 +89,9 @@ See [firmware guidance](../firmware/README.md) for setup and checks.
 
 ## Current status
 
-PRs #1 through #10 are merged into main as of 8 November 2026. The user executed the Linux suite and supplied output with no reported failures. See [README_HUMAN.md](../README_HUMAN.md) for the human overview.
+PRs #1 through #10 are merged into main as of 8 November 2026. The user executed the Linux suite and supplied output with no reported failures. See [README.md](../README.md) for the overview (README_HUMAN.md was folded into it and removed 27 November 2026).
 
-**Linux continuation:** Follow [LINUX_AI_HANDOFF.md](LINUX_AI_HANDOFF.md) for the current branch, environment checks, configuration test command, remaining milestones and cleanup assessment. The user explicitly deferred all remaining testing to their Linux setup. No Windows environment or alternate Windows interpreter is selected.
+**Linux continuation:** Follow the Linux handoff (file removed 27 November 2026, now folded into [README.md](../README.md)) for the current branch, environment checks, configuration test command, remaining milestones and cleanup assessment. The user explicitly deferred all remaining testing to their Linux setup. No Windows environment or alternate Windows interpreter is selected.
 
 | Area | Evidence and state |
 |---|---|
