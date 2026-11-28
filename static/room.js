@@ -91,7 +91,7 @@ function reading(v, key) {
     if (!block || !current) { out.chip = "No current value"; return out; }
     if (block.state !== "current") {
       out.fresh = "word";
-      out.word = {calibrating: "Calibrating", establishing_baseline: "Establishing baseline"}[block.state] || "No current value";
+      out.word = block.message || {calibrating: "Calibrating", establishing_baseline: "Establishing baseline"}[block.state] || "No current value";
       out.chip = out.word + " · " + source;
       return out;
     }
@@ -645,7 +645,7 @@ function renderSystem(v) {
   pathRow("bme680", !known(b) ? "none" : b.alert_active ? "red" : b.measurement_current ? "green" : "amber",
     !known(b) ? unknown : b.alert_active ? "Readings missing, alert active" : b.measurement_current ? "Readings current" : "Readings " + word(b.state),
     b.measurement_age_s == null ? "—" : ago(b.measurement_age_s),
-    status?.air_quality ? `Bosch accuracy ${status.air_quality.accuracy ?? "unknown"} of 3 · gas sensor ${word(status.gas_calibration)}` : "—");
+    status?.air_quality ? `Bosch accuracy ${status.air_quality.accuracy ?? "unknown"} of 3 · gas sensor ${status.gas_sensor_fault ? "fault" : word(status.gas_calibration)}` : "—");
   const d = h.dust;
   const baseline = status?.dust_ugm3 ? (status.dust_ugm3.state === "establishing_baseline" ? "Establishing baseline" : "Baseline established") : "—";
   pathRow("dust", !known(d) ? "none" : d.alert_active ? "red" : d.state === "fresh" ? "green" : "amber",

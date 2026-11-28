@@ -157,3 +157,16 @@ def test_invalid_yaml_is_a_value_error(tmp_path):
     path.write_text("air_quality: [\n", encoding="utf-8")
     with pytest.raises(ValueError):
         load_system_settings(path)
+
+
+def test_gas_fault_window_helper():
+    from air_quality import GAS_FAULT_OHMS, GAS_FAULT_READINGS, gas_stuck
+    assert GAS_FAULT_READINGS == 3
+    assert gas_stuck(GAS_FAULT_OHMS) and gas_stuck(GAS_FAULT_OHMS + 1) and gas_stuck(GAS_FAULT_OHMS - 2)
+    assert not gas_stuck(GAS_FAULT_OHMS + 3) and not gas_stuck(None) and not gas_stuck(12000)
+
+
+def test_a_gas_fault_makes_the_state_unavailable():
+    from air_quality import air_quality_state
+    assert air_quality_state(80, 3, True, gas_fault=True) == "unavailable"
+    assert air_quality_state(80, 3, True, gas_fault=False) == "current"

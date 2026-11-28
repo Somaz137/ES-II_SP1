@@ -1,5 +1,6 @@
 """Persist operator status and evaluate patient and system limits with a monotonic clock."""
-from air_quality import air_quality_state, band_word
+from air_quality import (GAS_FAULT_MESSAGE, GAS_FAULT_READINGS, air_quality_state, band_word,
+                         gas_stuck)
 from alarm import command_line
 from dust import DustBaseline, estimate_dust
 from room_store import LIMITED, METRICS, SYSTEM_METRICS
@@ -81,6 +82,8 @@ class RoomSession:
         self.last_bme = None
         self.last_dust = None
         self.previous_faults = set()
+        self.gas_stuck_count = 0
+        self.gas_fault = False
         self.pending_events = []
         self.next_prune = None
 
@@ -201,6 +204,7 @@ class RoomSession:
             return []
         if state != "current":
             because = ("because the Bosch index is calibrating" if state == "calibrating"
+                       else "because the gas sensor is faulty" if self.gas_fault
                        else "because no air quality index is reported")
             return self.end_all("limit_reset_estimate", because, "The air quality check is paused.",
                                 at, ("air_quality",))
@@ -208,7 +212,11 @@ class RoomSession:
 
     def air_quality_block(self, state, iaq, accuracy, good, occupancy):
         settings = self.system["air_quality"]
-        if settings["upper_limit"] is None:
+        fault = self.gas_fault
+        if fault:
+            check = check_state("paused", "gas_sensor_fault",
+                                f"{GAS_FAULT_MESSAGE}. The air quality check is paused.")
+        elif settings["upper_limit"] is None:
             check = check_state("off", "no_limit", "No air quality limit is set in the system settings.")
         elif not good:
             check = check_state("paused", "reading_not_current",
@@ -227,6 +235,8 @@ class RoomSession:
         return {"name": SYSTEM_METRICS["air_quality"][0], "unit": SYSTEM_METRICS["air_quality"][1],
                 "estimate": True, "source": "Bosch estimate", "state": state, "value": iaq,
                 "band": band_word(iaq, settings["bands"]), "accuracy": accuracy,
+                "reason": "gas_sensor_fault" if fault else None,
+                "message": GAS_FAULT_MESSAGE if fault else None,
                 "limit": settings["upper_limit"], "hold_s": settings["hold_s"], "check": check}
 
     def update_dust(self, dust, now, wall, occupancy):
@@ -340,7 +350,11 @@ class RoomSession:
         bme_new = bme_at is not None and bme_at != self.last_bme
         if bme_new:
             samples.extend((field, wall - (now - bme_at), reading[field]) for field in STORED_READING_FIELDS)
-        aq_state = air_quality_state(status["bsec_iaq"], status["bsec_iaq_accuracy"], good)
+        if bme_new:
+            self.gas_stuck_count = self.gas_stuck_count + 1 if gas_stuck(reading["gas_ohms"]) else 0
+            self.gas_fault = self.gas_stuck_count >= GAS_FAULT_READINGS
+        aq_state = air_quality_state(status["bsec_iaq"], status["bsec_iaq_accuracy"], good,
+                                     self.gas_fault)
         iaq = status["bsec_iaq"] if aq_state == "current" else None
         if bme_new and iaq is not None:
             samples.append(("air_quality", wall - (now - bme_at), iaq))
@@ -373,6 +387,7 @@ class RoomSession:
             "Communication": status["communication_alert_active"],
             "BME680": status["sensor_alert_active"],
             "Dust": dust["alert_active"],
+            "Gas sensor": self.gas_fault,
             "Patient profile": profile_error is not None,
         }.items() if active_flag}
         events += [("fault", f"{name} alert active.") for name in sorted(faults - self.previous_faults)]
@@ -383,6 +398,7 @@ class RoomSession:
         status["air_quality"] = self.air_quality_block(aq_state, iaq, status["bsec_iaq_accuracy"],
                                                        good, occupancy)
         status["dust_ugm3"] = dust_block
+        status["gas_sensor_fault"] = self.gas_fault
         status.update(updated_at=wall, occupancy=occupancy, demo=self.demo,
                       measurement_current=good, profile_error=profile_error,
                       limit_alerts=alerts, limit_pending=pending,

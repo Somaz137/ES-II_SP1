@@ -23,12 +23,12 @@ def system(aq=None, dust=None, min_s=9):
     return data
 
 
-def reading(iaq=60, accuracy=3, temp=24):
+def reading(iaq=60, accuracy=3, temp=24, gas=12000):
     bsec = {"stabilization_status": 1, "run_in_status": 1, "iaq_accuracy": accuracy}
     if iaq is not None:
         bsec["iaq"] = iaq
     return json.dumps({"type": "reading", "temp_c": temp, "humidity_pct": 48, "pressure_hpa": 1008,
-                       "gas_ohms": 12000, "bsec": bsec})
+                       "gas_ohms": gas, "bsec": bsec})
 
 
 class Room:
@@ -307,3 +307,94 @@ def test_floor_setting_accepts_a_value_in_range(value):
     data = copy.deepcopy(SYSTEM_DEFAULTS)
     data["dust"]["disconnected_below_mv"] = value
     validate_system_settings(data)
+
+
+# Gas sensor fault: gas resistance stuck at the open-circuit value.
+
+FAULT_OHMS = 12917166
+FAULT_TEXT = "Not available: gas sensor fault"
+
+
+def stuck(room, times, gas=FAULT_OHMS, iaq=60, start=0):
+    status = None
+    for index, now in enumerate(times):
+        status = room.step(now, reading(iaq=iaq, gas=gas), occupancy="occupied")
+    return status
+
+
+def test_gas_fault_constants_live_in_one_place():
+    import air_quality
+    assert air_quality.GAS_FAULT_OHMS == FAULT_OHMS
+    assert air_quality.GAS_FAULT_TOLERANCE == 2 and air_quality.GAS_FAULT_READINGS == 3
+
+
+def test_gas_fault_starts_after_three_readings_not_two(tmp_path):
+    room = Room(tmp_path)
+    status = stuck(room, [0, 3])
+    assert status["air_quality"]["state"] == "current" and status["gas_sensor_fault"] is False
+    status = room.step(6, reading(gas=FAULT_OHMS))
+    block = status["air_quality"]
+    assert status["gas_sensor_fault"] is True
+    assert block["state"] == "unavailable" and block["value"] is None and block["band"] is None
+    assert block["reason"] == "gas_sensor_fault" and block["message"] == FAULT_TEXT
+
+
+@pytest.mark.parametrize("gas, faulted", [(FAULT_OHMS - 2, True), (FAULT_OHMS + 2, True),
+                                          (FAULT_OHMS - 3, False), (FAULT_OHMS + 3, False)])
+def test_gas_fault_tolerance_is_two_ohms(tmp_path, gas, faulted):
+    status = stuck(Room(tmp_path), [0, 3, 6], gas=gas)
+    assert status["gas_sensor_fault"] is faulted
+
+
+def test_a_normal_reading_interrupts_the_count_and_clears_the_fault(tmp_path):
+    room = Room(tmp_path)
+    stuck(room, [0, 3])
+    assert room.step(6, reading(gas=12000))["gas_sensor_fault"] is False
+    assert room.step(9, reading(gas=FAULT_OHMS))["gas_sensor_fault"] is False  # the count restarted
+    status = stuck(room, [12, 15])
+    assert status["gas_sensor_fault"] is True
+    status = room.step(18, reading(gas=250000))
+    assert status["gas_sensor_fault"] is False and status["air_quality"]["state"] == "current"
+    assert status["air_quality"]["value"] == 60
+
+
+def test_the_same_reading_seen_twice_counts_once(tmp_path):
+    room = Room(tmp_path)
+    room.step(0, reading(gas=FAULT_OHMS))
+    room.step(3, reading(gas=FAULT_OHMS))
+    assert room.step(4)["gas_sensor_fault"] is False
+    assert room.step(5)["gas_sensor_fault"] is False
+
+
+def test_air_quality_alarm_check_is_suppressed_while_faulted(tmp_path):
+    room = Room(tmp_path, system(aq=(150, 6)))
+    status = stuck(room, [0, 3, 6, 9, 12], iaq=400)
+    assert status["gas_sensor_fault"] is True
+    assert status["limit_alerts"] == [] and status["limit_pending"] == []
+    assert not [m for m in room.messages() if "Air quality" in m and "limit" in m]
+    assert status["air_quality"]["check"]["state"] == "paused"
+    assert status["air_quality"]["check"]["reason"] == "gas_sensor_fault"
+
+
+def test_a_breach_in_progress_ends_when_the_fault_starts(tmp_path):
+    room = Room(tmp_path, system(aq=(150, 60)))
+    room.step(0, reading(iaq=400))
+    assert room.step(3, reading(iaq=400))["limit_pending"]
+    for now in (6, 9, 12):
+        status = room.step(now, reading(iaq=400, gas=FAULT_OHMS))
+    assert status["limit_pending"] == []
+
+
+def test_gas_fault_is_logged_when_it_starts_and_clears(tmp_path):
+    room = Room(tmp_path)
+    stuck(room, [0, 3, 6])
+    room.step(9, reading(gas=12000))
+    assert room.kinds().count("fault") == 1 and room.kinds().count("fault_ended") == 1
+    assert "Gas sensor alert active." in room.messages()
+    assert "Gas sensor alert cleared." in room.messages()
+
+
+def test_system_page_script_shows_the_gas_sensor_fault():
+    from pathlib import Path
+    script = Path("static/room.js").read_text(encoding="utf-8")
+    assert "gas_sensor_fault" in script and "block.message" in script

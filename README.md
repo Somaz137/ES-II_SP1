@@ -488,6 +488,8 @@ Firmware configuration commands remain future work.
 
 ## Known limitations
 
+- BME680 gas element fault (bench tests 27 and 28 November 2026). On this module the gas element reads open-circuit when the heater is at temperature. `gas_ohms` is then 12917166 Ω (the raw gas ADC is 0). The monitor marks the Bosch index as unavailable after 3 fresh readings within ±2 Ω of that value. The dashboard shows "Not available: gas sensor fault", the air quality limit check is paused, and the System page shows the gas sensor as faulty. The first reading outside that window clears the fault. Temperature, humidity and pressure are valid. The constants are in `air_quality.py`.
+- Dust bands: clean up to 50 µg/m³, raised up to 150, very high above. The Sharp sensor is not a true PM2.5 sensor. Treat the value as a rough dust estimate.
 - The BME680 gas reading fails at the Bosch heater temperature (25 November 2026). The Bosch index is therefore not usable with this module. See [BME680 gas: open decision](#bme680-gas-open-decision).
 - Open issue (no fix chosen): the Bosch index reaches accuracy 3 and the dashboard shows it as current, but it has no meaning while the gas reading is stuck. A meaningless value is shown as current. `tools/sensor_check.py` still reports the stuck gas.
 - Open issue: the BME680 drops off the I2C bus at times (25 November 2026). The firmware bus restart recovered it once and failed the second time. Inference: a Wire restart is not always enough. This fits the supply or contact inference from the heater sweep. It is not proven.
