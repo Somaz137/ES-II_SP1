@@ -534,7 +534,7 @@ Decision 27 November 2026: no hardware change for occupancy. A patient fully und
 11. Done 20 November 2026: online access with a signed-in control request through a real tunnel. Save limits, silence alarm and acknowledge were refused without sign-in (HTTP 403) and accepted after sign-in (HTTP 303).
 12. Demonstrate the complete system with actual hardware.
 13. Small follow-up in a code comment (dated text, no behaviour change): `firmware/bsec_board_config.h` line 10 still says "Not yet checked against the physical board". No check against the board is recorded. (The `GAS_NEXT_STEP` text in `tools/sensor_check.py` was changed on 28 November 2026.)
-14. Dust smoke and dust response test (in progress 28 November 2026): no result is recorded yet.
+14. Done 28 November 2026: dust response test with real dust (bench log `dusttest2-monitor.out`, outside the repository; test config baseline_min_s 120). Before the dust cloud the band was clean (1 to 36 µg/m³, baseline 800.6 mV). A small dust cloud at 13:17:03 gave 1659 mV, 172 µg/m³ (very high) for one 3 s record, then raised for about 15 s, and clean again from 13:17:18. The baseline stayed at 800.6 mV for the whole run. An earlier run at 12:57 lost the band because one lost dust record reset the baseline; fixed in commit 23a5280 (`baseline_gap_s`, 60 s).
 
 Steps that need a person (a meter, an oscilloscope, new parts, a person in front of the camera) are reported here. They are not scheduled.
 
