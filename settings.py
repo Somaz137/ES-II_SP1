@@ -204,7 +204,7 @@ SYSTEM_DEFAULTS = {
     "dust": {
         "upper_limit": None, "hold_s": None, "sensitivity_mv_per_mg_m3": 5000,
         "baseline_window_s": 86400, "baseline_min_s": 600, "disconnected_below_mv": 100,
-        "levels": [{"up_to": 50, "word": "low"}, {"up_to": 150, "word": "raised"}, {"word": "high"}],
+        "levels": [{"up_to": 50, "word": "clean"}, {"up_to": 150, "word": "raised"}, {"word": "very high"}],
     },
 }
 

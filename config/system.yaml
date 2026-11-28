@@ -35,6 +35,6 @@ dust:
   # Display words for the estimate in ug/m3. Project display defaults, not health
   # standards and not official air-quality category names.
   levels:
-    - {up_to: 50, word: low}
+    - {up_to: 50, word: clean}
     - {up_to: 150, word: raised}
-    - {word: high}
+    - {word: "very high"}

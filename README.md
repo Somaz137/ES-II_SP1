@@ -120,7 +120,7 @@ Raw gas resistance is not a calibrated concentration. The dust estimate is not P
 
 The host accepts a BME680 reading only when `temp_c`, `humidity_pct`, `pressure_hpa` and `gas_ohms` are all finite numbers. It rejects missing values, numeric text, Boolean values and nonfinite numbers. This check proves the record structure. It does not prove patient safety or measurement accuracy.
 The firmware sends each new BSEC measurement once. A failure gives an error line. The firmware never repeats an old measurement. The BSEC wrapper converts pressure to hPa before its callback, and the sketch uses that value without a second division. Check this again if the wrapper changes. The firmware sets no custom temperature compensation.
-The dust estimate uses Sharp's typical sensitivity, 0.5 V per 0.1 mg/m³. The word levels (low, raised, high) are project display defaults. They are not official categories or health standards. Dust lines count as communication but do not replace BME680 readings.
+The dust estimate uses Sharp's typical sensitivity, 0.5 V per 0.1 mg/m³. The word levels (clean, raised, very high) are project display defaults. They are not official categories or health standards. Dust lines count as communication but do not replace BME680 readings.
 
 Freshness rules (from `config/runtime.yaml`, `config/alerts.yaml` and the code):
 

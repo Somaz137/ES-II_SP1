@@ -155,7 +155,7 @@ def test_dust_establishes_a_baseline_before_showing_an_estimate(tmp_path):
     status = room.step(6, reading(), dust_mv=1170)
     block = status["dust_ugm3"]
     assert block["state"] == "current" and block["baseline_mv"] == 920
-    assert block["value"] == pytest.approx(50) and block["level"] == "low"
+    assert block["value"] == pytest.approx(50) and block["level"] == "clean"
     assert status["dust"]["estimated_dust_ug_m3"] == pytest.approx(50)
     assert status["dust"]["calibration"] == "automatic_baseline"
 
