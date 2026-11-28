@@ -398,3 +398,4 @@ def test_system_page_script_shows_the_gas_sensor_fault():
     from pathlib import Path
     script = Path("static/room.js").read_text(encoding="utf-8")
     assert "gas_sensor_fault" in script and "block.message" in script
+    assert 'name === "Gas sensor" && v.status.gas_sensor_fault' in script  # string check only: no JS runner in the repo

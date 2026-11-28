@@ -485,7 +485,8 @@ function eventState(v, event, index) {
     const newest = !newer.some(e => (e.kind === "fault" || e.kind === "fault_ended") && e.message.startsWith(name + " alert"));
     if (event.kind === "fault") {
       const active = v.current && newest && ((name === "Communication" && v.status.communication_alert_active) ||
-        (name === "BME680" && v.status.sensor_alert_active) || (name !== "Communication" && name !== "BME680" && v.status.dust?.alert_active));
+        (name === "BME680" && v.status.sensor_alert_active) || (name === "Gas sensor" && v.status.gas_sensor_fault) ||
+        (name !== "Communication" && name !== "BME680" && name !== "Gas sensor" && v.status.dust?.alert_active));
       return active ? {tone: "red", text: "Active"} : {text: "Ended"};
     }
     if (fam === "communication" && newest && v.current && v.status.communication_alert_id && v.status.communication_timed_out === false)
