@@ -78,10 +78,16 @@ def estimate_dust(sensor_mv, baseline_mv, sensitivity_mv_per_mg_m3):
     return result
 
 
-class DustBaseline:
-    """Clean-air baseline: the lowest fresh sensor voltage in the last window_s.
+# A bucket counts toward the baseline only with this many fresh readings (a full 60 s bucket
+# holds about 20 at 3 s per record), so one low reading cannot become the baseline.
+BASELINE_BUCKET_MIN_READINGS = 5
 
-    Keeps one minimum per bucket_s, so memory is bounded by window_s / bucket_s.
+
+class DustBaseline:
+    """Clean-air baseline: the lowest bucket mean of fresh sensor voltage in the last window_s.
+
+    Keeps the sum and count of readings per bucket_s, so memory is bounded by
+    window_s / bucket_s. Only buckets with BASELINE_BUCKET_MIN_READINGS or more readings count.
     The baseline exists only after an unbroken run of fresh records lasting
     min_s. Two records more than gap_s apart (a long gap, not one lost record),
     or reset() on a dust fault, clear everything. A shorter gap neither clears the
@@ -107,14 +113,17 @@ class DustBaseline:
         self.last_at = at
         key = math.floor(at / self.bucket_s)
         if self.buckets and self.buckets[-1][0] == key:
-            self.buckets[-1][1] = min(self.buckets[-1][1], sensor_mv)
+            self.buckets[-1][1] += sensor_mv
+            self.buckets[-1][2] += 1
         else:
-            self.buckets.append([key, sensor_mv])
+            self.buckets.append([key, sensor_mv, 1])
         while self.buckets and (self.buckets[0][0] + 1) * self.bucket_s <= at - self.window_s:
             self.buckets.popleft()
 
     def value(self, at):
         """The baseline in mV, or None while it is being established."""
-        if self.run_start is None or at - self.run_start < self.min_s or not self.buckets:
+        if self.run_start is None or at - self.run_start < self.min_s:
             return None
-        return min(minimum for _, minimum in self.buckets)
+        means = [total / count for _, total, count in self.buckets
+                 if count >= BASELINE_BUCKET_MIN_READINGS]
+        return min(means) if means else None

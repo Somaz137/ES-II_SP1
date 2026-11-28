@@ -57,14 +57,13 @@ def test_firmware_dust_limit_matches_host_limit():
     assert parse_dust(json.dumps({"type": "dust", "sensor_mv": largest + 0.1}))[0] is None
 
 
-def test_baseline_needs_an_unbroken_run_then_is_the_lowest_voltage():
+def test_baseline_needs_an_unbroken_run_then_is_the_lowest_bucket_mean():
     from dust import DustBaseline
     baseline = DustBaseline(window_s=3600, min_s=30, gap_s=6)
-    for at, mv in [(0, 950), (3, 900), (6, 980)]:
-        baseline.add(mv, at)
-    assert baseline.value(6) is None  # 6 s of data: still establishing
-    for at in range(9, 31, 3):
-        baseline.add(1000, at)
+    for at in range(0, 30, 3):
+        baseline.add(900, at)
+    assert baseline.value(27) is None  # 27 s of data: still establishing
+    baseline.add(900, 30)
     assert baseline.value(30) == 900
 
 
@@ -108,11 +107,11 @@ def test_short_gap_keeps_the_baseline_and_a_long_gap_resets_it():
 def test_short_gap_during_learning_does_not_restart_the_run():
     from dust import DustBaseline
     baseline = DustBaseline(window_s=3600, min_s=30, gap_s=60)
-    for at in (0, 3, 6, 9):
+    for at in (0, 3, 6, 9, 12):
         baseline.add(900, at)
-    baseline.add(910, 16)  # 7 s gap
-    assert baseline.value(16) is None
-    baseline.add(910, 30)
+    baseline.add(900, 19)  # 7 s gap
+    assert baseline.value(19) is None
+    baseline.add(900, 30)
     assert baseline.value(30) == 900  # the run still started at 0
 
 
@@ -127,10 +126,13 @@ def test_baseline_memory_is_bounded_by_the_window():
 def test_estimate_from_the_tracked_baseline_is_never_negative():
     from dust import DustBaseline, estimate_dust
     baseline = DustBaseline(window_s=3600, min_s=0.001, gap_s=6)
-    baseline.add(920, 0)
-    baseline.add(1420, 3)
-    assert estimate_dust(1420, baseline.value(3), 5000) == 100
-    assert estimate_dust(920, baseline.value(3), 5000) == 0
+    for at in range(0, 15, 3):
+        baseline.add(920, at)
+    baseline.add(1420, 15)
+    # bucket mean is (5 * 920 + 1420) / 6; use the value as given
+    value = baseline.value(15)
+    assert estimate_dust(1420, value, 5000) == pytest.approx((1420 - value) * 0.2)
+    assert estimate_dust(900, value, 5000) == 0
 
 
 # Dust floor: a reading below the floor means the sensor is not connected.
@@ -243,3 +245,44 @@ def test_generic_dust_error_only_is_still_stale():
     dust = output(state, 150)["dust"]
     assert dust["status"] == "stale" and dust["alert_active"]
     assert dust["diagnostic"] == "Dust acquisition failed."
+
+
+# Baseline from bucket means: one low reading must not become the baseline.
+
+def test_one_low_reading_does_not_become_the_baseline():
+    from dust import DustBaseline
+    baseline = DustBaseline(window_s=3600, min_s=30, gap_s=6)
+    for index, at in enumerate(range(0, 180, 3)):
+        baseline.add(408.9 if index == 7 else 900, at)
+    assert baseline.value(177) > 800
+
+
+def test_baseline_is_the_lowest_bucket_mean():
+    from dust import DustBaseline
+    baseline = DustBaseline(window_s=3600, min_s=30, gap_s=6)
+    for at in range(0, 180, 3):
+        baseline.add({0: 1000, 1: 800, 2: 900}[at // 60], at)
+    assert baseline.value(177) == 800
+
+
+def test_a_bucket_with_too_few_readings_is_ignored():
+    from dust import BASELINE_BUCKET_MIN_READINGS, DustBaseline
+    assert BASELINE_BUCKET_MIN_READINGS == 5
+    baseline = DustBaseline(window_s=3600, min_s=30, gap_s=6)
+    for at in range(0, 60, 3):
+        baseline.add(1000, at)
+    for at in (60, 63, 66, 69):  # 4 readings in bucket 1, all low
+        baseline.add(500, at)
+    assert baseline.value(69) == 1000
+    baseline.add(500, 72)  # the fifth reading: the bucket now counts
+    assert baseline.value(72) == 500
+
+
+def test_no_baseline_until_a_bucket_has_enough_readings():
+    from dust import DustBaseline
+    baseline = DustBaseline(window_s=3600, min_s=0.001, gap_s=6)
+    for at in (0, 3, 6, 9):
+        baseline.add(900, at)
+    assert baseline.value(9) is None
+    baseline.add(900, 12)
+    assert baseline.value(12) == 900
