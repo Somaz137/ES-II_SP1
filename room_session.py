@@ -1,5 +1,5 @@
 """Persist operator status and evaluate patient and system limits with a monotonic clock."""
-from air_quality import (GAS_FAULT_MESSAGE, GAS_FAULT_READINGS, air_quality_state, band_word,
+from air_quality import (GAS_FAULT_CLEAR_READINGS, GAS_FAULT_MESSAGE, GAS_FAULT_READINGS, air_quality_state, band_word,
                          gas_stuck)
 from alarm import command_line
 from dust import DustBaseline, estimate_dust
@@ -84,6 +84,7 @@ class RoomSession:
         self.previous_faults = set()
         self.gas_stuck_count = 0
         self.gas_fault = False
+        self.gas_clear_count = 0
         self.pending_events = []
         self.next_prune = None
 
@@ -351,8 +352,17 @@ class RoomSession:
         if bme_new:
             samples.extend((field, wall - (now - bme_at), reading[field]) for field in STORED_READING_FIELDS)
         if bme_new:
-            self.gas_stuck_count = self.gas_stuck_count + 1 if gas_stuck(reading["gas_ohms"]) else 0
-            self.gas_fault = self.gas_stuck_count >= GAS_FAULT_READINGS
+            if gas_stuck(reading["gas_ohms"]):
+                self.gas_stuck_count += 1
+                self.gas_clear_count = 0
+                if self.gas_stuck_count >= GAS_FAULT_READINGS:
+                    self.gas_fault = True
+            else:
+                self.gas_stuck_count = 0
+                if self.gas_fault:
+                    self.gas_clear_count += 1
+                    if self.gas_clear_count >= GAS_FAULT_CLEAR_READINGS:
+                        self.gas_fault, self.gas_clear_count = False, 0
         aq_state = air_quality_state(status["bsec_iaq"], status["bsec_iaq_accuracy"], good,
                                      self.gas_fault)
         iaq = status["bsec_iaq"] if aq_state == "current" else None

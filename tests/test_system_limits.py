@@ -13,6 +13,17 @@ from settings import DEMO_SYSTEM_SETTINGS, SYSTEM_DEFAULTS
 from status_output import status_record
 
 
+@pytest.fixture(autouse=True)
+def one_reading_makes_a_baseline_bucket(monkeypatch):
+    """These room tests use a few dust records at 3 s. A 1 s bucket with 1 reading makes each record
+    its own bucket (the lowest record is the baseline). The bucket-mean rule is tested in test_dust.py."""
+    import dust
+    import room_session
+    monkeypatch.setattr(dust, "BASELINE_BUCKET_MIN_READINGS", 1)
+    monkeypatch.setattr(room_session, "DustBaseline",
+                        lambda window_s, min_s, gap_s: dust.DustBaseline(window_s, min_s, gap_s, bucket_s=1))
+
+
 def system(aq=None, dust=None, min_s=9):
     data = copy.deepcopy(SYSTEM_DEFAULTS)
     if aq:
@@ -353,6 +364,7 @@ def test_gas_fault_constants_live_in_one_place():
     import air_quality
     assert air_quality.GAS_FAULT_OHMS == FAULT_OHMS
     assert air_quality.GAS_FAULT_TOLERANCE == 2 and air_quality.GAS_FAULT_READINGS == 3
+    assert air_quality.GAS_FAULT_CLEAR_READINGS == 20
 
 
 def test_gas_fault_starts_after_three_readings_not_two(tmp_path):
@@ -373,7 +385,7 @@ def test_gas_fault_tolerance_is_two_ohms(tmp_path, gas, faulted):
     assert status["gas_sensor_fault"] is faulted
 
 
-def test_a_normal_reading_interrupts_the_count_and_clears_the_fault(tmp_path):
+def test_a_normal_reading_interrupts_the_start_count_and_twenty_clear_the_fault(tmp_path):
     room = Room(tmp_path)
     stuck(room, [0, 3])
     assert room.step(6, reading(gas=12000))["gas_sensor_fault"] is False
@@ -381,6 +393,8 @@ def test_a_normal_reading_interrupts_the_count_and_clears_the_fault(tmp_path):
     status = stuck(room, [12, 15])
     assert status["gas_sensor_fault"] is True
     status = room.step(18, reading(gas=250000))
+    assert status["gas_sensor_fault"] is True  # one normal reading no longer clears it
+    status = normal(room, 21, 19, iaq=60)
     assert status["gas_sensor_fault"] is False and status["air_quality"]["state"] == "current"
     assert status["air_quality"]["value"] == 60
 
@@ -415,7 +429,7 @@ def test_a_breach_in_progress_ends_when_the_fault_starts(tmp_path):
 def test_gas_fault_is_logged_when_it_starts_and_clears(tmp_path):
     room = Room(tmp_path)
     stuck(room, [0, 3, 6])
-    room.step(9, reading(gas=12000))
+    normal(room, 9, 20, iaq=60, gas=12000)
     assert room.kinds().count("fault") == 1 and room.kinds().count("fault_ended") == 1
     assert "Gas sensor alert active." in room.messages()
     assert "Gas sensor alert cleared." in room.messages()
@@ -426,3 +440,56 @@ def test_system_page_script_shows_the_gas_sensor_fault():
     script = Path("static/room.js").read_text(encoding="utf-8")
     assert "gas_sensor_fault" in script and "block.message" in script
     assert 'name === "Gas sensor" && v.status.gas_sensor_fault' in script  # string check only: no JS runner in the repo
+
+
+def normal(room, start, count, iaq=500, gas=250000):
+    status = None
+    for index in range(count):
+        status = room.step(start + 3 * index, reading(iaq=iaq, gas=gas), occupancy="occupied")
+    return status
+
+
+@pytest.mark.parametrize("count", [1, 19])
+def test_gas_fault_does_not_clear_before_twenty_normal_readings(tmp_path, count):
+    room = Room(tmp_path)
+    stuck(room, [0, 3, 6])
+    status = normal(room, 9, count)
+    assert status["gas_sensor_fault"] is True
+    assert status["air_quality"]["state"] == "unavailable" and status["air_quality"]["value"] is None
+
+
+def test_gas_fault_clears_after_twenty_normal_readings(tmp_path):
+    room = Room(tmp_path)
+    stuck(room, [0, 3, 6])
+    status = normal(room, 9, 20)
+    assert status["gas_sensor_fault"] is False
+    assert status["air_quality"]["state"] == "current" and status["air_quality"]["value"] == 500
+
+
+def test_a_stuck_reading_in_the_clearing_run_restarts_it(tmp_path):
+    room = Room(tmp_path)
+    stuck(room, [0, 3, 6])
+    normal(room, 9, 19)
+    assert room.step(100, reading(gas=FAULT_OHMS))["gas_sensor_fault"] is True
+    assert normal(room, 103, 19)["gas_sensor_fault"] is True
+    assert normal(room, 160, 1)["gas_sensor_fault"] is False
+
+
+def test_no_air_quality_sample_is_stored_while_faulted_or_clearing(tmp_path):
+    room = Room(tmp_path)
+    stuck(room, [0, 3, 6])
+    normal(room, 9, 19, iaq=500)
+    assert [b["max"] for b in room.store.history("air_quality", 100100)] == [60.0]  # only the 2 readings before the fault
+    assert "Gas sensor alert cleared." not in room.messages()
+    normal(room, 70, 1, iaq=500)  # the 20th normal reading clears the fault and 500 is stored
+    assert max(b["max"] for b in room.store.history("air_quality", 100100)) == 500
+
+
+def test_one_fault_ended_event_when_the_fault_really_clears(tmp_path):
+    room = Room(tmp_path)
+    stuck(room, [0, 3, 6])
+    normal(room, 9, 10)
+    room.step(50, reading(gas=FAULT_OHMS))
+    normal(room, 60, 25)
+    assert room.messages().count("Gas sensor alert active.") == 1
+    assert room.messages().count("Gas sensor alert cleared.") == 1
