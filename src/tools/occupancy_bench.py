@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Compare HOG and YOLOX person detection on live webcam frames.
 
-Usage: env/bin/python -I tools/occupancy_bench.py --camera 0 [--frames 12] [--confidence 0.5]
+Usage: env/bin/python -I src/tools/occupancy_bench.py --camera 0 [--frames 12] [--confidence 0.5]
 
 Each second it captures one frame (open, read, release, as occupancy.py does),
 runs both detectors and prints one line with the mean pixel value and the
 highest YOLOX person score before the threshold. When models/person_detection_mediapipe_2023mar.onnx
-is present (tools/get_person_model.py --mediapipe), each line also shows the MediaPipe result and top score. No frame is written, sent or kept.
+is present (src/tools/get_person_model.py --mediapipe), each line also shows the MediaPipe result and top score. No frame is written, sent or kept.
 """
 import argparse
 import sys
@@ -49,7 +49,7 @@ def totals_line(hog_hits, yolox_hits, frames, confidence, mp_hits=None):
 def load_mediapipe(confidence):
     """The MediaPipe detector, or None (after one note) when its model file is missing."""
     if not MP_MODEL_PATH.is_file():
-        print("Note: MediaPipe model not found, so there is no MP column. Run: env/bin/python tools/get_person_model.py --mediapipe")
+        print("Note: MediaPipe model not found, so there is no MP column. Run: env/bin/python src/tools/get_person_model.py --mediapipe")
         return None
     try:
         return MediaPipePerson(confidence=confidence)

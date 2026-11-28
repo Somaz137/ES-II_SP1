@@ -1,5 +1,5 @@
 // Host test for the I2C bus restart rule. Build on Linux with
-// g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_bus_recovery.cpp
+// g++ -std=c++11 -Wall -Wextra -pedantic -Isrc/firmware src/firmware/tests/test_bus_recovery.cpp
 #include "../bus_recovery.h"
 #include <cassert>
 #include <cstdint>

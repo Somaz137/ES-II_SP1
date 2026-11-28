@@ -46,7 +46,7 @@ def test_calibration_units_and_floor():
 def test_firmware_dust_limit_matches_host_limit():
     from pathlib import Path
     import re
-    header = (Path(__file__).resolve().parents[1] / "firmware" / "sharp_dust_limits.h").read_text()
+    header = (Path(__file__).resolve().parents[1] / "src" / "firmware" / "sharp_dust_limits.h").read_text()
 
     def constant(name):
         return int(re.search(rf"constexpr uint32_t {name} = (\d+);", header).group(1))

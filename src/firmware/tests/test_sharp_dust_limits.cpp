@@ -1,5 +1,5 @@
 // Host test for the Sharp dust sample rule. Build on Linux with
-// g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_sharp_dust_limits.cpp
+// g++ -std=c++11 -Wall -Wextra -pedantic -Isrc/firmware src/firmware/tests/test_sharp_dust_limits.cpp
 #include "../sharp_dust_limits.h"
 #include <cassert>
 #include <cstdio>

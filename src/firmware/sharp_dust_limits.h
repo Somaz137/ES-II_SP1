@@ -1,7 +1,7 @@
 #pragma once
 
 // Sharp dust sample rule. Pure C++11: no Arduino dependency.
-// firmware/tests/test_sharp_dust_limits.cpp and tests/test_dust.py check it.
+// src/firmware/tests/test_sharp_dust_limits.cpp and tests/test_dust.py check it.
 
 #include <cstdint>
 

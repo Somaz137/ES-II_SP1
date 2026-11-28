@@ -11,7 +11,7 @@ import unicodedata
 
 METRICS = {"temp_c": ("Temperature", "°C"), "humidity_pct": ("Humidity", "%"),
            "pressure_hpa": ("Pressure", "hPa")}
-# Estimates checked against system-setup limits (config/system.yaml), never patient limits.
+# Estimates checked against system-setup limits (src/config/system.yaml), never patient limits.
 SYSTEM_METRICS = {"air_quality": ("Air quality index", ""), "dust_ugm3": ("Dust estimate", "µg/m³")}
 LIMITED = {**METRICS, **SYSTEM_METRICS}
 # Stored and charted series. Only METRICS accept patient limits. Raw gas resistance and dust

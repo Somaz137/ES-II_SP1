@@ -498,7 +498,7 @@ def test_health_occupancy_entry_reports_manual_and_camera(app_store):
 
 def test_system_row_script_shows_last_check_result_and_last_sighting():
     from pathlib import Path
-    script = (Path(__file__).resolve().parents[1] / "static/room.js").read_text(encoding="utf-8")
+    script = (Path(__file__).resolve().parents[1] / "src" / "static/room.js").read_text(encoding="utf-8")
     assert "cam.last_result" in script and "cam.last_check_at" in script
     assert "last person seen" in script and "no person seen yet" in script
 
@@ -506,14 +506,14 @@ def test_system_row_script_shows_last_check_result_and_last_sighting():
 def test_occupancy_events_have_their_own_family():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
-    script = (root / "static/room.js").read_text(encoding="utf-8")
+    script = (root / "src" / "static/room.js").read_text(encoding="utf-8")
     assert 'if (event.kind.startsWith("occupancy")) return "occupancy";' in script
     assert 'occupancy: "Occupancy"' in script and 'occupancy: "none"' in script
-    assert '("occupancy", "Occupancy")' in (root / "templates/events.html").read_text(encoding="utf-8")
+    assert '("occupancy", "Occupancy")' in (root / "src" / "templates/events.html").read_text(encoding="utf-8")
 
 
 def test_system_camera_row_needs_a_camera_for_the_model_text():
     from pathlib import Path
-    script = (Path(__file__).resolve().parents[1] / "static/room.js").read_text(encoding="utf-8")
+    script = (Path(__file__).resolve().parents[1] / "src" / "static/room.js").read_text(encoding="utf-8")
     assert "o.source === \"camera\" || manual\n      ? (cam ? `Model YOLOX" in script
     assert '"No camera configured")' in script

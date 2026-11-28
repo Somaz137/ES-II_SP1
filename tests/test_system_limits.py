@@ -322,7 +322,7 @@ def test_floor_setting_validated(value):
 def test_floor_default_is_100_in_yaml_and_defaults():
     from pathlib import Path
     from settings import load_system_settings
-    loaded = load_system_settings(Path(__file__).resolve().parents[1] / "config" / "system.yaml")
+    loaded = load_system_settings(Path(__file__).resolve().parents[1] / "src" / "config" / "system.yaml")
     assert loaded["dust"]["disconnected_below_mv"] == 100
     assert SYSTEM_DEFAULTS["dust"]["disconnected_below_mv"] == 100
 
@@ -437,7 +437,7 @@ def test_gas_fault_is_logged_when_it_starts_and_clears(tmp_path):
 
 def test_system_page_script_shows_the_gas_sensor_fault():
     from pathlib import Path
-    script = Path("static/room.js").read_text(encoding="utf-8")
+    script = (Path(__file__).resolve().parents[1] / "src" / "static" / "room.js").read_text(encoding="utf-8")
     assert "gas_sensor_fault" in script and "block.message" in script
     assert 'name === "Gas sensor" && v.status.gas_sensor_fault' in script  # string check only: no JS runner in the repo
 

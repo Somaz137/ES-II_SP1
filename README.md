@@ -18,7 +18,7 @@ The target is an Ubuntu 22.04 laptop with Python 3.10.12. The repository is http
 ```text
 BME680 (I2C GPIO8/9)      Sharp dust sensor (Vo GPIO5, LED GPIO4)
           \                    /
-     ESP32-S3 firmware (firmware/room_environment_safety_control_bme680.ino)
+     ESP32-S3 firmware (src/firmware/room_environment_safety_control_bme680.ino)
        - one JSON reading line about every 3 s (Bosch BSEC low-power mode)
        - one JSON dust line every 3 s
        - reads ALARM,<0|1|2> and BSEC_STATE lines from the laptop
@@ -48,64 +48,69 @@ online_tunnel.py      optional Cloudflare quick tunnel to a view-only copy of th
 
 The monitor (`monitor.py`) and the dashboard (`dashboard.py`) are two programs. The dashboard can stop while monitoring continues. They share two files next to the database:
 
-- the SQLite file (default `room.sqlite3`)
+- the SQLite file (default `room.sqlite3`, in `src/`)
 - the patient profile `<database name>.profile.yaml` (for example `room.profile.yaml`). The dashboard writes it. The monitor reads it (`room_store.py`).
 
 The monitor also keeps the Bosch calibration state in `<database name>.bsec_state.json` (`bsec_state_store.py`). The dashboard does not open that file. It gets the state facts from the monitor status.
 
 ## Repository map
 
-Every entry below exists on this branch, except `config/online_secret.yaml`, which git ignores. "Open it when" says when you need the file.
+Every entry below exists on this branch, except `src/config/online_secret.yaml`, which git ignores. "Open it when" says when you need the file.
 
 | Path | What it does | Open it when |
 |---|---|---|
-| `monitor.py` | Starts the monitor with `--port` or `--demo`. Connects storage, rules, camera, alarm, BSEC state and dashboard requests. | You run or change the monitor. |
-| `dashboard.py` | Flask dashboard on 127.0.0.1:5000: five pages, `/api/room`, limit form, acknowledge and silence requests, `--online`. | You change the pages or the API. |
-| `serial_transport.py` | Opens the port, collects complete lines, retries after errors, sends lines with a short write limit. | The serial link fails. |
-| `serial_parser.py` | Classifies one line: valid reading, sensor error, incomplete reading, alarm reply, BSEC state lines, ignored. | You add a firmware message. |
-| `measurements.py` | Checks the four BME680 values and keeps the last complete reading. | A reading is rejected. |
-| `monitoring_state.py` | The combined state. Applies each line to the reading, the communication timer and the sensor timer. | You change what counts as contact. |
-| `monitoring_loop.py` | The poll loop and the periodic fault check. | You change loop timing. |
-| `communication_fault.py` | Communication timeout and acknowledgment (pure logic). | You change the communication alert. |
-| `sensor_fault.py` | Sensor-error timing and recovery (pure logic). | You change the BME680 alert. |
-| `gas_readiness.py` | Bosch status fields: warm-up, accuracy, index. | You change gas status labels. |
-| `air_quality.py` | Decides if the Bosch index is current or calibrating. Picks the word band. | You change the air-quality display rule. |
-| `dust.py` | Dust lines, the not-connected floor, dust status, clean-air baseline and estimate. | You change dust handling. |
-| `room_session.py` | Patient and system limits, sustained timers, occupancy gate, fault events, alarm level. | You change any alert rule. |
-| `room_store.py` | SQLite store and the patient profile file. | You change storage. |
-| `status_output.py` | Builds the published status record. | You add a status field. |
-| `alarm.py` | Alarm level, silence and board confirmation (pure logic). | You change the local alarm. |
-| `occupancy.py` | Camera worker: one check every 10 s, one frame at a time. Saves no frame. | You change occupancy. |
-| `person_detector.py` | YOLOX person detector on `cv2.dnn`. Checks the model file and its SHA-256. | You change the detector. |
-| `occupancy_rule.py` | The confirmation and hold rule. Pure logic, no clock reads. | You change when the room counts as occupied. |
-| `occupancy_override.py` | The manual occupancy setting: reads the stored request, applies its expiry, logs changes, starts the camera hold. | You change the override. |
-| `bsec_state_store.py` | The Bosch calibration state file `<database name>.bsec_state.json`, replies to the board's requests. | You change the BSEC save or restore. |
-| `online_auth.py` | Online password file, sign-in rate limit, CSRF tokens. | You change online sign-in. |
-| `online_tunnel.py` | Starts and watches `cloudflared`. | You change online access. |
-| `settings.py` | Loads and checks the three YAML files. Holds the defaults and the demo values. | You add a setting. |
-| `simulated_input.py` | Simulated board records for `--demo`. | You change the demo. |
-| `config/runtime.yaml` | Host timing: fault check 5 s, serial retry 5 s, poll 0.05 s, reading gap 6 s, dashboard overdue 15 s and refresh 10 s, camera 10 s, occupancy rule and override keys, person confidence, retention 7 days, alarm confirmation 2 s, online access options. | You tune host timing. |
-| `config/alerts.yaml` | Communication timeout and sensor-error timeout (both 120 s). | You change the fault timeouts. |
-| `config/system.yaml` | Air-quality and dust limits (off as shipped), word bands, dust sensitivity, baseline rule, the 100 mV dust floor. | You set system limits. |
-| `config/online_secret.yaml` | Not in git. Created by `dashboard.py --set-password`. Holds the online password hash. | Never edit it by hand. |
-| `templates/` | Dashboard HTML: shared layout `room.html`, pages `overview`, `trends`, `events`, `limits`, `system`, the sign-in page and the online footer. | You change page markup. |
-| `static/` | `room.js` (page logic), `chart.js` (the project's own SVG line charts), `room.css`. | You change page behaviour or style. |
-| `firmware/` | The ESP32-S3 sketch, its headers and host tests. See the [firmware guide](firmware/README.md). | You change or flash the board. |
-| `firmware/*.ino` | The sketch: BSEC set-up, readings, errors, dust report, alarm outputs, BSEC state, I2C bus restart. | You change board behaviour. |
-| `firmware/*.h` | `bsec_board_config.h` (pins, polarity, intervals, the 3.3 V supply `ROOM_BME680_SUPPLY_MV`, the chip check that rejects any chip but the ESP32-S3), `bus_recovery.h` (I2C restart after 10 s with no valid reading, at most every 30 s), `alarm_command.h` (command parsing, bounded serial read, LED and buzzer mapping, reply), `host_command.h` (host lines `ALARM` and `BSEC_STATE` in a fixed buffer, and the BSEC state-save rule), `bsec_serial_format.h`, `sharp_dust.h`, `sharp_dust_limits.h` (dust sample rule shared with a host test). | You change one board rule. |
-| `firmware/tests/` | Five C++ host tests, built with g++ on Linux (no board). | You change a header. |
-| `tools/sensor_check.py` | Read-only bench check of the board's serial lines: readings, gas change, dust input. | You test the board. |
-| `tools/read_sensor.py` | Prints the board's records from a serial port. | You want raw lines. |
-| `tools/check_setup.py` | Prints platform, Python, package and port facts. | You check a new laptop. |
+| `src/monitor.py` | Starts the monitor with `--port` or `--demo`. Connects storage, rules, camera, alarm, BSEC state and dashboard requests. | You run or change the monitor. |
+| `src/dashboard.py` | Flask dashboard on 127.0.0.1:5000: five pages, `/api/room`, limit form, acknowledge and silence requests, `--online`. | You change the pages or the API. |
+| `src/serial_transport.py` | Opens the port, collects complete lines, retries after errors, sends lines with a short write limit. | The serial link fails. |
+| `src/serial_parser.py` | Classifies one line: valid reading, sensor error, incomplete reading, alarm reply, BSEC state lines, ignored. | You add a firmware message. |
+| `src/measurements.py` | Checks the four BME680 values and keeps the last complete reading. | A reading is rejected. |
+| `src/monitoring_state.py` | The combined state. Applies each line to the reading, the communication timer and the sensor timer. | You change what counts as contact. |
+| `src/monitoring_loop.py` | The poll loop and the periodic fault check. | You change loop timing. |
+| `src/communication_fault.py` | Communication timeout and acknowledgment (pure logic). | You change the communication alert. |
+| `src/sensor_fault.py` | Sensor-error timing and recovery (pure logic). | You change the BME680 alert. |
+| `src/gas_readiness.py` | Bosch status fields: warm-up, accuracy, index. | You change gas status labels. |
+| `src/air_quality.py` | Decides if the Bosch index is current or calibrating. Picks the word band. | You change the air-quality display rule. |
+| `src/dust.py` | Dust lines, the not-connected floor, dust status, clean-air baseline and estimate. | You change dust handling. |
+| `src/room_session.py` | Patient and system limits, sustained timers, occupancy gate, fault events, alarm level. | You change any alert rule. |
+| `src/room_store.py` | SQLite store and the patient profile file. | You change storage. |
+| `src/status_output.py` | Builds the published status record. | You add a status field. |
+| `src/alarm.py` | Alarm level, silence and board confirmation (pure logic). | You change the local alarm. |
+| `src/occupancy.py` | Camera worker: one check every 10 s, one frame at a time. Saves no frame. | You change occupancy. |
+| `src/person_detector.py` | YOLOX person detector on `cv2.dnn`. Checks the model file and its SHA-256. | You change the detector. |
+| `src/occupancy_rule.py` | The confirmation and hold rule. Pure logic, no clock reads. | You change when the room counts as occupied. |
+| `src/occupancy_override.py` | The manual occupancy setting: reads the stored request, applies its expiry, logs changes, starts the camera hold. | You change the override. |
+| `src/bsec_state_store.py` | The Bosch calibration state file `<database name>.bsec_state.json`, replies to the board's requests. | You change the BSEC save or restore. |
+| `src/online_auth.py` | Online password file, sign-in rate limit, CSRF tokens. | You change online sign-in. |
+| `src/online_tunnel.py` | Starts and watches `cloudflared`. | You change online access. |
+| `src/settings.py` | Loads and checks the three YAML files. Holds the defaults and the demo values. | You add a setting. |
+| `src/simulated_input.py` | Simulated board records for `--demo`. | You change the demo. |
+| `src/config/runtime.yaml` | Host timing: fault check 5 s, serial retry 5 s, poll 0.05 s, reading gap 6 s, dashboard overdue 15 s and refresh 10 s, camera 10 s, occupancy rule and override keys, person confidence, retention 7 days, alarm confirmation 2 s, online access options. | You tune host timing. |
+| `src/config/alerts.yaml` | Communication timeout and sensor-error timeout (both 120 s). | You change the fault timeouts. |
+| `src/config/system.yaml` | Air-quality and dust limits (off as shipped), word bands, dust sensitivity, baseline rule, the 100 mV dust floor. | You set system limits. |
+| `src/config/online_secret.yaml` | Not in git. Created by `src/dashboard.py --set-password`. Holds the online password hash. | Never edit it by hand. |
+| `src/templates/` | Dashboard HTML: shared layout `room.html`, pages `overview`, `trends`, `events`, `limits`, `system`, the sign-in page and the online footer. | You change page markup. |
+| `src/static/` | `room.js` (page logic), `chart.js` (the project's own SVG line charts), `room.css`. | You change page behaviour or style. |
+| `src/firmware/` | The ESP32-S3 sketch, its headers and host tests. See the [firmware guide](src/firmware/README.md). | You change or flash the board. |
+| `src/firmware/*.ino` | The sketch: BSEC set-up, readings, errors, dust report, alarm outputs, BSEC state, I2C bus restart. | You change board behaviour. |
+| `src/firmware/*.h` | `bsec_board_config.h` (pins, polarity, intervals, the 3.3 V supply `ROOM_BME680_SUPPLY_MV`, the chip check that rejects any chip but the ESP32-S3), `bus_recovery.h` (I2C restart after 10 s with no valid reading, at most every 30 s), `alarm_command.h` (command parsing, bounded serial read, LED and buzzer mapping, reply), `host_command.h` (host lines `ALARM` and `BSEC_STATE` in a fixed buffer, and the BSEC state-save rule), `bsec_serial_format.h`, `sharp_dust.h`, `sharp_dust_limits.h` (dust sample rule shared with a host test). | You change one board rule. |
+| `src/firmware/tests/` | Five C++ host tests, built with g++ on Linux (no board). | You change a header. |
+| `src/tools/sensor_check.py` | Read-only bench check of the board's serial lines: readings, gas change, dust input. | You test the board. |
+| `src/tools/read_sensor.py` | Prints the board's records from a serial port. | You want raw lines. |
+| `src/tools/check_setup.py` | Prints platform, Python, package and port facts. | You check a new laptop. |
 | `tests/` | The Python test suite (pytest) and `tests/fixtures/`. | You change Python code. |
-| `docs/SHARP_DUST_INTEGRATION.md` | Dust wiring, acquisition, estimate and baseline. | You touch the dust sensor. |
-| `docs/superpowers/specs/` | Designs, one file per feature, with dates. | You need the reason for a rule. |
-| `docs/superpowers/plans/` | Implementation plans for those designs. | You continue a feature. |
-| `reference_files/` | Verification records per date, the Python file guide, the course reference, the implementation plan and the VIGIL comparison. | You need evidence or history. |
+| `report/design_notes/SHARP_DUST_INTEGRATION.md` | Dust wiring, acquisition, estimate and baseline. | You touch the dust sensor. |
+| `report/design_notes/superpowers/specs/` | Designs, one file per feature, with dates. | You need the reason for a rule. |
+| `report/design_notes/superpowers/plans/` | Implementation plans for those designs. | You continue a feature. |
+| `report/reference_files/` | Verification records per date, the Python file guide, the course reference, the implementation plan and the VIGIL comparison. | You need evidence or history. |
 | `DESIGN.md`, `.impeccable/design.json` | The dashboard design system. | You change the page look. |
 | `requirements.txt` | Pinned Python packages. | You set up the environment. |
+| `pytest.ini` | Test settings: `testpaths = tests`, `pythonpath = src`. | You run the tests. |
+| `report/figures/` | Figures for the report (placeholder). | You write the report. |
+| `data/` | Small sample or synthetic data only. No patient data. | You add sample data. |
+| `demo/` | Screenshots and the 2 to 3 minute demo video or link. | You prepare the demo. |
+| `presentation/` | `slides.pdf` and the editable source. | You prepare the slides. |
 
-The [Python file guide](reference_files/PYTHON_FILE_GUIDE.md) describes every Python file and test file.
+The [Python file guide](report/reference_files/PYTHON_FILE_GUIDE.md) describes every Python file and test file.
 
 ## Readings
 
@@ -122,7 +127,7 @@ The host accepts a BME680 reading only when `temp_c`, `humidity_pct`, `pressure_
 The firmware sends each new BSEC measurement once. A failure gives an error line. The firmware never repeats an old measurement. The BSEC wrapper converts pressure to hPa before its callback, and the sketch uses that value without a second division. Check this again if the wrapper changes. The firmware sets no custom temperature compensation.
 The dust estimate uses Sharp's typical sensitivity, 0.5 V per 0.1 mg/m³. The word levels (clean, raised, very high) are project display defaults. They are not official categories or health standards. Dust lines count as communication but do not replace BME680 readings.
 
-Freshness rules (from `config/runtime.yaml`, `config/alerts.yaml` and the code):
+Freshness rules (from `src/config/runtime.yaml`, `src/config/alerts.yaml` and the code):
 
 | Rule | Value | Effect |
 |---|---|---|
@@ -159,7 +164,7 @@ Only limit alerts sound the buzzer. Communication, BME680 and dust faults light 
 | System limit: air quality (Bosch index) | The index stays above `air_quality.upper_limit` for `hold_s`. The index must be current (accuracy 2 or 3) and the room occupied. Off as shipped (no value set). | As for patient limits. "Calibrating" also ends it. | Level 2. Level 1 after silence. |
 | System limit: dust estimate | The estimate stays above `dust.upper_limit` for `hold_s`. The baseline must exist and the room must be occupied. Off as shipped. | As for patient limits. A missing baseline also ends it. | Level 2. Level 1 after silence. |
 
-Local alarm levels (`alarm.py`, `firmware/alarm_command.h`):
+Local alarm levels (`alarm.py`, `src/firmware/alarm_command.h`):
 
 | Level | When | LED | Buzzer |
 |---|---|---|---|
@@ -188,7 +193,7 @@ The camera worker (`occupancy.py`) opens the camera, reads one frame, releases i
 - **Manual override.** The Overview page has three buttons: Automatic (camera), Occupied and Not occupied. A manual setting applies for 900 s (`occupancy_override_s`). Then the camera decides again, and the event log records the return. The page says who set it ("on this computer" or "online"), when, and when it returns to the camera. A stored setting that has not expired applies again after a monitor restart. Online, the sign-in and CSRF rules apply.
 - **A manual "Occupied" starts the camera hold.** The rule treats it as a sighting at the time of the setting. This does not add a check to the 120 s window. After the setting expires, the room stays occupied while the camera has seen the person once in the last 900 s. Without a sighting, the hold ends when the setting ends. A caregiver who sees a patient under a blanket sets "Occupied" once. After that, the camera needs one sighting per 15 minutes.
 - **Visitors.** The detector finds people. It cannot tell the patient from a visitor.
-- **Detector.** YOLOX from the OpenCV zoo (`object_detection_yolox_2022nov.onnx`, COCO class 0 "person"), licence Apache 2.0. `tools/get_person_model.py` downloads it to `models/` (git-ignored) and checks the pinned SHA-256. Run it once before the first camera run: `env/bin/python tools/get_person_model.py`. Without the model file, every check fails. The monitor prints the reason once on stderr, and the System page shows the last check as failed.
+- **Detector.** YOLOX from the OpenCV zoo (`object_detection_yolox_2022nov.onnx`, COCO class 0 "person"), licence Apache 2.0. `src/tools/get_person_model.py` downloads it to `src/models/` (git-ignored) and checks the pinned SHA-256. Run it once before the first camera run: `env/bin/python src/tools/get_person_model.py`. Without the model file, every check fails. The monitor prints the reason once on stderr, and the System page shows the last check as failed.
 - **System page.** The Camera row shows the model, the result of the last check (seen, no person seen or failed) and the time of the last sighting.
 
 Bench results (laptop webcam, threshold 0.5, 12 frames each, no frame stored):
@@ -207,7 +212,7 @@ Bench results (laptop webcam, threshold 0.5, 12 frames each, no frame stored):
 
 - **Threshold.** The 27 November session tried thresholds from 0.50 down to 0.25. None passes the rule (at least 9 of 12 blanket frames, and an empty-room maximum 0.10 below the threshold). At 0.25 at most 1 of 12 blanket frames passed. `person_confidence` therefore stays at 0.5.
 - **MediaPipe comparison (bench only, not in production).** MediaPipe found the person under the blanket in 0/12 and 1/12 frames and lying in 12/12. On the empty room it gave 5/12 false sightings (top score up to 1.000). The project does not switch to it. A frame takes about 140 to 150 ms with YOLOX and about 12 ms with MediaPipe.
-- **Result.** YOLOX finds a standing or lying person in clear view. It can miss a person under a blanket or in a near-overexposed frame, and it found a seated person in 9 of 12 frames. The manual "Occupied" setting covers the blanket case. The 20 November numbers come from the [design](docs/superpowers/specs/2026-11-20-occupancy-detector-override-design.md). The 27 November raw output is not in git.
+- **Result.** YOLOX finds a standing or lying person in clear view. It can miss a person under a blanket or in a near-overexposed frame, and it found a seated person in 9 of 12 frames. The manual "Occupied" setting covers the blanket case. The 20 November numbers come from the [design](report/design_notes/superpowers/specs/2026-11-20-occupancy-detector-override-design.md). The 27 November raw output is not in git.
 
 Communication details:
 
@@ -232,7 +237,7 @@ Bosch status labels (`gas_readiness.py`):
 - Missing or invalid status gives "unknown". A complete reading stays usable when its gas status is unknown. Firmware that sends no BSEC status gives "unknown" too.
 - Gas status is unavailable when communication times out or the latest input has measurement errors.
 - Bosch describes accuracy 0 as run-in ongoing and 1 as low accuracy. The word bands are the commonly cited Bosch bands. No Bosch document on this machine lists them, so they are not checked.
-- Bosch's datasheet (revision 1.9) lists 1 Hz continuous mode for short tests only. Low-power mode updates every 3 s. The user chose low-power mode. See the [BSEC status design](docs/superpowers/specs/2026-11-08-bsec-status-design.md).
+- Bosch's datasheet (revision 1.9) lists 1 Hz continuous mode for short tests only. Low-power mode updates every 3 s. The user chose low-power mode. See the [BSEC status design](report/design_notes/superpowers/specs/2026-11-08-bsec-status-design.md).
 
 ## Set up the laptop
 
@@ -240,7 +245,7 @@ Use the existing project environment (`env/bin/python`). Do not recreate, rename
 The pinned packages are numpy 1.26.4, opencv-python 4.11.0.86, pyserial 3.5, Flask 3.0.3, PyYAML 6.0.1 and pytest 8.2.0. Python is 3.10.12.
 
 ```text
-python tools/check_setup.py
+python src/tools/check_setup.py
 python -m pytest
 ```
 
@@ -253,8 +258,8 @@ Use the project environment (`env/bin/python`). Run the monitor and the dashboar
 Demo, no hardware:
 
 ```text
-python monitor.py --demo
-python dashboard.py --demo
+python src/monitor.py --demo
+python src/dashboard.py --demo
 ```
 
 Open http://127.0.0.1:5000. The demo uses its own database (`room-demo.sqlite3`). It simulates an occupied room, BME680 readings and dust voltage every 3 s. On a fresh demo database the temperature crosses the example limit at 18 s, raises an alert at about 27 s, and returns to range at about 60 s. The demo also uses demonstration system limits (air quality 150 for 30 s, dust 100 µg/m³ for 30 s). These are not recommendations.
@@ -262,15 +267,15 @@ Open http://127.0.0.1:5000. The demo uses its own database (`room-demo.sqlite3`)
 With the board:
 
 ```text
-python monitor.py --port /dev/ttyACM0 [--camera 0] [--db FILE]
-python dashboard.py [--db FILE]
+python src/monitor.py --port /dev/ttyACM0 [--camera 0] [--db FILE]
+python src/dashboard.py [--db FILE]
 ```
 
 The monitor needs an explicit port (`--port`) or `--demo`. It keeps one state across connection failures and retries the same port every 5 s. A retry does not reset the 120 s communication timer. Opening a port can reset some ESP32 boards. On this board, opening the CH343 port does not reset it (checked 20 November 2026). Fault checks continue during silence, also when the port cannot open.
 The serial reader is non-blocking and keeps partial lines. Overlong or invalid UTF-8 input does not reset communication. After a missed periodic check, the monitor uses the current monotonic time and does not replay old times. The OS, the port or the output can delay checks. This is not a real-time guarantee.
 The terminal shows JSON records with the last complete reading, its age and its receipt time. The calendar time is an estimate from the computer clock at start. It is not the time the board measured the room. An old reading keeps its original receipt time.
 
-Both programs must use the same `--db` file (default `room.sqlite3`). Without `--camera`, the camera state is always unknown, so limit alerts start only while a manual "Occupied" setting applies. Before the first camera run, download the person model with `python tools/get_person_model.py`.
+Both programs must use the same `--db` file (default `room.sqlite3`, in `src/`). Without `--camera`, the camera state is always unknown, so limit alerts start only while a manual "Occupied" setting applies. Before the first camera run, download the person model with `python src/tools/get_person_model.py`.
 
 **Run the host from a checkout that matches the firmware.** On 25 November 2026 a "Dust alert cleared" event at 01:42 was false. The monitor ran from a folder on branch `feature/occupancy`. That host code has no 100 mV floor, so it accepted 7 to 18 mV records as dust readings. On `feature/bsec-state` and later, a value below 100 mV is "no reading".
 
@@ -279,10 +284,10 @@ Online access (opt-in, view-only): see [Online access](#online-access-opt-in-vie
 Sensor check (stop the monitor first):
 
 ```text
-python tools/sensor_check.py --port /dev/ttyACM0 [--seconds 120] [--breath] [--log FILE]
+python src/tools/sensor_check.py --port /dev/ttyACM0 [--seconds 120] [--breath] [--log FILE]
 ```
 
-It only reads. It prints PASS, FAIL, NOT SEEN or INFO for readings, gas change, dust input, Bosch accuracy and BSEC state lines. See the [firmware guide](firmware/README.md#sensor-check).
+It only reads. It prints PASS, FAIL, NOT SEEN or INFO for readings, gas change, dust input, Bosch accuracy and BSEC state lines. See the [firmware guide](src/firmware/README.md#sensor-check).
 
 ## Hardware and status (25 and 28 November 2026)
 
@@ -296,7 +301,7 @@ The board is an ESP32-S3 (QFN56, revision v0.2) with 16 MB flash and 8 MB embedd
 | Alarm LED | Onboard RGB LED (`LED_BUILTIN`, GPIO48 by default) | Lit white as commanded (20 November 2026). |
 | Buzzer module | GPIO7 | No buzzer connected. GPIO7 drives nothing. |
 
-Build options: `esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. ESP32 core 3.3.12, BSEC2 1.10.2610 (algorithm 2.6.1.0), BME68x 1.3.40408, arduino-cli 1.5.1. The sketch compiles for `CDCOnBoot=default` and `CDCOnBoot=cdc`. The sensor supply is 3.3 V (`ROOM_BME680_SUPPLY_MV 3300`). Check the supply again if the breakout changes. See the [ESP32-S3 port design](docs/superpowers/specs/2026-11-15-esp32-s3-port-design.md).
+Build options: `esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=disabled,CDCOnBoot=default`. ESP32 core 3.3.12, BSEC2 1.10.2610 (algorithm 2.6.1.0), BME68x 1.3.40408, arduino-cli 1.5.1. The sketch compiles for `CDCOnBoot=default` and `CDCOnBoot=cdc`. The sensor supply is 3.3 V (`ROOM_BME680_SUPPLY_MV 3300`). Check the supply again if the breakout changes. See the [ESP32-S3 port design](report/design_notes/superpowers/specs/2026-11-15-esp32-s3-port-design.md).
 The board runs firmware `49029f2` (branch `fix/dust-led-i2c-restart`) since 25 November 2026.
 
 | Item | Result on the board | Date |
@@ -312,7 +317,7 @@ The board runs firmware `49029f2` (branch `fix/dust-led-i2c-restart`) since 25 N
 | BSEC state save on the board | Pass: event `bsec_state_saved` "accuracy 3, BSEC 2.6.1.0" at 02:41:50. The state is from a stuck gas reading. | 25 Nov |
 | I2C bus restart (`i2c_bus_restarted`) | Worked once: the BME680 stopped at 02:49:20, two restarts, start succeeded, `bsec_state_restored` from the RAM copy, readings again at 02:50:03 (gap 43 s). Failed the second time: the BME680 stopped at 02:56:48, and each restart (about every 30 s) gave `bsec_initialization_failed`. BME680 alert at 02:58:50 (status at 02:59). | 25 Nov |
 | BME680 temperature, humidity and pressure response test (bench log `tphtest2.txt`, outside the repository) | Pass for response. Baseline T 24.68 ± 0.03 °C, RH 60.2 ± 0.1 %, P 997.33 ± 0.02 hPa. A fingertip gave +6.0 °C. A breath gave +14.5 %RH in 9 s. A 1.8 m lift gave −0.212 hPa (about 1.77 m). Absolute accuracy is not checked: there is no reference instrument. | 28 Nov |
-| Note on the row above | The response test ran on a sketch that the user flashed, not on the product firmware. The product firmware was flashed back at 12:45 on 28 November and matches `firmware/`. | 28 Nov |
+| Note on the row above | The response test ran on a sketch that the user flashed, not on the product firmware. The product firmware was flashed back at 12:45 on 28 November and matches `src/firmware/`. | 28 Nov |
 | BME680 contact on the jumper wires | On 27 November the sensor gave no ACK on two boards. Reseating the jumper wires fixed it (user). On 28 November readings paused for up to 11 s when the module was touched, so the contact is still sensitive. | 27 and 28 Nov |
 | BSEC state restore from the laptop file after a board start | Not checked | — |
 | Buzzer, GPIO7, buzzer polarity | Not checked: no buzzer connected | — |
@@ -322,9 +327,9 @@ The board runs firmware `49029f2` (branch `fix/dust-led-i2c-restart`) since 25 N
 | Long system run, real config, camera 0, 18:05:53 to 18:39:36 (bench log `longrun-monitor.out`, outside the repository) | No communication alerts. The dashboard's five pages and `/api/room` returned HTTP 200. Occupancy became Occupied at 18:12:14 and the hold kept it for about 10 minutes with no person seen. The hold end (Occupied at 14 minutes after the last sighting, not seen at 15 minutes) was checked with the real `OccupancyRule` and a simulated clock, and by `tests/test_occupancy_rule.py`. The BME680 dropped off the I2C bus from 18:08:05 to 18:16:44 (loose jumper wires; reseating fixed it). Alarm level 1 during that sensor alert. Level 2 for temperature above 25 °C (18:18) and humidity above 60 % (from 18:24; room about 60.3 %; example patient profile 50 to 60 % RH). The camera gave 63 failed checks and OpenCV warnings; occupancy still worked. Pass, with the BME680 contact fault (see item 3 of Remaining work). | 28 Nov |
 | Baseline check after the dust fix, 19:01:24 to 19:12:59, no camera (bench log `baselinecheck-monitor.out`, outside the repository) | Baseline appeared at 19:11:28 (10 minutes): 779.6 mV. The lowest single reading, 715.8 mV, was not used. Band "clean" in all 82 estimates (0 to 27 µg/m³). BME680 current throughout. Gas fault shown. Pass. | 28 Nov |
 
-Sharp dust note from 17 November 2026: with no dust sensor attached, the floating input read about 870 to 930 mV. The firmware sent these as normal dust records. A disconnected sensor then looked like a working one. The 100 mV floor rule does not catch a floating input at that level. Candidate fixes (not decided): a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. See the [dust integration](docs/SHARP_DUST_INTEGRATION.md).
+Sharp dust note from 17 November 2026: with no dust sensor attached, the floating input read about 870 to 930 mV. The firmware sent these as normal dust records. A disconnected sensor then looked like a working one. The 100 mV floor rule does not catch a floating input at that level. Candidate fixes (not decided): a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. See the [dust integration](report/design_notes/SHARP_DUST_INTEGRATION.md).
 
-Read the [25 November verification record](reference_files/LINUX_VERIFICATION_2026-11-25.md) for the numbers, commands and flash sizes.
+Read the [25 November verification record](report/reference_files/LINUX_VERIFICATION_2026-11-25.md) for the numbers, commands and flash sizes.
 
 ## BME680 gas: decision
 
@@ -335,7 +340,7 @@ Heater tests on 28 November 2026 (bench logs `gasdiag.log` and `gassweep.log`, o
 History, 25 November 2026: a heater sweep (forced mode, no BSEC) gave real gas values at 200, 240 and 260 °C (18.4 to 46.5 kΩ). At 280 °C, 19 of 20 readings failed. At 300 °C, 17 of 20 failed. At 320 °C, 60 of 60 failed (all 12917166 ohm). The heater time (50, 100 or 150 ms) made no difference at 320 °C. A failure did not carry over to the next cooler step. There were no I2C errors. The BSEC configuration in use heats to about 320 °C (inference), so the Bosch index cannot work with this module.
 The 25 November options were: B, hardware (a capacitor at the power pins, a stronger supply or a new module), and C, software (the heater at or below 260 °C without BSEC). The 28 November tests show that the fault is in the chip. Option B does not apply. Option C stays possible future work: a real gas resistance at 260 °C or less, without BSEC and without an index. It is not planned.
 
-Temperature, humidity and pressure work while the sensor answers. See the [decision record](docs/superpowers/specs/2026-11-25-bme680-gas-heater-decision.md) (written 25 November, before the 28 November tests).
+Temperature, humidity and pressure work while the sensor answers. See the [decision record](report/design_notes/superpowers/specs/2026-11-25-bme680-gas-heater-decision.md) (written 25 November, before the 28 November tests).
 
 ## Current status
 
@@ -344,11 +349,11 @@ Automated tests and the simulator verify it. The board checks are in the table a
 
 Verification records:
 
-- [25 November 2026](reference_files/LINUX_VERIFICATION_2026-11-25.md): sensor check runs, dust LED and BME680 diagnostic, heater sweep, flashes.
-- [17 November 2026](reference_files/LINUX_VERIFICATION_2026-11-17.md): first flash and serial link check, no sensors.
-- [15 November 2026](reference_files/LINUX_VERIFICATION_2026-11-15.md): software results.
-- [8 November 2026](reference_files/LINUX_VERIFICATION_2026-11-08.md): virtual serial and compilation.
-- The 20 November bench results are in the [firmware hardware checklist](firmware/README.md#hardware-checklist).
+- [25 November 2026](report/reference_files/LINUX_VERIFICATION_2026-11-25.md): sensor check runs, dust LED and BME680 diagnostic, heater sweep, flashes.
+- [17 November 2026](report/reference_files/LINUX_VERIFICATION_2026-11-17.md): first flash and serial link check, no sensors.
+- [15 November 2026](report/reference_files/LINUX_VERIFICATION_2026-11-15.md): software results.
+- [8 November 2026](report/reference_files/LINUX_VERIFICATION_2026-11-08.md): virtual serial and compilation.
+- The 20 November bench results are in the [firmware hardware checklist](src/firmware/README.md#hardware-checklist).
 
 | Check | Recorded result |
 |---|---|
@@ -368,32 +373,32 @@ These checks do not establish physical sensor accuracy, calibration, camera dete
 
 ## Start here
 
-- [BSEC status design](docs/superpowers/specs/2026-11-08-bsec-status-design.md): the Bosch status protocol and manufacturer sources.
-- [Room software design](docs/superpowers/specs/2026-11-15-room-software-design.md): storage, rules, occupancy and dashboard as built.
-- [Local alarm design](docs/superpowers/specs/2026-11-15-local-alarm-design.md): alarm levels, serial command, silence and reachability.
-- [Dashboard data contract](docs/superpowers/specs/2026-11-15-dashboard-data-contract-design.md): the dashboard response, alert text, events, timing and retention.
-- [Sensor check design](docs/superpowers/specs/2026-11-25-sensor-check-design.md): the bench check tool.
-- [Sharp dust integration](docs/SHARP_DUST_INTEGRATION.md): dust wiring, calibration and checks.
-- [Firmware guide](firmware/README.md): sketch structure, build commands and hardware checks.
-- [25 November verification record](reference_files/LINUX_VERIFICATION_2026-11-25.md): the current board results.
-- [BME680 gas heater decision](docs/superpowers/specs/2026-11-25-bme680-gas-heater-decision.md): the open hardware or software choice.
-- [Manual reference](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md): course requirements and source pointers.
+- [BSEC status design](report/design_notes/superpowers/specs/2026-11-08-bsec-status-design.md): the Bosch status protocol and manufacturer sources.
+- [Room software design](report/design_notes/superpowers/specs/2026-11-15-room-software-design.md): storage, rules, occupancy and dashboard as built.
+- [Local alarm design](report/design_notes/superpowers/specs/2026-11-15-local-alarm-design.md): alarm levels, serial command, silence and reachability.
+- [Dashboard data contract](report/design_notes/superpowers/specs/2026-11-15-dashboard-data-contract-design.md): the dashboard response, alert text, events, timing and retention.
+- [Sensor check design](report/design_notes/superpowers/specs/2026-11-25-sensor-check-design.md): the bench check tool.
+- [Sharp dust integration](report/design_notes/SHARP_DUST_INTEGRATION.md): dust wiring, calibration and checks.
+- [Firmware guide](src/firmware/README.md): sketch structure, build commands and hardware checks.
+- [25 November verification record](report/reference_files/LINUX_VERIFICATION_2026-11-25.md): the current board results.
+- [BME680 gas heater decision](report/design_notes/superpowers/specs/2026-11-25-bme680-gas-heater-decision.md): the open hardware or software choice.
+- [Manual reference](report/reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_MANUAL_REFERENCE.md): course requirements and source pointers.
 - [Python requirements](requirements.txt): package versions.
 
-History only (15 to 19 November 2026, not current guidance): the [implementation plan](reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md). The former human guide and Linux handoff were folded into this file and removed on 27 November 2026.
+History only (15 to 19 November 2026, not current guidance): the [implementation plan](report/reference_files/ROOM_ENVIRONMENT_SAFETY_CONTROL_PROJECT8_IMPLEMENTATION_PLAN.md). The former human guide and Linux handoff were folded into this file and removed on 27 November 2026.
 Older preparation notes and component checklists describe the state before the recorded Linux sessions.
 Do not repeat completed checks without a change, failure or specific open concern.
 
 ## Online access (opt-in, view-only)
 
-Monitoring, alerts and the local alarm never depend on the internet. Online access starts only on request. Install `cloudflared` separately, then set the online password once (it is stored as a hash in the git-ignored `config/online_secret.yaml`):
+Monitoring, alerts and the local alarm never depend on the internet. Online access starts only on request. Install `cloudflared` separately, then set the online password once (it is stored as a hash in the git-ignored `src/config/online_secret.yaml`):
 
 ```text
-python dashboard.py --set-password
-python dashboard.py --online
+python src/dashboard.py --set-password
+python src/dashboard.py --online
 ```
 
-`--online` also serves a view-only origin on 127.0.0.1:5001 and starts a Cloudflare quick tunnel to it. The random `trycloudflare.com` link changes on each start and appears on the System page (with Copy link) on this computer. Anyone with the link can view. Saving limits, silencing and acknowledging online need the password. On this computer they need no sign-in. Without a password or without `cloudflared`, the local dashboard still runs and the System page says why online access is off or failed. Stop online access by stopping `dashboard.py`. Port, program path and sign-in lifetime are in `config/runtime.yaml`. Design: [online access](docs/superpowers/specs/2026-11-19-online-access-design.md).
+`--online` also serves a view-only origin on 127.0.0.1:5001 and starts a Cloudflare quick tunnel to it. The random `trycloudflare.com` link changes on each start and appears on the System page (with Copy link) on this computer. Anyone with the link can view. Saving limits, silencing and acknowledging online need the password. On this computer they need no sign-in. Without a password or without `cloudflared`, the local dashboard still runs and the System page says why online access is off or failed. Stop online access by stopping `dashboard.py`. Port, program path and sign-in lifetime are in `src/config/runtime.yaml`. Design: [online access](report/design_notes/superpowers/specs/2026-11-19-online-access-design.md).
 
 ## Dashboard
 
@@ -401,7 +406,7 @@ The dashboard has five pages: Overview, Trends, Events, Patient limits and Syste
 
 ## Sharp dust sensor
 
-The GP2Y1010AU0F path gives an independent dust voltage and status. The host converts the voltage to an estimated concentration in µg/m³ with Sharp's typical sensitivity and an automatic clean-air baseline. See [wiring, plan, calibration and verification](docs/SHARP_DUST_INTEGRATION.md).
+The GP2Y1010AU0F path gives an independent dust voltage and status. The host converts the voltage to an estimated concentration in µg/m³ with Sharp's typical sensitivity and an automatic clean-air baseline. See [wiring, plan, calibration and verification](report/design_notes/SHARP_DUST_INTEGRATION.md).
 The dust pins are GPIO5 (analog input) and GPIO4 (LED drive). GPIO4 drives the sensor LED directly, and LOW turns it on (measured 25 November 2026). With this polarity in the firmware, the sensor read 892.7 to 1135.0 mV on the board on 25 November 2026. The LED pulse timing is not checked on an oscilloscope.
 
 ## Local alarm
@@ -412,7 +417,7 @@ The sketch reads commands without blocking, at most 64 bytes per loop pass. It d
 
 ## Bosch calibration state
 
-Bosch's BSEC library learns the room's normal air over hours. Its IAQ accuracy goes from 0 to 3. The board keeps this learned state only in RAM, so a reset or a power cut loses it. The laptop keeps a copy in a file (user decision, 20 November 2026). See the [design](docs/superpowers/specs/2026-11-20-bsec-state-on-laptop-design.md).
+Bosch's BSEC library learns the room's normal air over hours. Its IAQ accuracy goes from 0 to 3. The board keeps this learned state only in RAM, so a reset or a power cut loses it. The laptop keeps a copy in a file (user decision, 20 November 2026). See the [design](report/design_notes/superpowers/specs/2026-11-20-bsec-state-on-laptop-design.md).
 
 - Save: the board sends its state only at IAQ accuracy 3. It sends the first time accuracy reaches 3 after start, then every 6 hours while accuracy is 3. Six hours is Bosch's standard interval, from Bosch's example sketch `basic_config_state.ino` (`STATE_SAVE_PERIOD`, 360 minutes).
 - File: the monitor writes `<database name>.bsec_state.json` next to the database, for example `room.bsec_state.json` or `room-demo.bsec_state.json`. It writes a temporary file and renames it, so a crash never leaves a half-written file.
@@ -461,8 +466,8 @@ Decision of 15 November 2026. It replaces the earlier rule that gas resistance a
 
 - Air quality is Bosch's BSEC index (0 to 500), labelled "Bosch estimate", with a word band. It shows as calibrating, with no value, while Bosch's accuracy is 0 or 1.
 - Dust is an estimated concentration in µg/m³ with a word level, labelled "estimate". It shows "establishing baseline", with no value, until the baseline exists.
-- `dust.disconnected_below_mv` (default 100 mV) is a required key in `config/system.yaml`. A dust voltage below it, a 0 mV reading, or the board's `dust_input_at_zero` report all count as "no reading". After 120 s (the sensor timeout) with no reading at or above it, the page says not connected.
-- Their limits are system setup in `config/system.yaml`, not dashboard controls. Each has an upper limit and a hold time. The shipped file leaves both off. The project supplies no values. The word bands and levels there are display defaults, not health standards. The Bosch bands and the Sharp sensitivity are not checked against a datasheet on this machine.
+- `dust.disconnected_below_mv` (default 100 mV) is a required key in `src/config/system.yaml`. A dust voltage below it, a 0 mV reading, or the board's `dust_input_at_zero` report all count as "no reading". After 120 s (the sensor timeout) with no reading at or above it, the page says not connected.
+- Their limits are system setup in `src/config/system.yaml`, not dashboard controls. Each has an upper limit and a hold time. The shipped file leaves both off. The project supplies no values. The word bands and levels there are display defaults, not health standards. The Bosch bands and the Sharp sensitivity are not checked against a datasheet on this machine.
 - Their alerts follow the patient-limit rule (sustained, occupied, current reading), sound the buzzer and can be silenced. A calibrating index or a missing baseline pauses that check, with a stated reason.
 - `monitor.py --demo` uses demonstration limits (air quality 150 for 30 s, dust 100 µg/m³ for 30 s) so the simulator shows both alerts. They are not recommendations.
 - The patient profile has an optional short label, for example "Bed 3", set in the limits form. It has at most 40 characters and no line breaks. No patient name is stored.
@@ -471,7 +476,7 @@ Decision of 15 November 2026. It replaces the earlier rule that gas resistance a
 - Frames of the camera stay in memory and are never saved.
 - With the BME680 on the bench, the index reached accuracy 3 on 25 November 2026 and shows as current, but it had no meaning while the gas reading was stuck. Since 28 November 2026 the monitor shows it as "Not available: gas sensor fault". See [BME680 gas: decision](#bme680-gas-decision).
 
-See the [design](docs/superpowers/specs/2026-11-15-air-quality-dust-label-design.md).
+See the [design](report/design_notes/superpowers/specs/2026-11-15-air-quality-dust-label-design.md).
 
 Patient limits apply to temperature, humidity and pressure. Each enabled measurement has a lower and upper limit. One sustained duration applies to all.
 The project supplies no patient limits. The demo example limit applies only to the simulator.
@@ -483,7 +488,7 @@ Communication, BME680, dust and profile fault alerts do not depend on occupancy.
 
 Technical settings load once at monitor start. Patient profiles apply while the monitor runs. The settings loader checks these rules: `status_stale_after_s` must exceed `fault_check_interval_s` plus the poll interval, `dashboard_refresh_s` must not exceed `status_stale_after_s`, `alarm_confirm_timeout_s` must exceed the poll interval, and `readings_retention_days` must be at least 1. The two board constants `ROOM_BSEC_STATE_SAVE_MS` (6 h) and `ROOM_BSEC_STATE_WAIT_MS` (10 s) are fixed in the firmware.
 
-The timing values are optional keys in `config/runtime.yaml`. An older three-key file still loads with the defaults. Demo mode uses the same defaults. The dashboard reads the effective values from the monitor status.
+The timing values are optional keys in `src/config/runtime.yaml`. An older three-key file still loads with the defaults. Demo mode uses the same defaults. The dashboard reads the effective values from the monitor status.
 Laptop YAML does not control ESP32 acquisition timing.
 Firmware configuration commands remain future work.
 
@@ -492,7 +497,7 @@ Firmware configuration commands remain future work.
 - BME680 gas element fault (bench tests 27 and 28 November 2026). On this module the gas element reads open-circuit when the heater is at temperature. `gas_ohms` is then 12917166 Ω (the raw gas ADC is 0). The monitor marks the Bosch index as unavailable after 3 fresh readings within ±2 Ω of that value. The dashboard shows "Not available: gas sensor fault", the air quality limit check is paused, and the System page shows the gas sensor as faulty. The fault clears only after 20 fresh readings in a row outside that window. A reading inside the window during that run restarts the count. Temperature, humidity and pressure are valid. The constants are in `air_quality.py`.
 - Dust bands: clean up to 50 µg/m³, raised up to 150, very high above. The Sharp sensor is not a true PM2.5 sensor. Treat the value as a rough dust estimate.
 - The BME680 gas element of this module is faulty (confirmed 28 November 2026). The Bosch index is therefore not usable with this module. See [BME680 gas: decision](#bme680-gas-decision).
-- The Bosch index reaches accuracy 3, but it has no meaning while the gas reading is stuck. The monitor now detects the stuck value (see the gas element fault above) and shows the index as "Not available: gas sensor fault". The gas sensor decision is made: the fault stays and the index stays unavailable (28 November 2026). `tools/sensor_check.py` still reports the stuck gas.
+- The Bosch index reaches accuracy 3, but it has no meaning while the gas reading is stuck. The monitor now detects the stuck value (see the gas element fault above) and shows the index as "Not available: gas sensor fault". The gas sensor decision is made: the fault stays and the index stays unavailable (28 November 2026). `src/tools/sensor_check.py` still reports the stuck gas.
 - Open issue: the BME680 loses contact on the I2C bus when the wires or module are touched. On 25 November 2026 it dropped off the bus twice (the firmware restart recovered it once). On 27 November the sensor gave no ACK on two boards, and reseating the jumper wires fixed it (user). On 28 November readings paused for up to 11 s when the module was touched. In the long run on 28 November the sensor was off the bus from 18:08:05 to 18:16:44 (8 min 39 s). Inference: a poor contact. The next step is soldering or fixing the wires (a person).
 - A patient fully under a blanket is not detected automatically. YOLOX missed a person under a blanket in every frame on 27 November 2026 (0/12 twice) and found 4/12 on 20 November. The user accepted this limitation on 27 November 2026 and chose no hardware change. The caregiver sets "Occupied" by hand. That setting starts the camera hold. A missed patient gives "No person seen", and limit alerts then pause. YOLOX found a seated person in 9/12 frames.
 - The detector cannot tell the patient from a visitor. Any person in view counts.
@@ -504,11 +509,11 @@ Firmware configuration commands remain future work.
 - With the direct dust LED wiring, GPIO4 is not yet an output during reset and boot, before `beginDust()` runs. The GPIO4 voltage and current are not measured.
 - The dust estimate uses a typical sensitivity and an automatic baseline. It is not PM2.5, an official index or a calibrated concentration. It is not checked against a reference instrument.
 - The air-quality index is Bosch's estimate. It is not a gas concentration and is not checked against a reference.
-- The monitor does not lock the serial port. Two programs on one port each get only part of the lines. `tools/sensor_check.py` refuses to run when another program holds the port.
+- The monitor does not lock the serial port. Two programs on one port each get only part of the lines. `src/tools/sensor_check.py` refuses to run when another program holds the port.
 
 ## Decisions (15 November 2026)
 
-- Board: ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. Correction, 20 November 2026: the dust pins were swapped to match the wiring: dust analog input GPIO5, dust LED drive GPIO4. Correction, 20 November 2026: the alarm LED is now the onboard RGB LED (GPIO48 by default), not GPIO6. Correction, 25 November 2026: the dust LED drive GPIO4 is wired directly to sensor pin 3, so LOW turns the LED on (measured). The firmware had assumed an NPN driver (HIGH on). `ROOM_DUST_LED_ACTIVE_LOW` in `firmware/bsec_board_config.h` now sets the polarity. It is `true` for the wiring in use.
+- Board: ESP32-S3 with an N8R2 module. Correction, 17 November 2026: esptool shows the connected board is an N16R8-type module (16 MB flash, 8 MB embedded PSRAM), not an N8R2. Pins: I2C SDA GPIO8, I2C SCL GPIO9, dust analog input GPIO4, dust LED drive GPIO5, alarm LED GPIO6, and buzzer module GPIO7. Correction, 20 November 2026: the dust pins were swapped to match the wiring: dust analog input GPIO5, dust LED drive GPIO4. Correction, 20 November 2026: the alarm LED is now the onboard RGB LED (GPIO48 by default), not GPIO6. Correction, 25 November 2026: the dust LED drive GPIO4 is wired directly to sensor pin 3, so LOW turns the LED on (measured). The firmware had assumed an NPN driver (HIGH on). `ROOM_DUST_LED_ACTIVE_LOW` in `src/firmware/bsec_board_config.h` now sets the polarity. It is `true` for the wiring in use.
 - Completion work builds on this branch. The dust sensor stays.
 - Primary dashboard viewer: a caregiver at a desk screen.
 - Notification: a local ESP32 buzzer and LED. The buzzer sounds for limit alerts only (patient limits and the air-quality and dust system limits). System faults light the LED and show on the dashboard without sound.
@@ -518,16 +523,41 @@ Firmware configuration commands remain future work.
 - The dashboard is redesigned as five pages (Overview, Trends, Events, Patient limits, System).
 - Air quality is shown as Bosch's index and dust as an estimated concentration, both with words. Their limits are system setup. The profile has a short label. Implemented on 15 November. This replaces the earlier raw-signals-only rule.
 
-Later decisions are in the dated designs under `docs/superpowers/specs/`: dust disconnect and alarm link (20 November), BSEC state on the laptop (20 November), occupancy detector and override (20 and 23 November, implemented and merged to `main` 27 November), sensor check (25 November) and the BME680 gas heater (25 November, decided 28 November: see [BME680 gas: decision](#bme680-gas-decision)).
+Later decisions are in the dated designs under `report/design_notes/superpowers/specs/`: dust disconnect and alarm link (20 November), BSEC state on the laptop (20 November), occupancy detector and override (20 and 23 November, implemented and merged to `main` 27 November), sensor check (25 November) and the BME680 gas heater (25 November, decided 28 November: see [BME680 gas: decision](#bme680-gas-decision)).
 
 Decision 27 November 2026: no hardware change for occupancy. A patient fully under a blanket is not detected automatically. The caregiver sets "Occupied" by hand.
 
+## Submission to-do (do at the end)
+
+Source: the course "Case-Study Submission & Presentation Guide". Do these after the last project change, before the zip.
+
+Missing:
+
+- `report/report.md`: write the report, 6 to 10 pages, with the 9 sections (problem, background, how it works, hardware and software, decision logic, setup, testing and results, limitations and ethics, what we learned) and references.
+- `report/figures/`: add an architecture diagram and at least one results figure.
+- `demo/`: add screenshots (dashboard, an alert, the alarm) and a 2 to 3 minute screen recording, or a link to it.
+- `presentation/`: add `slides.pdf` and the editable source.
+- `data/`: add a short recorded sample of serial lines (no patient data).
+- README: put these sections in this order: title and one-liner, what it does, hardware needed, software and setup, how to run, how to run the demo, how to run the tests, configuration, limitations and safety, credits (group members, case-study number). The guide wants a stranger to run the demo from the README alone.
+- `config.example.yaml`: the guide asks for one. The config files hold no secrets, so add the file or a one-line note that says so.
+- Name: the zip and its top folder must be `GroupXX_<CaseStudyName>` (group number not yet known).
+- `tests/test_output.txt`: run the tests again after the last change and save the output.
+- Peer test: another group runs the demo from the README alone. Fix the README where they get stuck.
+
+Too much (remove from the submission or move to the report):
+
+- `report/design_notes/superpowers/`: 36 plan and spec files written for the AI assistant. Remove, or keep only the specs this README links to.
+- `report/reference_files/`: remove the manual reference, the implementation plan and the VIGIL comparison. Keep the `LINUX_VERIFICATION_*` records as test evidence.
+- `DESIGN.md` and `.impeccable/`: design-tool files. Leave them out of the zip.
+- `handoff.md` and `PRODUCT.md`: session notes, not in git. Leave them out of the zip.
+- README sections "Decisions", "Remaining work" and "Behavior to preserve": development history. Move them to the report or delete them.
+
 ## Remaining work
 
-1. Done 28 November 2026 (decided): BME680 gas. The gas element is faulty. No hardware option is open and no software fix is planned. See [BME680 gas: decision](#bme680-gas-decision). Only a new module would change this; then run `tools/sensor_check.py` again.
+1. Done 28 November 2026 (decided): BME680 gas. The gas element is faulty. No hardware option is open and no software fix is planned. See [BME680 gas: decision](#bme680-gas-decision). Only a new module would change this; then run `src/tools/sensor_check.py` again.
 2. Done 28 November 2026 (decided): the dashboard shows the Bosch index as "Not available: gas sensor fault" while the gas is stuck (commit `f1d34d5`). The confirmation of a BSEC restore from the laptop file after a power cycle is not planned: the index has no meaning on this module. The save and the RAM restore happened on 25 November.
 3. BME680 contact on the I2C bus: a person solders or fixes the jumper wires (27 and 28 November: reseating the wires fixed a missing ACK, but readings still paused up to 11 s when the module was touched). In the long run on 28 November the sensor was off the bus from 18:08:05 to 18:16:44. Then check a long run without gaps.
-4. Identify the ESP32-S3 board model. Run the rest of the hardware checklist in the [firmware guide](firmware/README.md#hardware-checklist).
+4. Identify the ESP32-S3 board model. Run the rest of the hardware checklist in the [firmware guide](src/firmware/README.md#hardware-checklist).
 5. Dust hardware follow-ups (also the floating-input note above): check the LED pulse width (0.32 ms), the sample point (0.28 ms) and the 10 ms period on an oscilloscope. Measure the GPIO4 voltage and current with a meter, also in the boot window before `beginDust()`. Check a real dust disconnect: with the divider wired and no sensor, the input reads below 100 mV.
 6. Done 28 November 2026: the long run with the real board and camera, 18:05:53 to 18:39:36, with no communication alerts and occupancy working (see the long-run row in the [hardware and status table](#hardware-and-status-25-and-28-november-2026)). Occupancy is merged to `main` and pushed (27 November 2026, commit `7c362f0`). Remaining: check seated and partly covered people in a real room. A patient fully under a blanket is an accepted limitation (27 November 2026). No other detector or sensor is planned.
 7. Agree on real patient limits for any demonstration.
@@ -536,7 +566,7 @@ Decision 27 November 2026: no hardware change for occupancy. A patient fully und
 10. Check the Bosch word bands and the Sharp sensitivity against the datasheets.
 11. Done 20 November 2026: online access with a signed-in control request through a real tunnel. Save limits, silence alarm and acknowledge were refused without sign-in (HTTP 403) and accepted after sign-in (HTTP 303).
 12. Demonstrate the complete system with actual hardware.
-13. Small follow-up in a code comment (dated text, no behaviour change): `firmware/bsec_board_config.h` line 10 still says "Not yet checked against the physical board". No check against the board is recorded. (The `GAS_NEXT_STEP` text in `tools/sensor_check.py` was changed on 28 November 2026.)
+13. Small follow-up in a code comment (dated text, no behaviour change): `src/firmware/bsec_board_config.h` line 10 still says "Not yet checked against the physical board". No check against the board is recorded. (The `GAS_NEXT_STEP` text in `src/tools/sensor_check.py` was changed on 28 November 2026.)
 14. Done 28 November 2026: dust response test with real dust (bench log `dusttest2-monitor.out`, outside the repository; test config baseline_min_s 120). Before the dust cloud the band was clean (1 to 36 µg/m³, baseline 800.6 mV). A small dust cloud at 13:17:03 gave 1659 mV, 172 µg/m³ (very high) for one 3 s record, then raised for about 15 s, and clean again from 13:17:18. The baseline stayed at 800.6 mV for the whole run. An earlier run at 12:57 lost the band because one lost dust record reset the baseline; fixed in commit 23a5280 (`baseline_gap_s`, 60 s).
 
 Steps that need a person (a meter, an oscilloscope, new parts, a person in front of the camera) are reported here. They are not scheduled.
@@ -545,7 +575,7 @@ Follow the course requirements and approved project decisions.
 Preserve the existing environment and required dependencies.
 Do not recreate the removed setup installer.
 Ask before adding unspecified dependencies, algorithms, services or hardware procedures.
-Use the [VIGIL comparison](reference_files/VIGIL_COMPARISON.md) for verified reference behaviour.
+Use the [VIGIL comparison](report/reference_files/VIGIL_COMPARISON.md) for verified reference behaviour.
 The original course PDFs and VIGIL archive are not included in this repository.
 
 ## How this project differs from VIGIL

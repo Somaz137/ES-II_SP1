@@ -73,7 +73,7 @@ class RoomSession:
         self.gap_s = self.timing["reading_gap_limit_s"]
         self.profile = None
         self.profile_seen = False
-        # Air quality and dust limits, bands and baseline rule: config/system.yaml.
+        # Air quality and dust limits, bands and baseline rule: src/config/system.yaml.
         self.system = SYSTEM_DEFAULTS if system is None else system
         dust = self.system["dust"]
         self.baseline = DustBaseline(dust["baseline_window_s"], dust["baseline_min_s"], dust["baseline_gap_s"])

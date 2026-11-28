@@ -52,7 +52,7 @@ def test_project_runtime_file_matches_defaults():
     from pathlib import Path
     from settings import RUNTIME_DEFAULTS
 
-    loaded = load_runtime_settings(Path(__file__).resolve().parents[1] / "config/runtime.yaml")
+    loaded = load_runtime_settings(Path(__file__).resolve().parents[1] / "src" / "config/runtime.yaml")
     assert {key: loaded[key] for key in RUNTIME_DEFAULTS} == RUNTIME_DEFAULTS
 
 
@@ -95,7 +95,7 @@ def test_defaults_import_without_pyyaml():
             "import settings, monitor, room_session\n"
             "print(settings.RUNTIME_DEFAULTS['reading_gap_limit_s'])")
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                            cwd=Path(__file__).resolve().parents[1])
+                            cwd=Path(__file__).resolve().parents[1] / "src")
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "6"
 
@@ -137,6 +137,6 @@ def test_camera_mode_without_model_exits_with_hint(tmp_path):
             "sys.argv = ['monitor.py', '--port', '/dev/null', '--camera', '0']\n"
             "monitor.main()")
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                            cwd=Path(__file__).resolve().parents[1], timeout=30)
+                            cwd=Path(__file__).resolve().parents[1] / "src", timeout=30)
     assert result.returncode != 0
-    assert "tools/get_person_model.py" in result.stderr
+    assert "src/tools/get_person_model.py" in result.stderr

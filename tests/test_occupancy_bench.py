@@ -2,7 +2,7 @@ import importlib.util
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location(
-    "occupancy_bench", Path(__file__).resolve().parent.parent / "tools" / "occupancy_bench.py")
+    "occupancy_bench", Path(__file__).resolve().parent.parent / "src" / "tools" / "occupancy_bench.py")
 occupancy_bench = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(occupancy_bench)
 

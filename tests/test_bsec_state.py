@@ -388,7 +388,7 @@ def test_system_page_has_the_bosch_calibration_row(app_store):
     client, _ = app_store
     page = client.get("/system").get_data(as_text=True)
     assert 'id="path-bsec_state"' in page and "Bosch calibration" in page
-    script = (Path(__file__).resolve().parents[1] / "static/room.js").read_text(encoding="utf-8")
+    script = (Path(__file__).resolve().parents[1] / "src" / "static/room.js").read_text(encoding="utf-8")
     assert 'pathRow("bsec_state"' in script
 
 

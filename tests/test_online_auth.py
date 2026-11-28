@@ -55,7 +55,7 @@ def test_prompt_asks_twice_and_requires_a_match():
 def test_secret_file_is_ignored_by_git():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
-    assert "/config/online_secret.yaml" in (root / ".gitignore").read_text().split()
+    assert "/src/config/online_secret.yaml" in (root / ".gitignore").read_text().split()
 
 
 def test_limiter_blocks_a_client_after_five_failures_for_five_minutes():

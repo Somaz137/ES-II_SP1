@@ -636,7 +636,7 @@ def main(argv=None):
             settings, secret = None, None
             print(f"Online access was not started: {problem}")
         if settings and secret is None:
-            print("Online access was not started: no online password is set. Run python dashboard.py "
+            print("Online access was not started: no online password is set. Run python src/dashboard.py "
                   "--set-password, then start again with --online. The local dashboard runs now.")
         elif settings:
             tunnel = start_online(path, args.demo, secret, settings)

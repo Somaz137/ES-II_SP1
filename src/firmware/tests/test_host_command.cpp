@@ -1,6 +1,6 @@
 // Host test for the host-command reader and the BSEC state-save rule. Build on
 // Linux with
-// g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_host_command.cpp
+// g++ -std=c++11 -Wall -Wextra -pedantic -Isrc/firmware src/firmware/tests/test_host_command.cpp
 #include "../host_command.h"
 #include <cassert>
 #include <cstring>

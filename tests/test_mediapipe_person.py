@@ -7,7 +7,7 @@ import pytest
 from person_detector import ModelError
 
 ROOT = Path(__file__).resolve().parent.parent
-spec = importlib.util.spec_from_file_location("mediapipe_person", ROOT / "tools" / "mediapipe_person.py")
+spec = importlib.util.spec_from_file_location("mediapipe_person", ROOT / "src" / "tools" / "mediapipe_person.py")
 mediapipe_person = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mediapipe_person)
 
@@ -38,7 +38,7 @@ class StubNet:
 
 
 def test_mp_missing_model_raises_with_download_hint(tmp_path):
-    with pytest.raises(ModelError, match="tools/get_person_model.py"):
+    with pytest.raises(ModelError, match="src/tools/get_person_model.py"):
         mediapipe_person.MediaPipePerson(path=tmp_path / "missing.onnx")
 
 
@@ -62,4 +62,4 @@ def test_mp_top_score_is_the_sigmoid_of_the_best_logit():
 
 def test_production_modules_do_not_import_mediapipe():
     for name in ("occupancy.py", "monitor.py", "person_detector.py"):
-        assert "mediapipe" not in (ROOT / name).read_text().lower(), name
+        assert "mediapipe" not in (ROOT / "src" / name).read_text().lower(), name

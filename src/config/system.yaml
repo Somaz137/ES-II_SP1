@@ -21,7 +21,7 @@ dust:
   upper_limit: null
   hold_s: null
   # Sharp GP2Y1010AU0F typical sensitivity 0.5 V per 0.1 mg/m3, cited in
-  # docs/SHARP_DUST_INTEGRATION.md. Typical, unverified against the datasheet on this
+  # report/design_notes/SHARP_DUST_INTEGRATION.md. Typical, unverified against the datasheet on this
   # machine, and not a per-unit calibration.
   sensitivity_mv_per_mg_m3: 5000
   # Clean-air baseline: the lowest sensor voltage in this window (at most 7 days).

@@ -3,7 +3,7 @@
 does the dust input work. It never writes to the board.
 
 Usage:
-    env/bin/python tools/sensor_check.py --port /dev/ttyACM0 [--seconds 120] [--breath] [--log FILE]
+    env/bin/python src/tools/sensor_check.py --port /dev/ttyACM0 [--seconds 120] [--breath] [--log FILE]
 
 Exit codes: 0 all checks pass, 1 a check failed or was not seen, 2 port, config or log file error.
 The analysis works on (seconds, text) pairs. The serial loop only collects them.
@@ -297,7 +297,7 @@ def _arguments(argv):
                              f"and listen {BREATH_SECONDS} s more")
     parser.add_argument("--log", metavar="FILE", help="write each line with a timestamp")
     parser.add_argument("--config", default=str(_DEFAULT_CONFIG),
-                        help="system settings file (default config/system.yaml)")
+                        help="system settings file (default src/config/system.yaml)")
     return parser.parse_args(argv)
 
 

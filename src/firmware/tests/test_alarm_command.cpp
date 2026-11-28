@@ -1,5 +1,5 @@
 // Host test for the alarm command core. Build on Linux with
-// g++ -std=c++11 -Wall -Wextra -pedantic firmware/tests/test_alarm_command.cpp
+// g++ -std=c++11 -Wall -Wextra -pedantic -Isrc/firmware src/firmware/tests/test_alarm_command.cpp
 #include "../alarm_command.h"
 #include <cassert>
 #include <cstring>

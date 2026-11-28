@@ -191,7 +191,7 @@ def validate_runtime_settings(data: object) -> None:
     validate_online_settings(data)
 
 
-# System setup for air quality and dust. Equal to config/system.yaml; a test keeps them equal.
+# System setup for air quality and dust. Equal to src/config/system.yaml; a test keeps them equal.
 SYSTEM_DEFAULTS = {
     "air_quality": {
         "upper_limit": None, "hold_s": None,

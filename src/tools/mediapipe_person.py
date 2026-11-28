@@ -1,7 +1,7 @@
 """MediaPipe person detector on cv2.dnn, for the occupancy bench only (no production module imports it).
 
 The model is the OpenCV zoo person_detection_mediapipe_2023mar.onnx. Get it with
-tools/get_person_model.py --mediapipe. Pre- and post-processing follow the zoo's
+src/tools/get_person_model.py --mediapipe. Pre- and post-processing follow the zoo's
 models/person_detection_mediapipe/mp_persondet.py: RGB, scale to [-1, 1], letterbox
 to 224x224 with black padding, sigmoid scores and anchor-relative box decoding.
 """
@@ -65,7 +65,7 @@ class MediaPipePerson:
         self.confidence = confidence
         if net is None:
             path = Path(MP_MODEL_PATH if path is None else path)
-            check_model(path, MP_MODEL_SHA256, "Run: env/bin/python tools/get_person_model.py --mediapipe")
+            check_model(path, MP_MODEL_SHA256, "Run: env/bin/python src/tools/get_person_model.py --mediapipe")
             net = cv2.dnn.readNet(str(path))
         self.net = net
 

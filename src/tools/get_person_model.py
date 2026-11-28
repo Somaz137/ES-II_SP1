@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download the YOLOX person model to models/ and check its pinned SHA-256.
+"""Download the YOLOX person model to src/models/ and check its pinned SHA-256.
 With --mediapipe, download the MediaPipe person model instead (bench comparison only).
 
 Source: OpenCV zoo on Hugging Face (opencv/opencv_zoo), pinned to revision

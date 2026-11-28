@@ -1,7 +1,7 @@
 #pragma once
 
 // I2C bus restart rule for the BME680. Pure C++11: no Arduino dependency.
-// firmware/tests/test_bus_recovery.cpp checks it.
+// src/firmware/tests/test_bus_recovery.cpp checks it.
 //
 // Measured 25 November 2026: the bus stopped answering after the first
 // bme68x_init (rc -2 for about 27 s), and Wire.end() + Wire.begin() restored

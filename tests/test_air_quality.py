@@ -78,7 +78,7 @@ def test_band_takes_the_first_entry_the_value_does_not_exceed():
 def test_project_system_file_matches_defaults_and_leaves_limits_off():
     from settings import SYSTEM_DEFAULTS, load_system_settings
 
-    loaded = load_system_settings(ROOT / "config" / "system.yaml")
+    loaded = load_system_settings(ROOT / "src" / "config" / "system.yaml")
     assert loaded == SYSTEM_DEFAULTS
     for key in ("air_quality", "dust"):
         assert loaded[key]["upper_limit"] is None and loaded[key]["hold_s"] is None
@@ -145,7 +145,7 @@ def test_invalid_air_quality_limit_pairs_are_rejected(limit, hold):
 def test_a_complete_limit_pair_is_accepted(tmp_path):
     from settings import load_system_settings
 
-    text = (ROOT / "config" / "system.yaml").read_text(encoding="utf-8")
+    text = (ROOT / "src" / "config" / "system.yaml").read_text(encoding="utf-8")
     text = text.replace("upper_limit: null", "upper_limit: 150", 1).replace("hold_s: null", "hold_s: 1800", 1)
     path = tmp_path / "system.yaml"
     path.write_text(text, encoding="utf-8")
@@ -179,4 +179,4 @@ def test_baseline_gap_default_is_60_seconds_and_loads_from_the_shipped_file():
     from settings import SYSTEM_DEFAULTS, load_system_settings
 
     assert SYSTEM_DEFAULTS["dust"]["baseline_gap_s"] == 60
-    assert load_system_settings(ROOT / "config" / "system.yaml")["dust"]["baseline_gap_s"] == 60
+    assert load_system_settings(ROOT / "src" / "config" / "system.yaml")["dust"]["baseline_gap_s"] == 60

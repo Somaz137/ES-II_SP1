@@ -1,7 +1,7 @@
 """YOLOX person detector on cv2.dnn, with no frame retention.
 
 The model is the OpenCV zoo object_detection_yolox_2022nov.onnx (COCO, 80 classes).
-Get it with tools/get_person_model.py. Pre- and post-processing follow the zoo's
+Get it with src/tools/get_person_model.py. Pre- and post-processing follow the zoo's
 models/object_detection_yolox/demo.py and yolox.py: RGB, letterbox to 640x640 with
 pad value 114, no normalisation, then grid and stride decoding of the raw output.
 """
@@ -24,7 +24,7 @@ class ModelError(Exception):
     pass
 
 
-def check_model(path: Path | None = None, sha256: str = MODEL_SHA256, hint: str = "Run: env/bin/python tools/get_person_model.py") -> None:
+def check_model(path: Path | None = None, sha256: str = MODEL_SHA256, hint: str = "Run: env/bin/python src/tools/get_person_model.py") -> None:
     """Raise ModelError when the model file is missing or its SHA-256 is not sha256 (default MODEL_SHA256)."""
     path = Path(MODEL_PATH if path is None else path)
     if not path.is_file():

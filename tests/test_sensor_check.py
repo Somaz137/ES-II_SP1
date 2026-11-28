@@ -8,7 +8,7 @@ import serial
 
 from bsec_state_store import is_bsec_version
 
-_PATH = Path(__file__).resolve().parent.parent / "tools" / "sensor_check.py"
+_PATH = Path(__file__).resolve().parent.parent / "src" / "tools" / "sensor_check.py"
 _SPEC = importlib.util.spec_from_file_location("sensor_check", _PATH)
 sensor_check = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(sensor_check)
@@ -218,7 +218,7 @@ def test_port_holders_with_no_proc_is_empty(tmp_path):
 
 # --- command line -----------------------------------------------------------
 
-_CONFIG = str(Path(__file__).resolve().parent.parent / "config" / "system.yaml")
+_CONFIG = str(Path(__file__).resolve().parent.parent / "src" / "config" / "system.yaml")
 
 
 class FakePort:

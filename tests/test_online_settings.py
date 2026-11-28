@@ -18,7 +18,7 @@ def test_online_defaults_apply_when_keys_are_absent(tmp_path):
 
 
 def test_project_runtime_file_has_the_online_defaults():
-    loaded = load_online_settings(Path(__file__).resolve().parents[1] / "config/runtime.yaml")
+    loaded = load_online_settings(Path(__file__).resolve().parents[1] / "src" / "config/runtime.yaml")
     assert loaded == ONLINE_DEFAULTS
 
 
@@ -60,4 +60,4 @@ def test_retry_waits_default_to_six_attempts_and_may_be_empty(tmp_path):
 
 def test_the_default_cloudflared_log_is_ignored_by_git():
     ignored = (Path(__file__).resolve().parents[1] / ".gitignore").read_text().splitlines()
-    assert "/logs/" in ignored
+    assert "/src/logs/" in ignored

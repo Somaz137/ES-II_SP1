@@ -31,7 +31,7 @@ DOG_095 = (STRIDE_32_START + 2 * 20 + 15, DOG, 0.95, 1.5)
 def test_missing_model_raises_with_download_hint(tmp_path):
     with pytest.raises(ModelError) as error:
         check_model(tmp_path / "x.onnx")
-    assert "tools/get_person_model.py" in str(error.value)
+    assert "src/tools/get_person_model.py" in str(error.value)
 
 
 def test_wrong_hash_raises(tmp_path):
@@ -39,7 +39,7 @@ def test_wrong_hash_raises(tmp_path):
     path.write_bytes(b"not a model")
     with pytest.raises(ModelError) as error:
         check_model(path)
-    assert "tools/get_person_model.py" in str(error.value)
+    assert "src/tools/get_person_model.py" in str(error.value)
 
 
 def test_check_model_default_path_is_resolved_at_call_time(tmp_path, monkeypatch):
