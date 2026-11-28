@@ -173,7 +173,7 @@ Local alarm levels (`alarm.py`, `firmware/alarm_command.h`):
 - Link lost: when the board gets no valid `ALARM` command for 30 s, the LED blinks (1 s on, 1 s off). The buzzer keeps its last state. The next valid command ends the blink.
 - No buzzer is connected now. On this bench, level 2 therefore gives only the LED.
 
-Occupancy (branch `feature/occupancy`, not yet merged to `main`):
+Occupancy:
 
 The camera worker (`occupancy.py`) opens the camera, reads one frame, releases it and runs the YOLOX person detector every 10 s. It keeps no frame. The rule (`occupancy_rule.py`) turns the check results into a state. A manual setting (`occupancy_override.py`) can replace that state.
 
@@ -312,12 +312,15 @@ The board runs firmware `49029f2` (branch `fix/dust-led-i2c-restart`) since 25 N
 | BSEC state save on the board | Pass: event `bsec_state_saved` "accuracy 3, BSEC 2.6.1.0" at 02:41:50. The state is from a stuck gas reading. | 25 Nov |
 | I2C bus restart (`i2c_bus_restarted`) | Worked once: the BME680 stopped at 02:49:20, two restarts, start succeeded, `bsec_state_restored` from the RAM copy, readings again at 02:50:03 (gap 43 s). Failed the second time: the BME680 stopped at 02:56:48, and each restart (about every 30 s) gave `bsec_initialization_failed`. BME680 alert at 02:58:50 (status at 02:59). | 25 Nov |
 | BME680 temperature, humidity and pressure response test (bench log `tphtest2.txt`, outside the repository) | Pass for response. Baseline T 24.68 ± 0.03 °C, RH 60.2 ± 0.1 %, P 997.33 ± 0.02 hPa. A fingertip gave +6.0 °C. A breath gave +14.5 %RH in 9 s. A 1.8 m lift gave −0.212 hPa (about 1.77 m). Absolute accuracy is not checked: there is no reference instrument. | 28 Nov |
+| Note on the row above | The response test ran on a sketch that the user flashed, not on the product firmware. The product firmware was flashed back at 12:45 on 28 November and matches `firmware/`. | 28 Nov |
 | BME680 contact on the jumper wires | On 27 November the sensor gave no ACK on two boards. Reseating the jumper wires fixed it (user). On 28 November readings paused for up to 11 s when the module was touched, so the contact is still sensitive. | 27 and 28 Nov |
 | BSEC state restore from the laptop file after a board start | Not checked | — |
 | Buzzer, GPIO7, buzzer polarity | Not checked: no buzzer connected | — |
-| Camera and occupancy detector (YOLOX) | Bench check with the laptop webcam: lying 12/12, empty room 0/12, lying under a blanket 0/12 (see the bench table). Not checked in the running monitor on the board, with a seated or occluded patient or in a real room. | 20 and 27 Nov |
+| Camera and occupancy detector (YOLOX) | Bench check with the laptop webcam: lying 12/12, empty room 0/12, lying under a blanket 0/12 (see the bench table). In the long run on 28 November (row below) the camera worked with the board for about 34 minutes. A seated or occluded patient in a real room is not checked. | 20 and 27 Nov, 28 Nov |
 | Dust LED timing on an oscilloscope; GPIO4 voltage and current with a meter | Not checked | — |
 | Signed-in control request through a real tunnel | Pass: save limits, silence alarm and acknowledge got HTTP 403 without sign-in and HTTP 303 after sign-in with the CSRF token. The test used a scratch database and a temporary password. | 20 Nov |
+| Long system run, real config, camera 0, 18:05:53 to 18:39:36 (bench log `longrun-monitor.out`, outside the repository) | No communication alerts. The dashboard's five pages and `/api/room` returned HTTP 200. Occupancy became Occupied at 18:12:14 and the hold kept it for about 10 minutes with no person seen. The hold end (Occupied at 14 minutes after the last sighting, not seen at 15 minutes) was checked with the real `OccupancyRule` and a simulated clock, and by `tests/test_occupancy_rule.py`. The BME680 dropped off the I2C bus from 18:08:05 to 18:16:44 (loose jumper wires; reseating fixed it). Alarm level 1 during that sensor alert. Level 2 for temperature above 25 °C (18:18) and humidity above 60 % (from 18:24; room about 60.3 %; example patient profile 50 to 60 % RH). The camera gave 63 failed checks and OpenCV warnings; occupancy still worked. Pass, with the BME680 contact fault (see item 3 of Remaining work). | 28 Nov |
+| Baseline check after the dust fix, 19:01:24 to 19:12:59, no camera (bench log `baselinecheck-monitor.out`, outside the repository) | Baseline appeared at 19:11:28 (10 minutes): 779.6 mV. The lowest single reading, 715.8 mV, was not used. Band "clean" in all 82 estimates (0 to 27 µg/m³). BME680 current throughout. Gas fault shown. Pass. | 28 Nov |
 
 Sharp dust note from 17 November 2026: with no dust sensor attached, the floating input read about 870 to 930 mV. The firmware sent these as normal dust records. A disconnected sensor then looked like a working one. The 100 mV floor rule does not catch a floating input at that level. Candidate fixes (not decided): a pull-down resistor on the dust input, or a firmware check that compares the signal with the sensor LED on and off. See the [dust integration](docs/SHARP_DUST_INTEGRATION.md).
 
@@ -349,7 +352,7 @@ Verification records:
 
 | Check | Recorded result |
 |---|---|
-| Python test suite, `main` at `f1d34d5` | 893 passed (28 November). |
+| Python test suite, `main` at `6ffe9c3` | 914 passed (28 November). |
 | Python test suite, `fix/dust-led-i2c-restart` | 798 passed (25 November). |
 | Python test suite, `feature/bsec-state` | 798 passed after the sensor check tool merge (25 November). 752 passed on 23 November. |
 | Firmware host tests | Five programs (`test_alarm_command`, `test_bsec_serial_format`, `test_bus_recovery`, `test_host_command`, `test_sharp_dust_limits`) built with `g++ -std=c++11 -Wall -Wextra -pedantic`, no warnings, all passed (25 November). |
@@ -490,10 +493,10 @@ Firmware configuration commands remain future work.
 - Dust bands: clean up to 50 µg/m³, raised up to 150, very high above. The Sharp sensor is not a true PM2.5 sensor. Treat the value as a rough dust estimate.
 - The BME680 gas element of this module is faulty (confirmed 28 November 2026). The Bosch index is therefore not usable with this module. See [BME680 gas: decision](#bme680-gas-decision).
 - The Bosch index reaches accuracy 3, but it has no meaning while the gas reading is stuck. The monitor now detects the stuck value (see the gas element fault above) and shows the index as "Not available: gas sensor fault". The gas sensor decision is made: the fault stays and the index stays unavailable (28 November 2026). `tools/sensor_check.py` still reports the stuck gas.
-- Open issue: the BME680 loses contact on the I2C bus when the wires or module are touched. On 25 November 2026 it dropped off the bus twice (the firmware restart recovered it once). On 27 November the sensor gave no ACK on two boards, and reseating the jumper wires fixed it (user). On 28 November readings paused for up to 11 s when the module was touched. Inference: a poor contact. The next step is soldering or fixing the wires (a person).
+- Open issue: the BME680 loses contact on the I2C bus when the wires or module are touched. On 25 November 2026 it dropped off the bus twice (the firmware restart recovered it once). On 27 November the sensor gave no ACK on two boards, and reseating the jumper wires fixed it (user). On 28 November readings paused for up to 11 s when the module was touched. In the long run on 28 November the sensor was off the bus from 18:08:05 to 18:16:44 (8 min 39 s). Inference: a poor contact. The next step is soldering or fixing the wires (a person).
 - A patient fully under a blanket is not detected automatically. YOLOX missed a person under a blanket in every frame on 27 November 2026 (0/12 twice) and found 4/12 on 20 November. The user accepted this limitation on 27 November 2026 and chose no hardware change. The caregiver sets "Occupied" by hand. That setting starts the camera hold. A missed patient gives "No person seen", and limit alerts then pause. YOLOX found a seated person in 9/12 frames.
 - The detector cannot tell the patient from a visitor. Any person in view counts.
-- The occupancy feature is merged to `main` and pushed (27 November 2026, commit `7c362f0`). A long run in a real room is not done.
+- The occupancy feature is merged to `main` and pushed (27 November 2026, commit `7c362f0`). A 34-minute run with the real board and camera was done on 28 November 2026 (see the hardware table). Seated and partly covered people in a real room are not checked.
 - In serial mode without `--camera`, Automatic occupancy stays unknown. Limit alerts can start only while a manual "Occupied" setting applies (15 minutes).
 - Readings older than 7 days are deleted hourly. Events are never deleted. The event list shows the latest 50 events and pages to older ones.
 - The independent notification path is a local LED and buzzer on the ESP32, commanded by the host over USB. The LED lit as commanded on 20 November 2026. No buzzer is connected now. GPIO7 and the buzzer polarity are not checked on hardware.
@@ -523,10 +526,10 @@ Decision 27 November 2026: no hardware change for occupancy. A patient fully und
 
 1. Done 28 November 2026 (decided): BME680 gas. The gas element is faulty. No hardware option is open and no software fix is planned. See [BME680 gas: decision](#bme680-gas-decision). Only a new module would change this; then run `tools/sensor_check.py` again.
 2. Done 28 November 2026 (decided): the dashboard shows the Bosch index as "Not available: gas sensor fault" while the gas is stuck (commit `f1d34d5`). The confirmation of a BSEC restore from the laptop file after a power cycle is not planned: the index has no meaning on this module. The save and the RAM restore happened on 25 November.
-3. BME680 contact on the I2C bus: a person solders or fixes the jumper wires (27 and 28 November: reseating the wires fixed a missing ACK, but readings still paused up to 11 s when the module was touched). Then check a long run without gaps.
+3. BME680 contact on the I2C bus: a person solders or fixes the jumper wires (27 and 28 November: reseating the wires fixed a missing ACK, but readings still paused up to 11 s when the module was touched). In the long run on 28 November the sensor was off the bus from 18:08:05 to 18:16:44. Then check a long run without gaps.
 4. Identify the ESP32-S3 board model. Run the rest of the hardware checklist in the [firmware guide](firmware/README.md#hardware-checklist).
 5. Dust hardware follow-ups (also the floating-input note above): check the LED pulse width (0.32 ms), the sample point (0.28 ms) and the 10 ms period on an oscilloscope. Measure the GPIO4 voltage and current with a meter, also in the boot window before `beginDust()`. Check a real dust disconnect: with the divider wired and no sensor, the input reads below 100 mV.
-6. Occupancy is merged to `main` and pushed (27 November 2026, commit `7c362f0`). Remaining: run it with a real camera and the board for a longer time, and check seated and partly covered people in a real room. A patient fully under a blanket is an accepted limitation (27 November 2026). No other detector or sensor is planned.
+6. Done 28 November 2026: the long run with the real board and camera, 18:05:53 to 18:39:36, with no communication alerts and occupancy working (see the long-run row in the [hardware and status table](#hardware-and-status-25-and-28-november-2026)). Occupancy is merged to `main` and pushed (27 November 2026, commit `7c362f0`). Remaining: check seated and partly covered people in a real room. A patient fully under a blanket is an accepted limitation (27 November 2026). No other detector or sensor is planned.
 7. Agree on real patient limits for any demonstration.
 8. Check the local alarm buzzer when one is connected: GPIO7 free, buzzer polarity, and whether it needs a tone.
 9. Check the five-page dashboard with the real board and sensors over a longer run.
