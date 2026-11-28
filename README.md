@@ -284,7 +284,7 @@ python tools/sensor_check.py --port /dev/ttyACM0 [--seconds 120] [--breath] [--l
 
 It only reads. It prints PASS, FAIL, NOT SEEN or INFO for readings, gas change, dust input, Bosch accuracy and BSEC state lines. See the [firmware guide](firmware/README.md#sensor-check).
 
-## Hardware and status (25 November 2026)
+## Hardware and status (25 and 28 November 2026)
 
 The board is an ESP32-S3 (QFN56, revision v0.2) with 16 MB flash and 8 MB embedded PSRAM, an N16R8-type module (read by esptool, 17 November 2026). The USB port goes through a CH343 bridge (USB 1a86:55d3), `/dev/ttyACM0` on Linux. The exact development board model is not identified.
 
@@ -307,10 +307,12 @@ The board runs firmware `49029f2` (branch `fix/dust-led-i2c-restart`) since 25 N
 | BME680 temperature, humidity and pressure every 3.0 s | Pass (58 readings in 180 s) | 25 Nov |
 | Dust input after the LED polarity fix | Pass: 60 of 60 records, 892.7 to 1135.0 mV sensor side, mean 1018.9 mV | 25 Nov |
 | Dust estimate in the monitor status | Current after the 10-minute baseline: baseline 921.5 mV, estimate about 4 µg/m³, "low" (monitor output at 02:40) | 25 Nov |
-| BME680 gas resistance | Fail: 55 of 58 readings stuck at 12917166.00 ohm (raw gas ADC 0). See [BME680 gas: open decision](#bme680-gas-open-decision). | 25 Nov |
-| Bosch index (IAQ) | Accuracy 2 at 02:40:50 and 3 at 02:41:50. The dashboard then shows the index as current (about 50). It has no meaning: the gas reading stayed stuck (552 of 556 stored readings, 02:28 to 02:56). Open issue. | 25 Nov |
+| BME680 gas resistance | Fail: 55 of 58 readings stuck at 12917166.00 ohm (raw gas ADC 0). Cause confirmed on 28 November: a fault in the gas element. See [BME680 gas: decision](#bme680-gas-decision). | 25 Nov |
+| Bosch index (IAQ) | Accuracy 2 at 02:40:50 and 3 at 02:41:50. The dashboard then shows the index as current (about 50). It had no meaning: the gas reading stayed stuck (552 of 556 stored readings, 02:28 to 02:56). Since 28 November (commit `f1d34d5`) the monitor detects the stuck value and shows the index as "Not available: gas sensor fault". | 25 and 28 Nov |
 | BSEC state save on the board | Pass: event `bsec_state_saved` "accuracy 3, BSEC 2.6.1.0" at 02:41:50. The state is from a stuck gas reading. | 25 Nov |
 | I2C bus restart (`i2c_bus_restarted`) | Worked once: the BME680 stopped at 02:49:20, two restarts, start succeeded, `bsec_state_restored` from the RAM copy, readings again at 02:50:03 (gap 43 s). Failed the second time: the BME680 stopped at 02:56:48, and each restart (about every 30 s) gave `bsec_initialization_failed`. BME680 alert at 02:58:50 (status at 02:59). | 25 Nov |
+| BME680 temperature, humidity and pressure response test (bench log `tphtest2.txt`, outside the repository) | Pass for response. Baseline T 24.68 ± 0.03 °C, RH 60.2 ± 0.1 %, P 997.33 ± 0.02 hPa. A fingertip gave +6.0 °C. A breath gave +14.5 %RH in 9 s. A 1.8 m lift gave −0.212 hPa (about 1.77 m). Absolute accuracy is not checked: there is no reference instrument. | 28 Nov |
+| BME680 contact on the jumper wires | On 27 November the sensor gave no ACK on two boards. Reseating the jumper wires fixed it (user). On 28 November readings paused for up to 11 s when the module was touched, so the contact is still sensitive. | 27 and 28 Nov |
 | BSEC state restore from the laptop file after a board start | Not checked | — |
 | Buzzer, GPIO7, buzzer polarity | Not checked: no buzzer connected | — |
 | Camera and occupancy detector (YOLOX) | Bench check with the laptop webcam: lying 12/12, empty room 0/12, lying under a blanket 0/12 (see the bench table). Not checked in the running monitor on the board, with a seated or occluded patient or in a real room. | 20 and 27 Nov |
@@ -321,21 +323,16 @@ Sharp dust note from 17 November 2026: with no dust sensor attached, the floatin
 
 Read the [25 November verification record](reference_files/LINUX_VERIFICATION_2026-11-25.md) for the numbers, commands and flash sizes.
 
-## BME680 gas: open decision
+## BME680 gas: decision
 
-A heater sweep on 25 November 2026 (forced mode, no BSEC) gave real gas values at 200, 240 and 260 °C (18.4 to 46.5 kΩ). At 280 °C, 19 of 20 readings failed. At 300 °C, 17 of 20 failed. At 320 °C, 60 of 60 failed (all 12917166 ohm). The heater time (50, 100 or 150 ms) made no difference at 320 °C. A failure did not carry over to the next cooler step. There were no I2C errors.
+Decision (user, 28 November 2026): the gas element of this BME680 is faulty and software cannot fix it. No new module and no BME280 is available. The monitor detects the fault and shows the air quality index as "Not available: gas sensor fault" (commit `f1d34d5`). The dust bands are clean, raised and very high.
 
-Inference: the failure follows the heater drive. The cause is a supply sag, or a contact or sensing layer that fails when hot. The data cannot tell these apart.
-Inference: the BSEC configuration in use heats to about 320 °C. Its readings show the same stuck value as the 320 °C sweep step. So the Bosch air-quality index cannot work with this module as it is.
+Heater tests on 28 November 2026 (bench logs `gasdiag.log` and `gassweep.log`, outside the repository): in forced mode at 320 °C the gas reading is real only while `heat_stab` is 0 (heater time 150 ms). From 200 ms, with `heat_stab` 1, it reads 12917166 Ω (raw ADC 0, range 0). The chip ID, the calibration data and the register readbacks are correct. Conclusion: a fault in the gas element of this chip.
 
-Options (no option chosen, 25 November 2026):
+History, 25 November 2026: a heater sweep (forced mode, no BSEC) gave real gas values at 200, 240 and 260 °C (18.4 to 46.5 kΩ). At 280 °C, 19 of 20 readings failed. At 300 °C, 17 of 20 failed. At 320 °C, 60 of 60 failed (all 12917166 ohm). The heater time (50, 100 or 150 ms) made no difference at 320 °C. A failure did not carry over to the next cooler step. There were no I2C errors. The BSEC configuration in use heats to about 320 °C (inference), so the Bosch index cannot work with this module.
+The 25 November options were: B, hardware (a capacitor at the power pins, a stronger supply or a new module), and C, software (the heater at or below 260 °C without BSEC). The 28 November tests show that the fault is in the chip. Option B does not apply. Option C stays possible future work: a real gas resistance at 260 °C or less, without BSEC and without an index. It is not planned.
 
-- **B, hardware:** a person adds a 10 µF (plus 100 nF) capacitor at the BME680 power pins, uses a stronger 3.3 V supply, or replaces the module. Then run `tools/sensor_check.py` again.
-- **C, software:** run the gas heater at or below 260 °C without BSEC. This gives a real gas resistance but no Bosch index. The dashboard then needs its own simpler indication. It needs a design first.
-
-New evidence, 25 November 2026, 02:49 to 02:59: the BME680 dropped off the I2C bus twice. The bus restart brought it back once, not the second time. Inference: this leans toward a hardware cause (supply or contacts). It is not proven.
-
-Temperature, humidity and pressure work while the sensor answers. See the [decision record](docs/superpowers/specs/2026-11-25-bme680-gas-heater-decision.md).
+Temperature, humidity and pressure work while the sensor answers. See the [decision record](docs/superpowers/specs/2026-11-25-bme680-gas-heater-decision.md) (written 25 November, before the 28 November tests).
 
 ## Current status
 
@@ -352,6 +349,7 @@ Verification records:
 
 | Check | Recorded result |
 |---|---|
+| Python test suite, `main` at `f1d34d5` | 893 passed (28 November). |
 | Python test suite, `fix/dust-led-i2c-restart` | 798 passed (25 November). |
 | Python test suite, `feature/bsec-state` | 798 passed after the sensor check tool merge (25 November). 752 passed on 23 November. |
 | Firmware host tests | Five programs (`test_alarm_command`, `test_bsec_serial_format`, `test_bus_recovery`, `test_host_command`, `test_sharp_dust_limits`) built with `g++ -std=c++11 -Wall -Wextra -pedantic`, no warnings, all passed (25 November). |
@@ -468,7 +466,7 @@ Decision of 15 November 2026. It replaces the earlier rule that gas resistance a
 - Only temperature, humidity and pressure can have patient limits. Gas resistance and dust voltage cannot. Each enabled measurement has a lower and upper limit. One sustained duration applies to all, and no value is selected for real use.
 - Alert text states the measurement, direction, configured limit, value and duration. A breach that has not yet lasted the sustained duration shows as pending. An alert that stops for another reason logs that reason: changed limits, unknown occupancy or readings that are no longer current.
 - Frames of the camera stay in memory and are never saved.
-- With the BME680 on the bench, the index reached accuracy 3 on 25 November 2026 and shows as current, but it has no meaning while the gas reading is stuck (open issue). See [BME680 gas: open decision](#bme680-gas-open-decision).
+- With the BME680 on the bench, the index reached accuracy 3 on 25 November 2026 and shows as current, but it had no meaning while the gas reading was stuck. Since 28 November 2026 the monitor shows it as "Not available: gas sensor fault". See [BME680 gas: decision](#bme680-gas-decision).
 
 See the [design](docs/superpowers/specs/2026-11-15-air-quality-dust-label-design.md).
 
@@ -490,12 +488,12 @@ Firmware configuration commands remain future work.
 
 - BME680 gas element fault (bench tests 27 and 28 November 2026). On this module the gas element reads open-circuit when the heater is at temperature. `gas_ohms` is then 12917166 Ω (the raw gas ADC is 0). The monitor marks the Bosch index as unavailable after 3 fresh readings within ±2 Ω of that value. The dashboard shows "Not available: gas sensor fault", the air quality limit check is paused, and the System page shows the gas sensor as faulty. The first reading outside that window clears the fault. Temperature, humidity and pressure are valid. The constants are in `air_quality.py`.
 - Dust bands: clean up to 50 µg/m³, raised up to 150, very high above. The Sharp sensor is not a true PM2.5 sensor. Treat the value as a rough dust estimate.
-- The BME680 gas reading fails at the Bosch heater temperature (25 November 2026). The Bosch index is therefore not usable with this module. See [BME680 gas: open decision](#bme680-gas-open-decision).
-- The Bosch index reaches accuracy 3, but it has no meaning while the gas reading is stuck. The monitor now detects the stuck value (see the gas element fault above) and shows the index as "Not available: gas sensor fault". The decision on the gas sensor itself is still open. `tools/sensor_check.py` still reports the stuck gas.
-- Open issue: the BME680 drops off the I2C bus at times (25 November 2026). The firmware bus restart recovered it once and failed the second time. Inference: a Wire restart is not always enough. This fits the supply or contact inference from the heater sweep. It is not proven.
+- The BME680 gas element of this module is faulty (confirmed 28 November 2026). The Bosch index is therefore not usable with this module. See [BME680 gas: decision](#bme680-gas-decision).
+- The Bosch index reaches accuracy 3, but it has no meaning while the gas reading is stuck. The monitor now detects the stuck value (see the gas element fault above) and shows the index as "Not available: gas sensor fault". The gas sensor decision is made: the fault stays and the index stays unavailable (28 November 2026). `tools/sensor_check.py` still reports the stuck gas.
+- Open issue: the BME680 loses contact on the I2C bus when the wires or module are touched. On 25 November 2026 it dropped off the bus twice (the firmware restart recovered it once). On 27 November the sensor gave no ACK on two boards, and reseating the jumper wires fixed it (user). On 28 November readings paused for up to 11 s when the module was touched. Inference: a poor contact. The next step is soldering or fixing the wires (a person).
 - A patient fully under a blanket is not detected automatically. YOLOX missed a person under a blanket in every frame on 27 November 2026 (0/12 twice) and found 4/12 on 20 November. The user accepted this limitation on 27 November 2026 and chose no hardware change. The caregiver sets "Occupied" by hand. That setting starts the camera hold. A missed patient gives "No person seen", and limit alerts then pause. YOLOX found a seated person in 9/12 frames.
 - The detector cannot tell the patient from a visitor. Any person in view counts.
-- The occupancy design is on branch `feature/occupancy`. It is not merged to `main`.
+- The occupancy feature is merged to `main` and pushed (27 November 2026, commit `7c362f0`). A long run in a real room is not done.
 - In serial mode without `--camera`, Automatic occupancy stays unknown. Limit alerts can start only while a manual "Occupied" setting applies (15 minutes).
 - Readings older than 7 days are deleted hourly. Events are never deleted. The event list shows the latest 50 events and pages to older ones.
 - The independent notification path is a local LED and buzzer on the ESP32, commanded by the host over USB. The LED lit as commanded on 20 November 2026. No buzzer is connected now. GPIO7 and the buzzer polarity are not checked on hardware.
@@ -517,25 +515,26 @@ Firmware configuration commands remain future work.
 - The dashboard is redesigned as five pages (Overview, Trends, Events, Patient limits, System).
 - Air quality is shown as Bosch's index and dust as an estimated concentration, both with words. Their limits are system setup. The profile has a short label. Implemented on 15 November. This replaces the earlier raw-signals-only rule.
 
-Later decisions are in the dated designs under `docs/superpowers/specs/`: dust disconnect and alarm link (20 November), BSEC state on the laptop (20 November), occupancy detector and override (20 and 23 November, implemented 27 November on `feature/occupancy`), sensor check (25 November) and the BME680 gas heater (25 November, open).
+Later decisions are in the dated designs under `docs/superpowers/specs/`: dust disconnect and alarm link (20 November), BSEC state on the laptop (20 November), occupancy detector and override (20 and 23 November, implemented and merged to `main` 27 November), sensor check (25 November) and the BME680 gas heater (25 November, decided 28 November: see [BME680 gas: decision](#bme680-gas-decision)).
 
 Decision 27 November 2026: no hardware change for occupancy. A patient fully under a blanket is not detected automatically. The caregiver sets "Occupied" by hand.
 
 ## Remaining work
 
-1. BME680 gas: choose option B (hardware) or C (software). See [BME680 gas: open decision](#bme680-gas-open-decision). After a hardware change, run `tools/sensor_check.py` again.
-2. Bosch index shown as current while the gas is stuck: decide what the dashboard shows (open issue, no fix chosen). After a gas fix, confirm a restore from the laptop file after a power cycle. The save and the RAM restore happened on 25 November.
-3. BME680 drop-outs on the I2C bus: the restart recovered the sensor once and failed the second time. Possible next diagnostics (not done): check whether SDA is held low, and try a bus clear (9 SCL pulses) before `Wire.begin`. Or a person checks the BME680 power and contacts (option B).
+1. Done 28 November 2026 (decided): BME680 gas. The gas element is faulty. No hardware option is open and no software fix is planned. See [BME680 gas: decision](#bme680-gas-decision). Only a new module would change this; then run `tools/sensor_check.py` again.
+2. Done 28 November 2026 (decided): the dashboard shows the Bosch index as "Not available: gas sensor fault" while the gas is stuck (commit `f1d34d5`). The confirmation of a BSEC restore from the laptop file after a power cycle is not planned: the index has no meaning on this module. The save and the RAM restore happened on 25 November.
+3. BME680 contact on the I2C bus: a person solders or fixes the jumper wires (27 and 28 November: reseating the wires fixed a missing ACK, but readings still paused up to 11 s when the module was touched). Then check a long run without gaps.
 4. Identify the ESP32-S3 board model. Run the rest of the hardware checklist in the [firmware guide](firmware/README.md#hardware-checklist).
 5. Dust hardware follow-ups (also the floating-input note above): check the LED pulse width (0.32 ms), the sample point (0.28 ms) and the 10 ms period on an oscilloscope. Measure the GPIO4 voltage and current with a meter, also in the boot window before `beginDust()`. Check a real dust disconnect: with the divider wired and no sensor, the input reads below 100 mV.
-6. Run the occupancy branch `feature/occupancy` with a real camera and the board for a longer time, and check seated and partly covered people in a real room. Merge it to `main` after the review. A patient fully under a blanket is an accepted limitation (27 November 2026). No other detector or sensor is planned.
+6. Occupancy is merged to `main` and pushed (27 November 2026, commit `7c362f0`). Remaining: run it with a real camera and the board for a longer time, and check seated and partly covered people in a real room. A patient fully under a blanket is an accepted limitation (27 November 2026). No other detector or sensor is planned.
 7. Agree on real patient limits for any demonstration.
 8. Check the local alarm buzzer when one is connected: GPIO7 free, buzzer polarity, and whether it needs a tone.
 9. Check the five-page dashboard with the real board and sensors over a longer run.
 10. Check the Bosch word bands and the Sharp sensitivity against the datasheets.
 11. Done 20 November 2026: online access with a signed-in control request through a real tunnel. Save limits, silence alarm and acknowledge were refused without sign-in (HTTP 403) and accepted after sign-in (HTTP 303).
 12. Demonstrate the complete system with actual hardware.
-13. Small follow-ups in code comments (dated text, no behaviour change): `firmware/bsec_board_config.h` line 10 still says "Not yet checked against the physical board". `GAS_NEXT_STEP` in `tools/sensor_check.py` says "faulty or non-genuine gas sensor"; the heater sweep points to a heater-drive threshold instead.
+13. Small follow-up in a code comment (dated text, no behaviour change): `firmware/bsec_board_config.h` line 10 still says "Not yet checked against the physical board". No check against the board is recorded. (The `GAS_NEXT_STEP` text in `tools/sensor_check.py` was changed on 28 November 2026.)
+14. Dust smoke and dust response test (in progress 28 November 2026): no result is recorded yet.
 
 Steps that need a person (a meter, an oscilloscope, new parts, a person in front of the camera) are reported here. They are not scheduled.
 

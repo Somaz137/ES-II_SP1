@@ -59,7 +59,7 @@ def test_constant_stuck_gas_fails_and_names_20_november():
     result = gas_check([reading(12917166.0)] * 3)
     assert result.verdict == "FAIL"
     assert "matches the stuck value of 20 November" in result.detail
-    assert result.next_step.startswith("Check the BME680 part")
+    assert result.next_step.startswith("The gas element of this BME680 is faulty")
 
 
 def test_other_constant_gas_fails_without_stuck_text():

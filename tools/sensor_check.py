@@ -33,8 +33,9 @@ BREATH_SECONDS = 30
 # The constant gas resistance the board sent on 20 November.
 STUCK_GAS_OHMS = 12917166.0
 
-GAS_NEXT_STEP = ("Check the BME680 part. A constant value suggests a faulty "
-                 "or non-genuine gas sensor.")
+GAS_NEXT_STEP = ("The gas element of this BME680 is faulty (confirmed 28 November 2026, "
+                 "see the README section \"BME680 gas: decision\"). "
+                 "Only a new module fixes it.")
 STUCK_TEXT = ("This matches the stuck value of 20 November "
               "(by the BME68x formula, a raw gas ADC of 0).")
 DUST_NEXT_STEP = ("Check with a meter: Vcc 5 V on sensor pins 6 and 1, ground on pins 2 and 4, "
