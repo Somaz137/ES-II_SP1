@@ -70,8 +70,9 @@ def test_baseline_needs_an_unbroken_run_then_is_the_lowest_bucket_mean():
 def test_baseline_forgets_voltages_older_than_the_window():
     from dust import DustBaseline
     baseline = DustBaseline(window_s=600, min_s=30, gap_s=6)
-    baseline.add(800, 0)
-    for at in range(3, 901, 3):
+    for at in range(0, 15, 3):
+        baseline.add(800, at)  # 5 low readings in the first bucket
+    for at in range(15, 901, 3):
         baseline.add(950, at)
     assert baseline.value(900) == 950
 
@@ -129,7 +130,6 @@ def test_estimate_from_the_tracked_baseline_is_never_negative():
     for at in range(0, 15, 3):
         baseline.add(920, at)
     baseline.add(1420, 15)
-    # bucket mean is (5 * 920 + 1420) / 6; use the value as given
     value = baseline.value(15)
     assert estimate_dust(1420, value, 5000) == pytest.approx((1420 - value) * 0.2)
     assert estimate_dust(900, value, 5000) == 0

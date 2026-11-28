@@ -481,7 +481,7 @@ def test_no_air_quality_sample_is_stored_while_faulted_or_clearing(tmp_path):
     normal(room, 9, 19, iaq=500)
     assert [b["max"] for b in room.store.history("air_quality", 100100)] == [60.0]  # only the 2 readings before the fault
     assert "Gas sensor alert cleared." not in room.messages()
-    normal(room, 70, 1, iaq=500)  # the 20th normal reading clears the fault and 500 is stored
+    normal(room, 66, 1, iaq=500)  # the 20th normal reading clears the fault and 500 is stored
     assert max(b["max"] for b in room.store.history("air_quality", 100100)) == 500
 
 
@@ -493,3 +493,23 @@ def test_one_fault_ended_event_when_the_fault_really_clears(tmp_path):
     normal(room, 60, 25)
     assert room.messages().count("Gas sensor alert active.") == 1
     assert room.messages().count("Gas sensor alert cleared.") == 1
+
+
+def test_normal_readings_before_an_outage_do_not_count_toward_clearing(tmp_path):
+    room = Room(tmp_path)
+    stuck(room, [0, 3, 6])
+    normal(room, 9, 10)
+    room.step(200)  # outage: no new reading, the last one is not current
+    assert normal(room, 300, 10)["gas_sensor_fault"] is True  # 10 + 10 would be 20 if counted
+    assert normal(room, 330, 10)["gas_sensor_fault"] is False  # 20 normal readings since the outage
+
+
+def test_real_baseline_ignores_one_low_dust_reading(tmp_path, monkeypatch):
+    monkeypatch.undo()  # opt out of the autouse fixture: the real DustBaseline (60 s buckets, 5 readings)
+    room = Room(tmp_path, system(min_s=600))
+    for index in range(220):  # 11 minutes of 3 s records
+        status = room.step(3 * index, reading(), dust_mv=408.9 if index == 50 else 800)
+    block = status["dust_ugm3"]
+    assert block["state"] == "current"
+    assert block["baseline_mv"] > 750
+    assert block["value"] < 15 and block["level"] == "clean"

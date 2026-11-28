@@ -1,6 +1,6 @@
 """Persist operator status and evaluate patient and system limits with a monotonic clock."""
-from air_quality import (GAS_FAULT_CLEAR_READINGS, GAS_FAULT_MESSAGE, GAS_FAULT_READINGS, air_quality_state, band_word,
-                         gas_stuck)
+from air_quality import (GAS_FAULT_CLEAR_READINGS, GAS_FAULT_MESSAGE, GAS_FAULT_READINGS,
+                         air_quality_state, band_word, gas_stuck)
 from alarm import command_line
 from dust import DustBaseline, estimate_dust
 from room_store import LIMITED, METRICS, SYSTEM_METRICS
@@ -351,6 +351,8 @@ class RoomSession:
         bme_new = bme_at is not None and bme_at != self.last_bme
         if bme_new:
             samples.extend((field, wall - (now - bme_at), reading[field]) for field in STORED_READING_FIELDS)
+        if not good or (bme_new and self.last_bme is not None and bme_at - self.last_bme > self.gap_s):
+            self.gas_clear_count = 0  # an outage or restart: earlier normal readings do not count
         if bme_new:
             if gas_stuck(reading["gas_ohms"]):
                 self.gas_stuck_count += 1
