@@ -83,8 +83,9 @@ class DustBaseline:
 
     Keeps one minimum per bucket_s, so memory is bounded by window_s / bucket_s.
     The baseline exists only after an unbroken run of fresh records lasting
-    min_s. Two records more than gap_s apart, or reset() on a dust fault,
-    clear everything. The history is in memory only: a restart starts again.
+    min_s. Two records more than gap_s apart (a long gap, not one lost record),
+    or reset() on a dust fault, clear everything. A shorter gap neither clears the
+    history nor restarts the run. The history is in memory only: a restart starts again.
     """
 
     def __init__(self, window_s, min_s, gap_s, bucket_s=60):

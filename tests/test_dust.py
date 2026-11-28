@@ -92,6 +92,30 @@ def test_baseline_restarts_after_a_gap_or_a_reset():
     assert baseline.value(100) is None
 
 
+def test_short_gap_keeps_the_baseline_and_a_long_gap_resets_it():
+    from dust import DustBaseline
+    baseline = DustBaseline(window_s=3600, min_s=30, gap_s=60)
+    for at in range(0, 61, 3):
+        baseline.add(900, at)
+    baseline.add(1000, 67)  # one lost record: 7 s since the last one
+    assert baseline.value(67) == 900
+    baseline.add(1000, 127)  # exactly 60 s: still not longer than gap_s
+    assert baseline.value(127) == 900
+    baseline.add(1000, 188)  # 61 s: the board may have restarted
+    assert baseline.value(188) is None
+
+
+def test_short_gap_during_learning_does_not_restart_the_run():
+    from dust import DustBaseline
+    baseline = DustBaseline(window_s=3600, min_s=30, gap_s=60)
+    for at in (0, 3, 6, 9):
+        baseline.add(900, at)
+    baseline.add(910, 16)  # 7 s gap
+    assert baseline.value(16) is None
+    baseline.add(910, 30)
+    assert baseline.value(30) == 900  # the run still started at 0
+
+
 def test_baseline_memory_is_bounded_by_the_window():
     from dust import DustBaseline
     baseline = DustBaseline(window_s=600, min_s=30, gap_s=6)

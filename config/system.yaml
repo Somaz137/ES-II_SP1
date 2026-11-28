@@ -28,6 +28,9 @@ dust:
   baseline_window_s: 86400
   # Fresh, unbroken dust records needed before an estimate is shown.
   baseline_min_s: 600
+  # A gap between dust records longer than this (s) starts the baseline again. A shorter gap,
+  # such as one lost record, does not.
+  baseline_gap_s: 60
   # A sensor-side voltage below this (mV) is not a reading. With the 2:1 divider wired, a
   # missing sensor reads near 0 V; a working one reads about 900 mV in clean air. With no
   # reading at or above it for sensor_error_timeout_s, the dust sensor is "not connected".

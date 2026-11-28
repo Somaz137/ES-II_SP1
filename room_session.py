@@ -76,7 +76,7 @@ class RoomSession:
         # Air quality and dust limits, bands and baseline rule: config/system.yaml.
         self.system = SYSTEM_DEFAULTS if system is None else system
         dust = self.system["dust"]
-        self.baseline = DustBaseline(dust["baseline_window_s"], dust["baseline_min_s"], self.gap_s)
+        self.baseline = DustBaseline(dust["baseline_window_s"], dust["baseline_min_s"], dust["baseline_gap_s"])
         # metric -> {"direction", "start", "alert_at", "value"}; times are monotonic receipt times.
         self.breaches = {}
         self.last_bme = None

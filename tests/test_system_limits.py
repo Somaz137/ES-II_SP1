@@ -170,6 +170,33 @@ def test_dust_fault_clears_the_baseline(tmp_path):
     assert room.step(9, reading(), dust_mv=990)["dust_ugm3"]["state"] == "establishing_baseline"
 
 
+def test_one_lost_dust_record_keeps_the_baseline(tmp_path):
+    room = Room(tmp_path, system(min_s=3))
+    room.step(0, reading(), dust_mv=920)
+    room.step(3, reading(), dust_mv=930)
+    assert room.step(10, reading(), dust_mv=1170)["dust_ugm3"]["state"] == "current"  # 7 s gap
+    block = room.step(13, reading(), dust_mv=1170)["dust_ugm3"]
+    assert block["state"] == "current" and block["baseline_mv"] == 920
+
+
+def test_dust_gap_over_baseline_gap_s_resets_the_baseline(tmp_path):
+    room = Room(tmp_path, system(min_s=3))
+    room.step(0, reading(), dust_mv=920)
+    room.step(3, reading(), dust_mv=930)
+    assert room.step(70, reading(), dust_mv=930)["dust_ugm3"]["state"] == "establishing_baseline"
+
+
+def test_limit_check_still_resets_after_a_gap_over_the_reading_limit(tmp_path):
+    room = Room(tmp_path, system(dust=(100, 3), min_s=3))
+    room.step(0, reading(), dust_mv=920)
+    room.step(3, reading(), dust_mv=920)
+    room.step(6, reading(), dust_mv=1600)
+    assert room.step(9, reading(), dust_mv=1600)["limit_alerts"]
+    status = room.step(16, reading(), dust_mv=1600)  # 7 s gap: the baseline stays, the alert ends
+    assert room.kinds().count("limit_reset_reading") == 1
+    assert status["dust_ugm3"]["state"] == "current" and status["limit_alerts"] == []
+
+
 def test_stale_dust_record_is_not_current(tmp_path):
     room = Room(tmp_path, system(min_s=3))
     room.step(0, reading(), dust_mv=920)

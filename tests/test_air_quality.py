@@ -114,6 +114,9 @@ def changed(path, value):
     (("dust", "sensitivity_mv_per_mg_m3"), 0),
     (("dust", "sensitivity_mv_per_mg_m3"), True),
     (("dust", "baseline_min_s"), 90000),  # longer than the window
+    (("dust", "baseline_gap_s"), 0),
+    (("dust", "baseline_gap_s"), True),
+    (("dust", "baseline_gap_s"), 90000),  # longer than the window
     (("dust", "baseline_window_s"), 8 * 86400),  # beyond the 7-day bound
     (("air_quality", "bands"), []),
     (("air_quality", "bands"), [{"up_to": 100, "word": "a"}, {"up_to": 50, "word": "b"}, {"word": "c"}]),
@@ -170,3 +173,10 @@ def test_a_gas_fault_makes_the_state_unavailable():
     from air_quality import air_quality_state
     assert air_quality_state(80, 3, True, gas_fault=True) == "unavailable"
     assert air_quality_state(80, 3, True, gas_fault=False) == "current"
+
+
+def test_baseline_gap_default_is_60_seconds_and_loads_from_the_shipped_file():
+    from settings import SYSTEM_DEFAULTS, load_system_settings
+
+    assert SYSTEM_DEFAULTS["dust"]["baseline_gap_s"] == 60
+    assert load_system_settings(ROOT / "config" / "system.yaml")["dust"]["baseline_gap_s"] == 60

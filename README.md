@@ -115,7 +115,7 @@ The [Python file guide](reference_files/PYTHON_FILE_GUIDE.md) describes every Py
 | Sharp GP2Y1010AU0F | `sensor_mv`: the mean sensor-side voltage of the accepted samples (the firmware undoes the 2:1 divider), with `samples` and `rejected_samples`. Or a `dust_error` line. | Every 3 s. One LED pulse every 10 ms. |
 
 The host stores temperature, humidity, pressure, gas resistance, the Bosch index (only while it is current), the dust voltage and the dust estimate.
-The dust estimate is `max(0, sensor_mv - baseline_mv) * 1000 / 5000` µg/m³. The baseline is the lowest fresh voltage in the last 24 hours. The estimate appears only after 10 minutes of unbroken fresh dust records.
+The dust estimate is `max(0, sensor_mv - baseline_mv) * 1000 / 5000` µg/m³. The baseline is the lowest fresh voltage in the last 24 hours. The estimate appears only after 10 minutes of unbroken fresh dust records. A gap between dust records longer than `baseline_gap_s` (60 s) starts the baseline again. A shorter gap, such as one lost record, does not.
 Raw gas resistance is not a calibrated concentration. The dust estimate is not PM2.5.
 
 The host accepts a BME680 reading only when `temp_c`, `humidity_pct`, `pressure_hpa` and `gas_ohms` are all finite numbers. It rejects missing values, numeric text, Boolean values and nonfinite numbers. This check proves the record structure. It does not prove patient safety or measurement accuracy.
@@ -222,7 +222,7 @@ Communication details:
 Other states on the dashboard:
 
 - **Calibrating** (air quality): Bosch accuracy is 0 or 1. The page shows no index value. The air-quality check pauses.
-- **Establishing baseline** (dust): fewer than 10 minutes of unbroken fresh dust records. The page shows no estimate. The dust check pauses. A dust fault, a gap over 6 s or a monitor restart starts the baseline again.
+- **Establishing baseline** (dust): fewer than 10 minutes of unbroken fresh dust records. The page shows no estimate. The dust check pauses. A dust fault, a gap over 60 s (`baseline_gap_s`) or a monitor restart starts the baseline again.
 - **Limit monitoring off or paused**: no profile, no limits, a reading that is not current, or occupancy that is not confirmed (no person seen, unknown, or set to not occupied by hand). The page says which.
 
 Bosch status labels (`gas_readiness.py`):
